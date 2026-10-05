@@ -1,0 +1,102 @@
+# PingDuck
+
+Hybrid LAN discovery and monitoring: a Flutter mobile app plus an optional
+headless Docker agent, both driven by the same C++ scanning engine. See
+[docs/PRD.md](docs/PRD.md) for the product requirements and
+[docs/ROADMAP.md](docs/ROADMAP.md) for the plan.
+
+```text
+pingduck/
+├── core/           pingduck-core: C++17 engine with a plain C ABI (pingduck.h) + CLI
+├── pingduck_app/   Flutter app (iOS / Android), feature-first layout
+├── agent/          Docker image for the headless agent (libpcap ARP mode)
+├── supabase/       Database migrations (Phase 4)
+└── docs/           PRD and design notes
+```
+
+## Status
+
+| Phase | Scope | State |
+| --- | --- | --- |
+| 1 | Core engine: ICMP, mDNS, SSDP/UPnP, ARP, port scan, WoL, OUI | Built and validated on Windows + Android 14; libpcap path untested (needs Linux) |
+| 2 | Dart FFI bridge, Riverpod state | Not started (app scaffolded, domain model in place) |
+| 3 | Radar UI, device details, local cache | Not started |
+| 4 | Supabase sync, Docker daemon, intrusion alerts | Dockerfile for one-shot scans only |
+
+## pingduck-core
+
+One public header, [`core/include/pingduck/pingduck.h`](core/include/pingduck/pingduck.h).
+Everything is fixed-size C structs and C callbacks so Dart FFI can bind it
+directly. The main entry point is `pd_scan()`. It runs every discovery method in
+parallel, merges results by IP, and fires the callback whenever a device appears
+or gains information, so consumers just upsert by IP.
+
+| Method | How | Works in mobile sandbox? |
+| --- | --- | --- |
+| ICMP sweep | `IcmpSendEcho` (Windows), unprivileged `SOCK_DGRAM` ping sockets (Linux/Android/iOS), raw socket fallback | Yes |
+| mDNS / DNS-SD | Legacy-unicast PTR queries + follow-up on enumerated service types; resolves instance → SRV → A | Yes |
+| SSDP / UPnP | M-SEARCH, then fetches each device's description XML (friendlyName, manufacturer, model) | Yes |
+| Reverse names | Parallel DNS PTR + unicast mDNS + NetBIOS node status, hard 1.5 s cap | Yes |
+| OS ARP cache | `GetIpNetTable2` / `/proc/net/arp` | No (blocked on Android 10+ / iOS 14+) |
+| ARP sniffing | libpcap who-has injection + reply capture | Agent only (root / `CAP_NET_RAW`) |
+| OUI vendor | IEEE MA-L/MA-M/MA-S CSV, plus QEMU/KVM, Docker, Hyper-V and randomized-MAC detection | Yes |
+
+### Build
+
+Windows (MSVC, with the CMake that ships in VS Build Tools):
+
+```sh
+cmake -S core -B core/build -G "Visual Studio 17 2022" -A x64
+cmake --build core/build --config Release
+core/build/bin/Release/pingduck_cli.exe scan
+```
+
+Linux (agent, with ARP sniffing):
+
+```sh
+sudo apt install build-essential cmake libpcap-dev
+cmake -S core -B core/build -DCMAKE_BUILD_TYPE=Release -DPINGDUCK_PCAP=ON
+cmake --build core/build -j
+sudo core/build/pingduck_cli scan --arp
+```
+
+Android (NDK cross-compile):
+
+```sh
+cmake -S core -B core/build-android -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24
+cmake --build core/build-android
+```
+
+Vendor names need the IEEE registry (not committed):
+
+```sh
+mkdir -p core/data && curl -fsSL -o core/data/oui.csv https://standards-oui.ieee.org/oui/oui.csv
+pingduck_cli scan --oui core/data/oui.csv
+```
+
+### CLI
+
+```text
+pingduck_cli info                  interfaces + chosen LAN interface
+pingduck_cli scan [cidr] [--arp]   full merged scan
+pingduck_cli sweep|mdns|ssdp|arp   one method at a time
+pingduck_cli ping <ip> [count]
+pingduck_cli ports <ip> [ports]    default 21 22 80 443 3389
+pingduck_cli wol <mac> [bcast]
+pingduck_cli oui <mac> --oui oui.csv
+  -t <ms> timeout   -j JSON lines   --no-dns
+```
+
+### Measured (home LAN, /24, ~25 devices)
+
+- Windows desktop: full scan in ~3.4 s, all MACs resolved via the ARP cache.
+- Android 14 (Chromecast w/ Google TV, `adb shell`): 20 devices in 3.6 s.
+
+## Agent
+
+```sh
+docker build -f agent/Dockerfile -t pingduck-agent .
+docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN pingduck-agent
+```

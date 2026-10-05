@@ -1,0 +1,14 @@
+# C++ core build output
+core/build*/
+core/out/
+
+# Downloaded IEEE OUI registry (see README)
+core/data/
+
+# Editors / OS
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
