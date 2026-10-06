@@ -11,7 +11,7 @@ import '../../../core/widgets/pd_widgets.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../scanner/domain/device_kind.dart';
 import '../../scanner/domain/discovered_device.dart';
-import '../../scanner/presentation/discovery_screen.dart' show renameDevice;
+import '../../scanner/presentation/overview_screen.dart' show renameDevice;
 import '../../tools/presentation/tools_screen.dart';
 import '../application/diagnostics_controller.dart';
 
@@ -42,11 +42,11 @@ class _Picker extends ConsumerWidget {
       children: [
         const ToolBreadcrumb(Tool.nodeInspect),
         const SizedBox(height: 8),
-        Text('Pick a device, or tap one on the radar, the device list or the topology map.', style: PdText.bodySm),
+        Text('Pick a device, or tap one on the radar or in the device list.', style: PdText.bodySm),
         const SizedBox(height: 16),
         if (devices.isEmpty)
           Text(
-            'No devices yet. Run a scan from Discovery.',
+            'No devices yet. Run a scan from Overview.',
             style: PdText.bodyMd.copyWith(color: PingDuckColors.inkSecondary),
           ),
         for (final d in devices)

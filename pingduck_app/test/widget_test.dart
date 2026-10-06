@@ -3,17 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
+import 'package:pingduck_app/core/network/lan_connectivity.dart';
+import 'package:pingduck_app/core/theme/pingduck_theme.dart';
+import 'package:pingduck_app/features/topology/presentation/topology_screen.dart';
 import 'package:pingduck_app/main.dart';
 
 import 'fakes.dart';
 
 void main() {
   late FakeBridge bridge;
+  late FakeLan lan;
 
   /// Seeds the cache like a previous session did, then restores from it the
   /// way main() does.
-  Future<Widget> app(WidgetTester tester, {required bool onboarded, List<DiscoveredDevice> cached = const []}) async {
+  Future<Widget> app(WidgetTester tester,
+      {required bool onboarded, List<DiscoveredDevice> cached = const [], bool connected = true}) async {
     bridge = FakeBridge();
+    lan = FakeLan(connected);
     final store = memoryStore();
     addTearDown(store.close);
     final restored = await tester.runAsync(() async {
@@ -32,6 +38,7 @@ void main() {
         localStoreProvider.overrideWithValue(store),
         restoredScanProvider.overrideWithValue(restored!),
         onboardedProvider.overrideWith(() => Onboarded(onboarded)),
+        lanConnectivityProvider.overrideWithValue(lan),
       ],
       child: const PingDuckApp(),
     );
@@ -104,9 +111,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('LAYER 2 TELEMETRY & RTT'), findsOneWidget);
 
-    await tester.tap(find.text('TOPOLOGY'));
-    await tester.pumpAndSettle();
-    expect(find.text('ACTIVE SUBNET'), findsOneWidget);
+    // Topology is parked: no tab, but the screen still builds (test below).
+    expect(find.text('TOPOLOGY'), findsNothing);
+    expect(find.text('OVERVIEW'), findsOneWidget);
 
     // The agent now lives under Tools.
     await tester.tap(find.text('TOOLS'));
@@ -124,5 +131,86 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Not signed in'), findsOneWidget);
     expect(find.text('1 device on 1 network'), findsOneWidget);
+  });
+
+  testWidgets('the parked Topology screen still renders', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    bridge = FakeBridge();
+    final store = memoryStore();
+    addTearDown(store.close);
+    final cached = dev('10.42.0.20', hostname: 'Living Room TV', rtt: 4);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        scannerBridgeProvider.overrideWithValue(bridge),
+        localStoreProvider.overrideWithValue(store),
+        restoredScanProvider.overrideWithValue(ScanState(devices: {cached.ip: cached})),
+      ],
+      child: MaterialApp(theme: PingDuckTheme.light(), home: const Scaffold(body: TopologyScreen())),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('ACTIVE SUBNET'), findsOneWidget);
+    expect(find.text('Living Room TV'), findsWidgets);
+  });
+
+  testWidgets('off Wi-Fi the Overview hides all data; reconnecting rescans', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester,
+        onboarded: true, connected: false, cached: [dev('10.42.0.20', hostname: 'Living Room TV')]));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not connected to Wi-Fi'), findsOneWidget);
+    expect(find.text('Living Room TV'), findsNothing);
+    expect(find.text('INTERFACE TELEMETRY'), findsNothing);
+    expect(find.text('OFFLINE'), findsOneWidget);  // header chip
+
+    // Wi-Fi comes back: data returns and a fresh scan starts.
+    final scansBefore = bridge.scans;
+    lan.set(true);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Not connected to Wi-Fi'), findsNothing);
+    expect(find.text('INTERFACE TELEMETRY'), findsOneWidget);
+    expect(bridge.scans, greaterThan(scansBefore));
+
+    // Wi-Fi drops mid-scan: the scan is cancelled and the data hidden again.
+    final cancelsBefore = bridge.cancels;
+    lan.set(false);
+    await tester.pump();
+    expect(bridge.cancels, cancelsBefore + 1);
+    expect(find.text('Not connected to Wi-Fi'), findsOneWidget);
+    await bridge.finish(cancelled: true);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the header chip opens My Networks', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true, cached: [dev('10.42.0.20'), dev('10.42.0.21')]));
+    await tester.pump();
+    bridge.devices!.add(dev('10.42.0.20', rtt: 3));
+    await bridge.finish(count: 1);
+    await tester.pumpAndSettle();
+
+    // Found through its accessibility label, which screen readers announce.
+    final semantics = tester.ensureSemantics();
+    await tester.tap(find.bySemanticsLabel(RegExp('^My networks')));
+    semantics.dispose();
+    await tester.pumpAndSettle();
+    expect(find.text('MY NETWORKS'), findsOneWidget);
+    expect(find.text('CyberLab_5G'), findsOneWidget);
+    expect(find.text('CONNECTED'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);  // devices on that network
+
+    await tester.tap(find.text('FORGET NETWORK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('FORGET'));
+    await tester.pumpAndSettle();
+    expect(find.text('No saved networks yet'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('OVERVIEW'), findsOneWidget);
   });
 }

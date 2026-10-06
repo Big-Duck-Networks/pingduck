@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/native.dart';
 import 'package:pingduck_app/core/ffi/scanner_bridge.dart';
+import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/network/network_context.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/services/local_storage.dart';
@@ -57,6 +58,24 @@ class FakeBridge implements ScannerBridge {
 
   @override
   Future<void> wakeOnLan(String mac, {String? broadcast}) async => wokenMac = mac;
+}
+
+/// Connectivity the test switches by hand.
+class FakeLan implements LanConnectivity {
+  FakeLan([this.connected = true]);
+  bool connected;
+  final _changes = StreamController<bool>.broadcast();
+
+  void set(bool value) {
+    connected = value;
+    _changes.add(value);
+  }
+
+  @override
+  Future<bool> current() async => connected;
+
+  @override
+  Stream<bool> changes() => _changes.stream;
 }
 
 class FakeLock implements MulticastLock {

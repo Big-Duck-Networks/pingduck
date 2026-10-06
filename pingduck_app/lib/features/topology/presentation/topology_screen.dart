@@ -10,7 +10,7 @@ import '../../device_details/application/diagnostics_controller.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../scanner/domain/device_kind.dart';
 import '../../scanner/domain/discovered_device.dart';
-import '../../scanner/presentation/discovery_screen.dart' show inspect;
+import '../../scanner/presentation/overview_screen.dart' show inspect;
 import '../../scanner/presentation/radar_scope.dart' show RadarGeometry;
 
 final _groupProvider = NotifierProvider<_Group, String>(_Group.new);
@@ -102,7 +102,7 @@ class TopologyScreen extends ConsumerWidget {
           child: AspectRatio(
             aspectRatio: 1,
             child: shown.isEmpty
-                ? Center(child: Text('No devices yet. Run a scan from Discovery.', style: PdText.bodySm))
+                ? Center(child: Text('No devices yet. Run a scan from Overview.', style: PdText.bodySm))
                 : _TopologyMap(
                     devices: shown,
                     gatewayIp: gatewayIp,
@@ -202,7 +202,7 @@ class _TopologyMap extends StatelessWidget {
     });
   }
 
-  /// Same logarithmic latency scale as the Discovery radar.
+  /// Same logarithmic latency scale as the Overview radar.
   static double _radius(int? rtt) => RadarGeometry.radiusFor(rtt);
 }
 

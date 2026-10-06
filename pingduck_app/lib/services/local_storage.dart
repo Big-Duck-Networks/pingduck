@@ -40,6 +40,28 @@ class Devices extends Table {
   Set<Column> get primaryKey => {networkId, ip};
 }
 
+/// A saved network as listed on the My Networks page.
+class NetworkSummary {
+  const NetworkSummary({
+    required this.id,
+    required this.cidr,
+    this.gateway,
+    this.ssid,
+    this.lastScanAt,
+    required this.deviceCount,
+  });
+
+  final int id;
+  final String cidr;
+  final String? gateway;
+  final String? ssid;
+  final DateTime? lastScanAt;
+  final int deviceCount;
+
+  /// Wi-Fi name when known, else the subnet.
+  String get name => ssid ?? cidr;
+}
+
 class Settings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
@@ -103,6 +125,41 @@ class LocalStore extends _$LocalStore {
         await delete(devices).go();
         await delete(networks).go();
         await (delete(settings)..where((s) => s.key.equals('lastNetworkId'))).go();
+      });
+
+  /// Every saved network with its device count, most recently scanned first.
+  Future<List<NetworkSummary>> networkSummaries() async {
+    final count = devices.ip.count();
+    final rows = await (select(networks).join([leftOuterJoin(devices, devices.networkId.equalsExp(networks.id))])
+          ..groupBy([networks.id])
+          ..addColumns([count]))
+        .get();
+    final list = [
+      for (final r in rows)
+        NetworkSummary(
+          id: r.readTable(networks).id,
+          cidr: r.readTable(networks).cidr,
+          gateway: r.readTable(networks).gateway,
+          ssid: r.readTable(networks).ssid,
+          lastScanAt: r.readTable(networks).lastScanAt,
+          deviceCount: r.read(count) ?? 0,
+        ),
+    ];
+    // Scan times are stored to the second; newer networks win ties.
+    list.sort((a, b) {
+      final t = (b.lastScanAt ?? DateTime(0)).compareTo(a.lastScanAt ?? DateTime(0));
+      return t != 0 ? t : b.id.compareTo(a.id);
+    });
+    return list;
+  }
+
+  /// Deletes a network and (by cascade) its devices, names and notes.
+  Future<void> forgetNetwork(int networkId) => transaction(() async {
+        await (delete(devices)..where((d) => d.networkId.equals(networkId))).go();
+        await (delete(networks)..where((n) => n.id.equals(networkId))).go();
+        if (await setting('lastNetworkId') == '$networkId') {
+          await (delete(settings)..where((s) => s.key.equals('lastNetworkId'))).go();
+        }
       });
 
   Future<void> forgetDevice(int networkId, String ip) =>

@@ -194,6 +194,16 @@ class ScanController extends Notifier<ScanState> {
   }
 
   /// Wipes the cached inventory, on disk and on screen.
+  /// Forgets a saved network. Forgetting the one on screen empties the list;
+  /// the next scan starts it afresh.
+  Future<void> forgetNetwork(int networkId) async {
+    if (state.isScanning && state.networkId == networkId) return;
+    await _store.forgetNetwork(networkId);
+    if (ref.mounted && state.networkId == networkId) {
+      state = ScanState(lan: state.lan);
+    }
+  }
+
   Future<void> clearInventory() async {
     if (state.isScanning) return;
     await _store.clearInventory();

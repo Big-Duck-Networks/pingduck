@@ -1,7 +1,10 @@
 package com.webcapmedia.pingduck_app
 
 import android.content.Context
+import android.content.Intent
 import android.net.wifi.WifiManager
+import android.os.Build
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -32,6 +35,22 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pingduck/system")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "openWifiSettings") {
+                    openWifiSettings()
+                    result.success(null)
+                } else {
+                    result.notImplemented()
+                }
+            }
+    }
+
+    private fun openWifiSettings() {
+        // Android 10+ shows an in-app Wi-Fi panel; older versions open Settings.
+        val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Settings.Panel.ACTION_WIFI
+                     else Settings.ACTION_WIFI_SETTINGS
+        startActivity(Intent(action))
     }
 
     override fun onDestroy() {

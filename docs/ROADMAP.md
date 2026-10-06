@@ -14,7 +14,7 @@ yet. Size estimates are rough engineering effort for one developer.
 | --- | --- | --- |
 | 1. Core engine | 🟡 ~95% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is written but has not run yet. Two checks remain: the ARP scan against `arp-scan` on the LAN, and a first iOS build. |
 | 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android (Chromecast, Android 14): 24 devices stream into the app in ~5s. iOS is configured but has never been built. |
-| 3. UI/UX | 🟡 ~80% | The "Precision Editorial Recon" design is built across 4 tabs (Discovery, Topology, Tools, Account) plus onboarding. Tools holds Node Inspect and the Homelab Agent screen; the list is titled with the Wi-Fi name. Drift cache and real diagnostics are in. Not done: app icon/splash, and timing on a real mid-range phone. |
+| 3. UI/UX | ✅ | The "Precision Editorial Recon" design is built across 3 tabs (Overview, Tools, Account) plus onboarding. Topology is built but parked off the tab bar. Tools holds Node Inspect and the Homelab Agent screen; the device list is titled with the Wi-Fi name. Drift cache, real diagnostics, icons and splash are in. On a Pixel 8 Pro: cached devices on the first frame in about 100 ms, and ~1% of frames over 16.7 ms during a scan. |
 | 4. Agent & cloud sync | ⬜ | Dockerfile runs a one-shot CLI scan only. |
 | 5. Subscriptions | ⬜ | Not started. The tiers below are a proposal. |
 | 6. Launch readiness | ⬜ | |

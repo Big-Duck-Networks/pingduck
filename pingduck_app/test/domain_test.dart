@@ -4,7 +4,7 @@ import 'package:pingduck_app/features/device_details/application/diagnostics_con
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/scanner/domain/device_kind.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
-import 'package:pingduck_app/features/scanner/presentation/discovery_screen.dart';
+import 'package:pingduck_app/features/scanner/presentation/overview_screen.dart';
 import 'package:pingduck_app/features/scanner/presentation/radar_scope.dart';
 
 import 'fakes.dart';

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/network/lan_connectivity.dart';
 import 'core/theme/pingduck_theme.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/scanner/application/scan_controller.dart';
@@ -65,8 +66,11 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> {
     super.initState();
     // Returning users get a fresh scan on launch; new users start it from
     // onboarding.
+    // Offline, there is nothing to scan; the shell starts one when Wi-Fi returns.
     if (ref.read(onboardedProvider)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(scanControllerProvider.notifier).scan());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (await ref.read(lanConnectedProvider.future)) ref.read(scanControllerProvider.notifier).scan();
+      });
     }
   }
 

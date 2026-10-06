@@ -168,6 +168,28 @@ void main() {
     expect(await store.setting('onboarded'), '1');
   });
 
+  test('networks are listed with counts and can be forgotten', () async {
+    await runScan([dev('10.42.0.5'), dev('10.42.0.6')]);
+    bridge.lan = const LanInfo(ip: '192.168.1.9', cidr: '192.168.1.0/24', gateway: '192.168.1.1');
+    await runScan([dev('192.168.1.20')]);
+
+    var list = await store.networkSummaries();
+    expect(list.map((n) => (n.name, n.deviceCount)), [('192.168.1.0/24', 1), ('CyberLab_5G', 2)]);
+
+    // Forgetting another network leaves the one on screen alone.
+    final home = list.firstWhere((n) => n.ssid == 'CyberLab_5G');
+    await ctrl().forgetNetwork(home.id);
+    expect(state().devices.keys, ['192.168.1.20']);
+    list = await store.networkSummaries();
+    expect(list.map((n) => n.cidr), ['192.168.1.0/24']);
+    expect(await store.usage(), (networks: 1, devices: 1));
+
+    // Forgetting the one on screen empties it.
+    await ctrl().forgetNetwork(list.single.id);
+    expect(state().devices, isEmpty);
+    expect(await store.networkSummaries(), isEmpty);
+  });
+
   test('forget removes a device everywhere', () async {
     await runScan([dev('10.42.0.5'), dev('10.42.0.6')]);
     await ctrl().forget('10.42.0.6');

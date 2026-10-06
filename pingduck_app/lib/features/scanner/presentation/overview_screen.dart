@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ffi/scanner_bridge.dart';
+import '../../../core/network/lan_connectivity.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
@@ -67,11 +68,14 @@ void inspect(WidgetRef ref, DiscoveredDevice d) {
   ref.read(appTabProvider.notifier).go(AppTab.tools);
 }
 
-class DiscoveryScreen extends ConsumerWidget {
-  const DiscoveryScreen({super.key});
+class OverviewScreen extends ConsumerWidget {
+  const OverviewScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Off Wi-Fi, cached devices and the last network's telemetry would be stale
+    // and misleading, so the page shows only the offline state.
+    if (!ref.watch(lanConnectedProvider).isOnLan) return const _NotConnected();
     final scan = ref.watch(scanControllerProvider);
     final sort = ref.watch(ledgerSortProvider);
     final filter = ref.watch(ledgerFilterProvider);
@@ -89,7 +93,7 @@ class DiscoveryScreen extends ConsumerWidget {
               _TelemetryPanel(scan: scan),
               const SizedBox(height: 16),
               PdPanel(
-                title: 'Probe scope',
+                title: 'Latency map',
                 icon: Icons.radar,
                 trailing: _liveChip(scan),
                 child: Column(
@@ -316,6 +320,54 @@ class _TelemetryPanel extends StatelessWidget {
             if (scan.countBy(DiscoverySource.arp) > 0) PdChip('ARP ${scan.countBy(DiscoverySource.arp)}', tone: PdTone.live),
           ]),
         ],
+      ),
+    );
+  }
+}
+
+class _NotConnected extends StatelessWidget {
+  const _NotConnected();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: PingDuckColors.surface1,
+                  border: Border.all(color: PingDuckColors.partition),
+                ),
+                child: const Icon(Icons.wifi_off, size: 34, color: PingDuckColors.inkSecondary),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text('Not connected to Wi-Fi', style: PdText.headlineMd, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(
+              'PingDuck maps the devices on your local network. Connect to Wi-Fi (or Ethernet) and '
+              'scanning starts automatically.',
+              style: PdText.bodyMd.copyWith(color: PingDuckColors.inkSecondary),
+              textAlign: TextAlign.center,
+            ),
+            if (canOpenWifiSettings) ...[
+              const SizedBox(height: 24),
+              const PdButton(
+                label: 'Open Wi-Fi settings',
+                icon: Icons.wifi,
+                style: PdButtonStyle.primary,
+                onPressed: openWifiSettings,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
