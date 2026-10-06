@@ -38,6 +38,11 @@ dependencies:
   pingduck_core:
     path: ../packages/pingduck_core
   network_info_plus: ^8.2.2
+  drift: ^2.35.1
+  drift_flutter: ^0.3.1
+  path_provider: ^2.1.6
+  permission_handler: ^12.0.1  # 13.x needs compileSdk 37
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:
@@ -51,6 +56,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   integration_test:
     sdk: flutter
+  drift_dev: ^2.35.1
+  build_runner: ^2.15.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -66,6 +73,29 @@ flutter:
   assets:
     # IEEE OUI registry for vendor names; refresh with `dart run tool/update_oui.dart`.
     - assets/oui_database/oui.csv
+    - assets/fonts/OFL-SpaceGrotesk.txt
+    - assets/fonts/OFL-Inter.txt
+
+  # Bundled (not fetched at runtime) so the app works offline. SIL OFL 1.1.
+  fonts:
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-400.ttf
+        - asset: assets/fonts/SpaceGrotesk-500.ttf
+          weight: 500
+        - asset: assets/fonts/SpaceGrotesk-600.ttf
+          weight: 600
+        - asset: assets/fonts/SpaceGrotesk-700.ttf
+          weight: 700
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-400.ttf
+        - asset: assets/fonts/Inter-500.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-600.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-700.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

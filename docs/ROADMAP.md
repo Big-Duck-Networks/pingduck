@@ -14,8 +14,10 @@ yet. Size estimates are rough engineering effort for one developer.
 | --- | --- | --- |
 | 1. Core engine | 🟡 ~95% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is written but has not run yet. Two checks remain: the ARP scan against `arp-scan` on the LAN, and a first iOS build. |
 | 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android (Chromecast, Android 14): 24 devices stream into the app in ~5s. iOS is configured but has never been built. |
-| 3. UI/UX | ⬜ | Placeholder Radar screen only. |
+| 3. UI/UX | 🟡 ~80% | The "Precision Editorial Recon" design is built across 4 tabs (Discovery, Topology, Tools, Account) plus onboarding. Tools holds Node Inspect and the Homelab Agent screen; the list is titled with the Wi-Fi name. Drift cache and real diagnostics are in. Not done: app icon/splash, and timing on a real mid-range phone. |
 | 4. Agent & cloud sync | ⬜ | Dockerfile runs a one-shot CLI scan only. |
+| 5. Subscriptions | ⬜ | Not started. The tiers below are a proposal. |
+| 6. Launch readiness | ⬜ | |
 
 Measured so far: a full /24 scan takes ~3.5s on Windows and ~3.1s on Android
 (PRD target: under 15s). A /16 ICMP sweep takes ~14s on Android and ~4 min on
@@ -69,16 +71,18 @@ on Android because the OS hides the ARP table, which is expected (see Phase 4). 
 
 | | Item | Size | Notes |
 | --- | --- | --- | --- |
-| ⬜ | Local cache (`services/local_storage.dart`) | M | Store networks (keyed by gateway MAC + SSID) and devices with first/last seen. Load before the first frame. |
-| ⬜ | Radar / Cortex Map view | L | Animated sweep; dimmed cached devices illuminate on response; smooth state transitions with no static spinners. |
-| ⬜ | Device inventory list | M | Sortable by IP, name, vendor and last seen. Filter online/offline. Show source and service chips. |
-| ⬜ | Device type icons | S | Infer from mDNS service types, UPnP device type and vendor (router, TV, speaker, printer, VM, phone…). |
-| ⬜ | Device details screen | M | IP/MAC/vendor/model, rename and notes, connection history. |
-| ⬜ | Diagnostics | M | Continuous ping latency chart, port scan of 21/22/80/443/3389 with risk hints, Wake-on-LAN button. Bindings already exist in the core. |
-| ⬜ | Mascot and brand assets | M | Duck logo, app icon, splash, empty/error/permission-denied states with the brand voice. |
-| ⬜ | Onboarding | S | Explain and request the local network permission, and explain why MACs need the agent. |
+| ✅ | Local cache (`services/local_storage.dart`) | M | drift/SQLite: networks keyed by subnet + gateway (the gateway MAC is hidden on Android), and devices keyed by IP with first/last seen, RTT history, rename and notes. The last network loads before the first frame. |
+| ✅ | Radar / Cortex Map view | L | Square scope on latency rings (5/15/50 ms) with a sweep arm. Cached devices are dimmed and pulse as they answer, and labels avoid overlapping. The ticker stops when idle (a battery bug found in testing). |
+| ✅ | Device inventory list | M | The Target Ledger: sort by latency/IP/name/vendor/last seen, filter all/online/offline, source and service chips, RTT sparkline, and long-press to rename. |
+| ✅ | Device type icons | S | `DeviceKind`, inferred only from real signals (mDNS/UPnP types, vendor, model, hostname). |
+| ✅ | Device details screen | M | The Inspector: identity, rename and notes, first/last seen, sources, mDNS services, UPnP fields, JSON export, and forget. Fields the app cannot observe (uptime, OS, link speed) are left out rather than faked. |
+| ✅ | Diagnostics | M | 60-sample live ping with min/avg/max/jitter/loss, quick (18 ports) and deep (1-1024) TCP scans with risk hints, and Wake-on-LAN (needs a MAC, so in practice the agent). |
+| 🟡 | Mascot and brand assets | M | Duck mark (vector) plus Space Grotesk and Inter bundled (OFL). Empty and error states follow the brand voice. **Still needed:** launcher icon and splash. |
+| ✅ | Onboarding | S | First launch explains scanning, local network access and why MACs need the agent, then starts the first scan. |
 
 **Exit:** cold launch shows cached devices in under 1s, and a full scan updates the radar live with no jank on a mid-range Android phone.
+Checked so far: the cache renders on the first frame (widget test), and the screens were reviewed on a phone-sized emulator.
+Not yet measured: timing and jank on a physical mid-range phone. Topology shows latency rings only; physical links need the agent.
 
 ---
 
@@ -101,13 +105,38 @@ on Android because the OS hides the ARP table, which is expected (see Phase 4). 
 
 ---
 
-## Phase 5: Launch readiness
+## Phase 5: Subscriptions
+
+**Goal:** a paid tier sold through the App Store and Google Play, unlocked across the user's devices and
+enforced by the backend, not just the app.
+
+Store rules shape this phase. On iOS and Android, digital features must be sold through Apple and Google
+in-app purchase; Stripe (or any web checkout) cannot unlock them inside the app. A web checkout only makes
+sense for a later desktop or web product.
+
+| | Item | Size | Notes |
+| --- | --- | --- | --- |
+| ⬜ | Tier definition | S | Decide what is free and what is Pro (proposal under Decisions). Settle this before the Phase 4 schema, because entitlements gate agent pairing and sync. |
+| ⬜ | Billing integration | M | RevenueCat (recommended) or native StoreKit 2 + Play Billing. Monthly and annual products, intro trial, family sharing on iOS. |
+| ⬜ | Server-side entitlements | M | Store webhooks (RevenueCat, or App Store Server Notifications and Play RTDN) write the entitlement to Supabase. RLS and Edge Functions check it, so agent pairing and sync are enforced on the server. |
+| ⬜ | Paywall and upgrade points | M | One paywall in the design system, reached from the gated features (pair agent, enable sync, alerts, deep scan) and from the Account tab. No dark patterns: clear price, period and trial terms. |
+| ⬜ | Account tab: subscription state | S | Current plan, renewal date, Manage subscription (opens the store's own page), Restore purchases. Apple requires Restore. |
+| ⬜ | Legal | S | Privacy Policy and Terms of Use (EULA) URLs, linked from the paywall and the About footer. Apple rejects subscription apps without them. Confirm the legal entity name (the app currently says "Big Duck Networks"). |
+| ⬜ | Store setup | M | App Store Connect and Play Console products, subscription groups, tax and banking, sandbox testers. |
+| ⬜ | Tests | M | Sandbox purchases, renewals, cancellation, grace period, billing retry, refunds, restore on a new device. |
+
+**Exit:** a sandbox user subscribes on Android and iOS, Pro features unlock on both platforms within a minute,
+and cancelling or refunding revokes access on the server.
+
+---
+
+## Phase 6: Launch readiness
 
 | | Item | Notes |
 | --- | --- | --- |
 | ⬜ | Beta | TestFlight and Play internal testing, plus a published agent image (GHCR). |
 | ⬜ | Crash reporting and analytics | Opt-in. Never upload device lists without cloud sync enabled. |
-| ⬜ | Privacy policy and store listings | App Store review notes explaining local network scanning. |
+| ⬜ | Privacy policy and store listings | App Store review notes explaining local network scanning, location (Wi-Fi name only) and the subscription. The policy itself is drafted in Phase 5. |
 | ⬜ | Performance and battery pass | Scan cost on older phones; agent CPU and memory on small hosts. |
 
 ---
@@ -129,11 +158,14 @@ on Android because the OS hides the ARP table, which is expected (see Phase 4). 
 
 | Decision | Options | Recommendation | Needed by |
 | --- | --- | --- | --- |
-| Local cache | Isar · drift (SQLite) · sqflite | **drift**: SQLite matches the PRD, is actively maintained and has typed queries | Phase 3 |
+| ~~Local cache~~ | **Decided: drift** (SQLite). | | ✅ |
 | ~~OUI storage~~ | **Decided: CSV.** The app looks vendors up through `pd_oui_lookup` over FFI, so it never reads the table itself. SQLite would add a C dependency to the core for no gain. Load it off the UI thread at startup (0.36s on the slowest test device). | | ✅ |
 | Agent daemon language | C++ with libcurl · thin Go/Rust wrapper around `libpingduck` | **C++**: one toolchain, matches the PRD | Phase 4 |
 | Auth providers | Email magic link · Apple/Google sign-in | Magic link first; Apple sign-in is required on iOS if any social login ships | Phase 4 |
-| Device identity | MAC · IP · MAC with hostname fallback | MAC, with a fallback for randomized MACs | Phase 3 |
+| Device identity | MAC · IP · MAC with hostname fallback | **IP for now** (the app sees no MACs on Android). Switch to MAC with a hostname fallback when the agent supplies MACs. | Phase 4 |
+| Free vs Pro | What stays free · what is paid | **Free:** on-device scans, radar, topology, device list, Node Inspect (ping, quick port scan), one remembered network. **Pro:** Homelab Agent (MACs, 24/7 monitoring), intrusion alerts, cloud sync across devices, unlimited networks with history, deep port scans, export. The free tier must be useful on its own: it is the store listing's first impression. | Phase 4 (shapes the schema) |
+| Billing provider | RevenueCat · native StoreKit 2 + Play Billing | **RevenueCat**: one SDK for both stores, receipt validation, and webhooks into Supabase. It costs a share of revenue above a threshold. Native avoids that cost but means building receipt validation for two stores. | Phase 5 |
+| Pricing | Monthly · annual · lifetime | Monthly + annual (annual about 40% cheaper) with a 7-day trial. Skip lifetime: it does not pay for a hosted backend. Set prices from comparable network tools. | Phase 5 |
 | Monorepo package layout | Core as an FFI plugin package · core built inside the app | **FFI plugin package** (`packages/pingduck_core`) | Phase 2 |
 
 ---
@@ -141,6 +173,8 @@ on Android because the OS hides the ARP table, which is expected (see Phase 4). 
 ## Suggested next steps
 
 1. Push and get the core CI green (the first run covers the Linux libpcap, macOS and iOS builds).
-2. Run the agent image on the Proxmox host and compare its results against `arp-scan`, which closes Phase 1.
-3. Apply for the iOS multicast entitlement (long lead time; it doesn't block other work).
-4. Start Phase 2 with the FFI plugin package and `ffigen` bindings.
+2. Decide Free vs Pro and the billing provider. Both shape the Phase 4 schema and agent pairing.
+3. Apply for the iOS multicast entitlement, and set up App Store Connect and Play Console early. Both have long lead times.
+4. Finish Phase 3: app icon, splash, and a timing pass on a physical phone.
+5. Run the agent image on the Proxmox host and compare its results against `arp-scan`, which closes Phase 1.
+6. Start Phase 4 with the Supabase schema, designed with entitlements in mind.

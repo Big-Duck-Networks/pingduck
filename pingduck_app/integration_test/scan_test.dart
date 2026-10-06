@@ -8,22 +8,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/main.dart';
+import 'package:pingduck_app/services/local_storage.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('tapping Scan streams real LAN devices into the list', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: PingDuckApp()));
+    // Same wiring as main(): the real cache, restored before the first frame.
+    final store = LocalStore();
+    final restored = await restoreLastScan(store);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        localStoreProvider.overrideWithValue(store),
+        restoredScanProvider.overrideWithValue(restored),
+      ],
+      child: const PingDuckApp(),
+    ));
     // On a cold start the window may not have a size yet; taps would miss.
     for (var i = 0; i < 50 && tester.view.physicalSize.isEmpty; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Scan'));
+    // No pumpAndSettle here: the radar animates for the whole scan, so it
+    // would wait the scan out and the streaming check below would be moot.
+    await tester.pump(const Duration(milliseconds: 100));
+    // Fresh installs land on onboarding; returning installs scan on launch.
+    final start = find.text('START FIRST SCAN');
+    if (start.evaluate().isNotEmpty) {
+      await tester.ensureVisible(start);
+      await tester.tap(start);
+    }
     await tester.pump();
-    expect(find.text('Stop'), findsOneWidget);
 
-    final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
+    final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold).first));
     final sw = Stopwatch()..start();
     var firstDeviceAt = Duration.zero;
     while (container.read(scanControllerProvider).isScanning && sw.elapsed < const Duration(seconds: 20)) {
@@ -47,7 +63,6 @@ void main() {
     expect(devices.length, greaterThan(3));
     expect(firstDeviceAt, lessThan(const Duration(seconds: 3)));  // streams, not batch-at-end
     expect(devices.where((d) => d.vendor != null), isNotEmpty);  // OUI asset loaded
-    expect(find.text('Scan'), findsOneWidget);
-    expect(find.byType(ListTile), findsWidgets);
+    expect(find.text('RESCAN'), findsOneWidget);
   });
 }

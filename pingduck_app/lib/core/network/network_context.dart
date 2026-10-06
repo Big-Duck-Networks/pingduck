@@ -2,15 +2,20 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// The Wi-Fi network as the platform sees it. Android 10+ hides the gateway
 /// from native code, so the scanner gets it from here.
 class NetworkContext {
-  const NetworkContext({this.ip, this.subnetMask, this.gateway});
+  const NetworkContext({this.ip, this.subnetMask, this.gateway, this.ssid});
 
   final String? ip;
   final String? subnetMask;
   final String? gateway;
+
+  /// Wi-Fi network name; null without location permission (both Android and
+  /// iOS hide it otherwise).
+  final String? ssid;
 
   /// The subnet to sweep, e.g. `10.42.0.0/24`, or null if unknown.
   /// Clamped to /16 (the core's limit).
@@ -60,10 +65,42 @@ class PlatformNetworkContextSource implements NetworkContextSource {
         ip: await _info.getWifiIP(),
         subnetMask: await _info.getWifiSubmask(),
         gateway: await _info.getWifiGatewayIP(),
+        ssid: cleanSsid(await _info.getWifiName()),
       );
       return ctx.ip == null ? null : ctx;
     } on PlatformException {
       return null;
+    }
+  }
+}
+
+/// Android wraps SSIDs in quotes and reports `<unknown ssid>` without
+/// permission.
+String? cleanSsid(String? raw) {
+  if (raw == null) return null;
+  var s = raw.trim();
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) s = s.substring(1, s.length - 1);
+  if (s.isEmpty || s == '<unknown ssid>' || s == '0x') return null;
+  return s;
+}
+
+/// Asks for the location permission that unlocks the Wi-Fi name, at most
+/// once: a refusal is remembered so scans never re-prompt.
+class WifiNameAccess {
+  const WifiNameAccess({required this.wasAsked, required this.markAsked});
+
+  final Future<bool> Function() wasAsked;
+  final Future<void> Function() markAsked;
+
+  Future<bool> ensure() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return false;
+    try {
+      if (await Permission.locationWhenInUse.isGranted) return true;
+      if (await wasAsked()) return false;
+      await markAsked();
+      return (await Permission.locationWhenInUse.request()).isGranted;
+    } on PlatformException {
+      return false;
     }
   }
 }

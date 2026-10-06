@@ -33,11 +33,44 @@ class BridgeScan {
   final Future<ScanSummary> done;
 }
 
+/// The LAN this device is on.
+class LanInfo {
+  const LanInfo({required this.ip, required this.cidr, this.gateway, this.dns, this.interfaceName, this.ssid});
+  final String ip;
+  final String cidr;
+  final String? gateway;
+  final String? dns;
+  final String? interfaceName;
+
+  /// Wi-Fi network name, when the OS reveals it.
+  final String? ssid;
+
+  /// Identifies the network in the local cache.
+  String get key => '$cidr|${gateway ?? '-'}';
+
+  /// Directed broadcast address, for Wake-on-LAN.
+  String get broadcast {
+    final [net, bits] = cidr.split('/');
+    final prefix = int.parse(bits);
+    final addr = net.split('.').fold<int>(0, (a, p) => (a << 8) | int.parse(p));
+    final host = prefix >= 32 ? 0 : (1 << (32 - prefix)) - 1;
+    final b = addr | host;
+    return '${b >> 24 & 255}.${b >> 16 & 255}.${b >> 8 & 255}.${b & 255}';
+  }
+}
+
 /// The app's view of the native engine, kept narrow so the scanner logic can
 /// be tested with a fake.
 abstract interface class ScannerBridge {
-  BridgeScan scan({Duration timeout});
+  /// The current LAN, or null when not connected to one.
+  Future<LanInfo?> lanInfo();
+  BridgeScan scan({String? cidr, Duration timeout});
   void cancel();
+
+  /// Round-trip time in ms, or null when the host does not answer.
+  Future<int?> ping(String ip, {Duration timeout});
+  Future<Set<int>> openPorts(String ip, List<int> ports, {Duration timeout});
+  Future<void> wakeOnLan(String mac, {String? broadcast});
 }
 
 /// [ScannerBridge] backed by pingduck-core over FFI.
@@ -58,27 +91,61 @@ class FfiScannerBridge implements ScannerBridge {
   Future<void>? _ouiLoaded;
 
   @override
-  BridgeScan scan({Duration timeout = const Duration(seconds: 3)}) {
+  Future<LanInfo?> lanInfo() async {
+    final ctx = await _network.current();
+    // Android hides the gateway from native code; hand it over before the
+    // core picks its interface.
+    _core.setLanHints(gateway: ctx?.gateway);
+    final iface = _core.defaultInterface();
+    final cidr = ctx?.cidr ?? iface?.cidr;
+    final ip = ctx?.ip ?? iface?.ip;
+    if (cidr == null || ip == null) return null;
+    return LanInfo(
+      ip: ip,
+      cidr: cidr,
+      gateway: ctx?.gateway ?? iface?.gateway,
+      dns: iface?.dns,
+      interfaceName: iface?.name,
+      ssid: ctx?.ssid,
+    );
+  }
+
+  @override
+  BridgeScan scan({String? cidr, Duration timeout = const Duration(seconds: 3)}) {
     final devices = StreamController<DiscoveredDevice>();
-    final done = _run(timeout, devices);
+    final done = _run(cidr, timeout, devices);
     return BridgeScan(devices.stream, done);
   }
 
   @override
   void cancel() => _core.cancel();
 
-  Future<ScanSummary> _run(Duration timeout, StreamController<DiscoveredDevice> out) async {
+  @override
+  Future<int?> ping(String ip, {Duration timeout = const Duration(seconds: 1)}) async =>
+      (await _guard(() => _core.ping(ip, timeout: timeout)))?.inMilliseconds;
+
+  @override
+  Future<Set<int>> openPorts(String ip, List<int> ports, {Duration timeout = const Duration(milliseconds: 800)}) =>
+      _guard(() => _core.openPorts(ip, ports, timeout: timeout));
+
+  @override
+  Future<void> wakeOnLan(String mac, {String? broadcast}) => _guard(() => _core.wakeOnLan(mac, broadcast: broadcast));
+
+  Future<T> _guard<T>(Future<T> Function() op) async {
+    try {
+      return await op();
+    } on PingDuckException catch (e) {
+      throw ScanFailure(e.isPermission ? ScanFailureKind.permission : ScanFailureKind.other, e.message);
+    }
+  }
+
+  Future<ScanSummary> _run(String? cidr, Duration timeout, StreamController<DiscoveredDevice> out) async {
     try {
       // Vendor names need the registry; load it once, off the UI isolate.
       await (_ouiLoaded ??= _loadOui());
-
-      final ctx = await _network.current();
-      _core.setLanHints(gateway: ctx?.gateway);
-      final cidr = ctx?.cidr;
-      if (cidr == null && _core.defaultInterface() == null) {
+      if (cidr == null && (await lanInfo()) == null) {
         throw const ScanFailure(ScanFailureKind.noNetwork, 'Not connected to a local network.');
       }
-
       final session = _core.scan(cidr: cidr, timeout: timeout);
       await for (final d in session.devices) {
         out.add(_toDevice(d));

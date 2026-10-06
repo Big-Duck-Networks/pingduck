@@ -1,84 +1,65 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/core/ffi/scanner_bridge.dart';
 import 'package:pingduck_app/core/network/network_context.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
-import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
+import 'package:pingduck_app/services/local_storage.dart';
 
-/// Scripted bridge: the test pushes devices and then finishes the scan.
-class FakeBridge implements ScannerBridge {
-  StreamController<DiscoveredDevice>? devices;
-  Completer<ScanSummary>? done;
-  int scans = 0, cancels = 0;
-
-  @override
-  BridgeScan scan({Duration timeout = const Duration(seconds: 3)}) {
-    scans++;
-    devices = StreamController();
-    done = Completer();
-    return BridgeScan(devices!.stream, done!.future);
-  }
-
-  @override
-  void cancel() => cancels++;
-
-  Future<void> finish({int count = 0, bool cancelled = false, ScanFailure? failure}) async {
-    await devices!.close();
-    failure == null
-        ? done!.complete(ScanSummary(deviceCount: count, cancelled: cancelled))
-        : done!.completeError(failure);
-  }
-}
-
-class FakeLock implements MulticastLock {
-  int held = 0;
-  @override
-  Future<void> acquire() async => held++;
-  @override
-  Future<void> release() async => held--;
-}
+import 'fakes.dart';
 
 void main() {
   late FakeBridge bridge;
   late FakeLock lock;
+  late LocalStore store;
   late ProviderContainer container;
+
+  ProviderContainer make({ScanState restored = const ScanState()}) => ProviderContainer(overrides: [
+        scannerBridgeProvider.overrideWithValue(bridge),
+        multicastLockProvider.overrideWithValue(lock),
+        localStoreProvider.overrideWithValue(store),
+        restoredScanProvider.overrideWithValue(restored),
+      ]);
 
   setUp(() {
     bridge = FakeBridge();
     lock = FakeLock();
-    container = ProviderContainer(overrides: [
-      scannerBridgeProvider.overrideWithValue(bridge),
-      multicastLockProvider.overrideWithValue(lock),
-    ]);
+    store = memoryStore();
+    container = make();
   });
-  tearDown(() => container.dispose());
+  tearDown(() async {
+    container.dispose();
+    await store.close();
+  });
 
   ScanController ctrl() => container.read(scanControllerProvider.notifier);
   ScanState state() => container.read(scanControllerProvider);
 
-  DiscoveredDevice dev(String ip, {String? hostname, int? rtt}) => DiscoveredDevice(
-        ip: ip,
-        hostname: hostname,
-        rttMs: rtt,
-        isOnline: true,
-        sources: const {DiscoverySource.icmp},
-      );
+  Future<void> runScan(List<dynamic> devices, {int? count}) async {
+    final running = ctrl().scan();
+    await pumpEventQueue();
+    for (final d in devices) {
+      bridge.devices!.add(d);
+    }
+    await pumpEventQueue();
+    await bridge.finish(count: count ?? devices.length);
+    await running;
+  }
 
-  test('streams devices in and finishes', () async {
+  test('streams devices in, scans the LAN subnet, and finishes', () async {
     final running = ctrl().scan();
     await pumpEventQueue();
     expect(state().phase, ScanPhase.scanning);
+    expect(state().lan?.cidr, '10.42.0.0/24');
+    expect(bridge.lastCidr, '10.42.0.0/24');
     expect(lock.held, 1);
 
     bridge.devices!.add(dev('10.42.0.20', rtt: 3));
     bridge.devices!.add(dev('10.42.0.1'));
-    bridge.devices!.add(dev('10.42.0.20', hostname: 'Living Room TV'));
+    bridge.devices!.add(dev('10.42.0.20', hostname: 'Living Room TV', rtt: 3));
     await pumpEventQueue();
     expect(state().devices.length, 2);
     expect(state().devices['10.42.0.20']!.hostname, 'Living Room TV');
-    expect(state().devices['10.42.0.20']!.rttMs, 3);
+    expect(state().devices['10.42.0.20']!.rttHistory, [3]);  // one sample per scan
 
     await bridge.finish(count: 2);
     await running;
@@ -88,24 +69,110 @@ void main() {
   });
 
   test('a second scan keeps old devices offline until they answer', () async {
-    var running = ctrl().scan();
-    await pumpEventQueue();
-    bridge.devices!.add(dev('10.42.0.5', hostname: 'nas'));
-    bridge.devices!.add(dev('10.42.0.6'));
-    await bridge.finish(count: 2);
-    await running;
+    await runScan([dev('10.42.0.5', hostname: 'nas', rtt: 2), dev('10.42.0.6')]);
 
-    running = ctrl().scan();
+    final running = ctrl().scan();
     await pumpEventQueue();
     expect(state().devices.values.every((d) => !d.isOnline), isTrue);
-    bridge.devices!.add(dev('10.42.0.5'));  // ICMP-only report this time
+    bridge.devices!.add(dev('10.42.0.5', rtt: 4));  // ICMP-only report this time
     await pumpEventQueue();
     expect(state().devices['10.42.0.5']!.isOnline, isTrue);
-    expect(state().devices['10.42.0.5']!.hostname, 'nas');  // kept from last scan
+    expect(state().devices['10.42.0.5']!.hostname, 'nas');
+    expect(state().devices['10.42.0.5']!.rttHistory, [2, 4]);
     expect(state().devices['10.42.0.6']!.isOnline, isFalse);
-    expect(state().sortedDevices.first.ip, '10.42.0.5');
     await bridge.finish(count: 1);
     await running;
+  });
+
+  test('scans persist, and a restart restores the inventory offline', () async {
+    await runScan([dev('10.42.0.5', hostname: 'nas', rtt: 2, services: ['_smb._tcp'])]);
+    await ctrl().rename('10.42.0.5', 'Vault');
+    await ctrl().setNotes('10.42.0.5', 'rack 2');
+
+    final restored = await restoreLastScan(store);
+    expect(restored.devices.length, 1);
+    final d = restored.devices['10.42.0.5']!;
+    expect(d.isOnline, isFalse);
+    expect(d.displayName, 'Vault');
+    expect(d.hostname, 'nas');
+    expect(d.notes, 'rack 2');
+    expect(d.services, ['_smb._tcp']);
+    expect(d.rttHistory, [2]);
+
+    container.dispose();
+    container = make(restored: restored);
+    expect(state().devices['10.42.0.5']!.customName, 'Vault');
+
+    // A later scan's report never overwrites the user's name.
+    await runScan([dev('10.42.0.5', hostname: 'diskstation', rtt: 1)]);
+    expect(state().devices['10.42.0.5']!.displayName, 'Vault');
+  });
+
+  test('the list is titled with the Wi-Fi name, remembered across restarts', () async {
+    expect(state().networkTitle, 'This network');
+    await runScan([dev('10.42.0.5')]);
+    expect(state().networkTitle, 'CyberLab_5G');
+    expect((await restoreLastScan(store)).networkName, 'CyberLab_5G');
+
+    // Without location access the OS hides the name: keep the remembered one.
+    bridge.lan = const LanInfo(ip: '10.42.0.17', cidr: '10.42.0.0/24', gateway: '10.42.0.1');
+    await runScan([dev('10.42.0.5')]);
+    expect(state().networkTitle, 'CyberLab_5G');
+
+    // A network never seen with a name falls back to its subnet.
+    bridge.lan = const LanInfo(ip: '192.168.1.9', cidr: '192.168.1.0/24', gateway: '192.168.1.1');
+    await runScan([]);
+    expect(state().networkTitle, '192.168.1.0/24');
+  });
+
+  test('cleanSsid strips Android quoting and placeholders', () {
+    expect(cleanSsid('"CyberLab_5G"'), 'CyberLab_5G');
+    expect(cleanSsid('<unknown ssid>'), isNull);
+    expect(cleanSsid(''), isNull);
+    expect(cleanSsid(null), isNull);
+  });
+
+  test('renaming to blank restores the discovered name', () async {
+    await runScan([dev('10.42.0.5', hostname: 'nas')]);
+    await ctrl().rename('10.42.0.5', 'Vault');
+    await ctrl().rename('10.42.0.5', '  ');
+    expect(state().devices['10.42.0.5']!.displayName, 'nas');
+  });
+
+  test('switching networks swaps in that network\'s cache', () async {
+    await runScan([dev('10.42.0.5')]);
+    bridge.lan = const LanInfo(ip: '192.168.1.9', cidr: '192.168.1.0/24', gateway: '192.168.1.1');
+    final running = ctrl().scan();
+    await pumpEventQueue();
+    expect(state().devices, isEmpty);
+    await bridge.finish();
+    await running;
+
+    bridge.lan = testLan;
+    final back = ctrl().scan();
+    await pumpEventQueue();
+    expect(state().devices.keys, ['10.42.0.5']);
+    await bridge.finish();
+    await back;
+  });
+
+  test('clearInventory wipes devices and networks but keeps settings', () async {
+    await runScan([dev('10.42.0.5'), dev('10.42.0.6')]);
+    await store.setSetting('onboarded', '1');
+    expect(await store.usage(), (networks: 1, devices: 2));
+
+    await ctrl().clearInventory();
+    expect(state().devices, isEmpty);
+    expect(await store.usage(), (networks: 0, devices: 0));
+    expect((await restoreLastScan(store)).devices, isEmpty);
+    expect(await store.setting('onboarded'), '1');
+  });
+
+  test('forget removes a device everywhere', () async {
+    await runScan([dev('10.42.0.5'), dev('10.42.0.6')]);
+    await ctrl().forget('10.42.0.6');
+    expect(state().devices.keys, ['10.42.0.5']);
+    expect((await restoreLastScan(store)).devices.keys, ['10.42.0.5']);
   });
 
   test('cancel forwards to the bridge and ends as cancelled', () async {
@@ -120,13 +187,21 @@ void main() {
     expect(bridge.cancels, 1);
   });
 
+  test('no network fails fast without scanning', () async {
+    bridge.lan = null;
+    await ctrl().scan();
+    expect(state().phase, ScanPhase.failed);
+    expect(state().failure!.kind, ScanFailureKind.noNetwork);
+    expect(bridge.scans, 0);
+  });
+
   test('failures surface with their kind and release the lock', () async {
     final running = ctrl().scan();
     await pumpEventQueue();
-    await bridge.finish(failure: const ScanFailure(ScanFailureKind.noNetwork, 'offline'));
+    await bridge.finish(failure: const ScanFailure(ScanFailureKind.permission, 'denied'));
     await running;
     expect(state().phase, ScanPhase.failed);
-    expect(state().failure!.kind, ScanFailureKind.noNetwork);
+    expect(state().failure!.kind, ScanFailureKind.permission);
     expect(lock.held, 0);
   });
 
@@ -139,10 +214,11 @@ void main() {
     await running;
   });
 
-  test('NetworkContext.cidr', () {
+  test('NetworkContext.cidr and LanInfo.broadcast', () {
     expect(const NetworkContext(ip: '10.42.0.17', subnetMask: '255.255.255.0').cidr, '10.42.0.0/24');
     expect(const NetworkContext(ip: '10.1.2.3', subnetMask: '255.0.0.0').cidr, '10.1.0.0/16');
     expect(const NetworkContext(ip: '10.42.0.17').cidr, isNull);
-    expect(const NetworkContext(ip: 'x', subnetMask: '255.255.255.0').cidr, isNull);
+    expect(testLan.broadcast, '10.42.0.255');
+    expect(const LanInfo(ip: '10.1.2.3', cidr: '10.1.0.0/16').broadcast, '10.1.255.255');
   });
 }

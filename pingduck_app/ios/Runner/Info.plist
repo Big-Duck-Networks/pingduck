@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>iOS only shares the name of your Wi-Fi network with apps that have location access. PingDuck uses it to label your network and never records your location.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>PingDuck scans your local network to find and identify the devices on it.</string>
 	<!-- Must match the service types core/src/mdns.cpp queries (kCommonServices). -->
