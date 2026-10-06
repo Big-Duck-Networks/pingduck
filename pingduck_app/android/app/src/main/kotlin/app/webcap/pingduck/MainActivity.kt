@@ -1,4 +1,4 @@
-package com.webcapmedia.pingduck_app
+package app.webcap.pingduck
 
 import android.content.Context
 import android.content.Intent
