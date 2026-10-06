@@ -96,15 +96,20 @@ class _RadarScopeState extends State<RadarScope> with SingleTickerProviderStateM
           },
           child: Stack(
             children: [
+              const Positioned.fill(
+                child: RepaintBoundary(child: CustomPaint(painter: _ScopeBackgroundPainter())),
+              ),
               Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: _sweep,
-                  builder: (_, _) => CustomPaint(
-                    painter: _RadarPainter(
-                      placed: placed,
-                      sweep: widget.scanning ? _sweep.value : null,
-                      litAt: _litAt,
-                      pulse: _pulse,
+                child: RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: _sweep,
+                    builder: (_, _) => CustomPaint(
+                      painter: _RadarPainter(
+                        placed: placed,
+                        sweep: widget.scanning ? _sweep.value : null,
+                        litAt: _litAt,
+                        pulse: _pulse,
+                      ),
                     ),
                   ),
                 ),
@@ -131,17 +136,34 @@ class _RadarScopeState extends State<RadarScope> with SingleTickerProviderStateM
 
 /// Maps a device to a stable spot on the scope.
 abstract final class RadarGeometry {
-  /// Ring boundaries as fractions of the half-width, with their latency.
-  static const rings = [(0.30, 5, 'CORE'), (0.58, 15, 'LOCAL'), (0.86, 50, 'BOUNDARY')];
+  /// Latency scale: logarithmic from 1 ms to [maxMs], so wired hosts (1-5 ms)
+  /// and Wi-Fi clients (often 50-300 ms, power saving delays replies) both
+  /// spread out instead of piling onto one ring.
+  static const maxMs = 500;
+
+  /// Rings drawn on the scope, with their labels.
+  static const ringMs = [(10, 'CORE'), (50, 'LOCAL'), (200, 'BOUNDARY')];
+
+  static final Map<int, TextPainter> _captions = {};
+
+  /// Laid-out "50ms LOCAL" style caption for a ring.
+  static TextPainter ringCaption(int ms, String name) => _captions.putIfAbsent(
+        ms,
+        () => TextPainter(
+          text: TextSpan(text: '${ms}ms $name', style: PdText.labelSm.copyWith(color: PingDuckColors.inkMuted)),
+          textDirection: TextDirection.ltr,
+        )..layout(),
+      );
+
+  /// Where a ring's caption sits: centred just inside the ring's top edge.
+  static Rect ringCaptionRect(TextPainter tp, Offset c, double r) =>
+      Rect.fromLTWH(c.dx - tp.width / 2, c.dy - r + 4, tp.width, tp.height);
 
   /// Distance from the centre (0..1 of half-width) for a round-trip time.
   static double radiusFor(int? rttMs) {
-    if (rttMs == null) return 0.94;  // never answered ICMP: outer edge
-    double lerp(double a, double b, double t) => a + (b - a) * t.clamp(0.0, 1.0);
-    if (rttMs <= 5) return lerp(0.16, 0.30, rttMs / 5);
-    if (rttMs <= 15) return lerp(0.30, 0.58, (rttMs - 5) / 10);
-    if (rttMs <= 50) return lerp(0.58, 0.86, (rttMs - 15) / 35);
-    return lerp(0.86, 0.94, (rttMs - 50) / 200);
+    if (rttMs == null) return 0.95;  // never answered ICMP: outer edge
+    final f = math.log(1 + rttMs.clamp(0, maxMs)) / math.log(1 + maxMs);
+    return 0.16 + 0.76 * f;
   }
 
   /// Golden-angle spread on the last octet keeps neighbours apart.
@@ -161,7 +183,61 @@ abstract final class RadarGeometry {
   }
 }
 
+/// Frame, crosshair and latency rings. Never changes for a given size, so it
+/// sits behind a RepaintBoundary and is rasterized once, not every frame.
+class _ScopeBackgroundPainter extends CustomPainter {
+  const _ScopeBackgroundPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final half = size.shortestSide / 2;
+    canvas.drawRect(Offset.zero & size, Paint()..color = PingDuckColors.canvas);
+    canvas.drawRect(
+      (Offset.zero & size).deflate(0.5),
+      Paint()
+        ..color = PingDuckColors.partition
+        ..style = PaintingStyle.stroke,
+    );
+    final guide = Paint()..color = PingDuckColors.hairline;
+    canvas.drawLine(Offset(c.dx, 0), Offset(c.dx, size.height), guide);
+    canvas.drawLine(Offset(0, c.dy), Offset(size.width, c.dy), guide);
+    for (final (ms, name) in RadarGeometry.ringMs) {
+      final r = RadarGeometry.radiusFor(ms) * half;
+      _dashedRect(canvas, Rect.fromCenter(center: c, width: 2 * r, height: 2 * r), PingDuckColors.partition);
+      final tp = RadarGeometry.ringCaption(ms, name);
+      tp.paint(canvas, RadarGeometry.ringCaptionRect(tp, c, r).topLeft);
+    }
+  }
+
+  static void _dashedRect(Canvas canvas, Rect r, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    const dash = 4.0, gap = 4.0;
+    void line(Offset a, Offset b) {
+      final len = (b - a).distance;
+      final dir = (b - a) / len;
+      for (var s = 0.0; s < len; s += dash + gap) {
+        canvas.drawLine(a + dir * s, a + dir * math.min(s + dash, len), paint);
+      }
+    }
+
+    line(r.topLeft, r.topRight);
+    line(r.topRight, r.bottomRight);
+    line(r.bottomRight, r.bottomLeft);
+    line(r.bottomLeft, r.topLeft);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScopeBackgroundPainter old) => false;
+}
+
+/// Sweep arm, pulses and device markers: the only per-frame work.
 class _RadarPainter extends CustomPainter {
+  /// Laid-out labels shared across frames.
+  static final Map<String, TextPainter> _labels = {};
+
   _RadarPainter({required this.placed, required this.sweep, required this.litAt, required this.pulse});
 
   final List<(DiscoveredDevice, Offset)> placed;
@@ -173,25 +249,6 @@ class _RadarPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
     final half = size.shortestSide / 2;
-    final frame = Paint()
-      ..color = PingDuckColors.partition
-      ..style = PaintingStyle.stroke;
-    canvas.drawRect(Offset.zero & size, Paint()..color = PingDuckColors.canvas);
-    canvas.drawRect((Offset.zero & size).deflate(0.5), frame);
-
-    // Crosshair.
-    final guide = Paint()..color = PingDuckColors.hairline;
-    canvas.drawLine(Offset(c.dx, 0), Offset(c.dx, size.height), guide);
-    canvas.drawLine(Offset(0, c.dy), Offset(size.width, c.dy), guide);
-
-    // Dashed square rings with labels.
-    for (final (frac, ms, name) in RadarGeometry.rings) {
-      final r = frac * half;
-      _dashedRect(canvas, Rect.fromCenter(center: c, width: 2 * r, height: 2 * r), PingDuckColors.partition);
-      _label(canvas, '${ms}ms $name', Offset(c.dx, c.dy - r + 4), PdText.labelSm.copyWith(color: PingDuckColors.inkMuted),
-          centered: true);
-    }
-
     // Sweep arm.
     if (sweep != null) {
       final a = sweep! * 2 * math.pi - math.pi / 2;
@@ -205,7 +262,12 @@ class _RadarPainter extends CustomPainter {
     }
 
     final now = DateTime.now();
-    final taken = <Rect>[];
+    // Labels must not cover markers or the ring captions.
+    final taken = <Rect>[
+      for (final (_, p) in placed) Rect.fromCenter(center: p, width: 11, height: 11),
+      for (final (ms, name) in RadarGeometry.ringMs)
+        RadarGeometry.ringCaptionRect(RadarGeometry.ringCaption(ms, name), c, RadarGeometry.radiusFor(ms) * half),
+    ];
     for (final (d, p) in placed) {
       final color = !d.isOnline
           ? PingDuckColors.inkMuted
@@ -233,37 +295,21 @@ class _RadarPainter extends CustomPainter {
     }
   }
 
-  void _dashedRect(Canvas canvas, Rect r, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-    const dash = 4.0, gap = 4.0;
-    void line(Offset a, Offset b) {
-      final len = (b - a).distance;
-      final dir = (b - a) / len;
-      for (var s = 0.0; s < len; s += dash + gap) {
-        canvas.drawLine(a + dir * s, a + dir * math.min(s + dash, len), paint);
-      }
-    }
-
-    line(r.topLeft, r.topRight);
-    line(r.topRight, r.bottomRight);
-    line(r.bottomRight, r.bottomLeft);
-    line(r.bottomLeft, r.topLeft);
-  }
-
-  void _label(Canvas canvas, String text, Offset at, TextStyle style, {bool centered = false}) {
-    final tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr)..layout();
-    tp.paint(canvas, centered ? at - Offset(tp.width / 2, 0) : at);
-  }
-
   /// Draws a label next to [p], trying the four corners around the marker
-  /// and keeping the first spot that overlaps no earlier label.
+  /// and keeping the first spot inside the scope that overlaps no marker or
+  /// earlier label.
   void _tag(Canvas canvas, String text, Offset p, Size size, List<Rect> taken, {required bool dim}) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: PdText.code.copyWith(color: dim ? PingDuckColors.inkSecondary : PingDuckColors.canvas, fontSize: 11)),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final tp = _labels.putIfAbsent(
+      '$dim|$text',
+      () => TextPainter(
+        text: TextSpan(
+          text: text,
+          style: PdText.code.copyWith(color: dim ? PingDuckColors.inkSecondary : PingDuckColors.canvas, fontSize: 11),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(),
+    );
+    if (_labels.length > 512) _labels.clear();  // labels change with RTT; keep it bounded
     final w = tp.width + 8, h = tp.height + 4;
     final candidates = [
       Offset(p.dx + 8, p.dy - h - 2),
@@ -271,12 +317,14 @@ class _RadarPainter extends CustomPainter {
       Offset(p.dx - w - 8, p.dy - h - 2),
       Offset(p.dx - w - 8, p.dy + 4),
     ];
-    final bounds = Offset.zero & size;
+    final bounds = (Offset.zero & size).deflate(1);
     Rect place(Offset o) => Rect.fromLTWH(o.dx, o.dy, w, h);
-    final rect = candidates.map(place).firstWhere(
-          (r) => bounds.contains(r.topLeft) && bounds.contains(r.bottomRight) && !taken.any(r.overlaps),
-          orElse: () => place(candidates.first),
-        );
+    bool inside(Rect r) => r.left >= bounds.left && r.top >= bounds.top && r.right <= bounds.right && r.bottom <= bounds.bottom;
+    final fits = candidates.map(place).where((r) => inside(r) && !taken.any(r.overlaps));
+    // In a crowded scope some labels cannot fit: show the marker alone (it is
+    // still tappable) rather than stacking or clipping text.
+    if (fits.isEmpty) return;
+    final rect = fits.first;
     taken.add(rect);
     final at = rect.topLeft;
     canvas.drawRect(rect, Paint()..color = dim ? PingDuckColors.surface2 : PingDuckColors.ink);

@@ -5,6 +5,7 @@ import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/scanner/domain/device_kind.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/features/scanner/presentation/discovery_screen.dart';
+import 'package:pingduck_app/features/scanner/presentation/radar_scope.dart';
 
 import 'fakes.dart';
 
@@ -59,6 +60,17 @@ void main() {
       final s = {DiscoverySource.icmp, DiscoverySource.arp, DiscoverySource.ssdp};
       expect(DiscoverySource.fromMask(DiscoverySource.toMask(s)), s);
     });
+  });
+
+  test('radar scale spreads wired and Wi-Fi latencies', () {
+    final r = [1, 5, 10, 50, 60, 140, 260, 500, 5000].map(RadarGeometry.radiusFor).toList();
+    for (var i = 1; i < r.length; i++) {
+      expect(r[i], greaterThanOrEqualTo(r[i - 1]));  // monotonic
+    }
+    expect(r.every((v) => v > 0.15 && v <= 0.95), isTrue);  // clear of the centre box, inside the scope
+    // Typical Wi-Fi replies (60-260 ms) must not collapse onto one ring.
+    expect(RadarGeometry.radiusFor(260) - RadarGeometry.radiusFor(60), greaterThan(0.15));
+    expect(RadarGeometry.radiusFor(null), 0.95);
   });
 
   test('ledger sort and filter', () {

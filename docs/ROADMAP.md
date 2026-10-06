@@ -77,12 +77,14 @@ on Android because the OS hides the ARP table, which is expected (see Phase 4). 
 | ✅ | Device type icons | S | `DeviceKind`, inferred only from real signals (mDNS/UPnP types, vendor, model, hostname). |
 | ✅ | Device details screen | M | The Inspector: identity, rename and notes, first/last seen, sources, mDNS services, UPnP fields, JSON export, and forget. Fields the app cannot observe (uptime, OS, link speed) are left out rather than faked. |
 | ✅ | Diagnostics | M | 60-sample live ping with min/avg/max/jitter/loss, quick (18 ports) and deep (1-1024) TCP scans with risk hints, and Wake-on-LAN (needs a MAC, so in practice the agent). |
-| 🟡 | Mascot and brand assets | M | Duck mark (vector) plus Space Grotesk and Inter bundled (OFL). Empty and error states follow the brand voice. **Still needed:** launcher icon and splash. |
+| ✅ | Mascot and brand assets | M | Duck mark (vector) plus Space Grotesk and Inter bundled (OFL). Launcher icons (iOS, Android adaptive and Android 13 themed) and native splash (including Android 12+) are generated from `assets/branding/` by `tool/make_brand_assets.py`. Empty and error states follow the brand voice. |
 | ✅ | Onboarding | S | First launch explains scanning, local network access and why MACs need the agent, then starts the first scan. |
 
 **Exit:** cold launch shows cached devices in under 1s, and a full scan updates the radar live with no jank on a mid-range Android phone.
-Checked so far: the cache renders on the first frame (widget test), and the screens were reviewed on a phone-sized emulator.
-Not yet measured: timing and jank on a physical mid-range phone. Topology shows latency rings only; physical links need the agent.
+Measured with `integration_test/perf_test.dart` on the emulator: 7 cached devices on the first frame 185 ms after launch.
+During a scan, raster time is 3.4 ms median. That is after splitting the radar into a cached static layer and an animated
+layer (it was 11.9 ms), but the emulator renders in software, so its 23% over-budget frames are not representative.
+**Still needed:** the same test on a physical phone. Topology shows latency rings only; physical links need the agent.
 
 ---
 

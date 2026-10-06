@@ -11,6 +11,7 @@ import '../../scanner/application/scan_controller.dart';
 import '../../scanner/domain/device_kind.dart';
 import '../../scanner/domain/discovered_device.dart';
 import '../../scanner/presentation/discovery_screen.dart' show inspect;
+import '../../scanner/presentation/radar_scope.dart' show RadarGeometry;
 
 final _groupProvider = NotifierProvider<_Group, String>(_Group.new);
 final _focusProvider = NotifierProvider<_Focus, String?>(_Focus.new);
@@ -201,13 +202,8 @@ class _TopologyMap extends StatelessWidget {
     });
   }
 
-  static double _radius(int? rtt) {
-    if (rtt == null) return 1.0;
-    if (rtt <= 5) return 0.25 + 0.15 * rtt / 5;
-    if (rtt <= 15) return 0.40 + 0.25 * (rtt - 5) / 10;
-    if (rtt <= 50) return 0.65 + 0.25 * (rtt - 15) / 35;
-    return 0.92;
-  }
+  /// Same logarithmic latency scale as the Discovery radar.
+  static double _radius(int? rtt) => RadarGeometry.radiusFor(rtt);
 }
 
 class _MapPainter extends CustomPainter {
@@ -223,7 +219,9 @@ class _MapPainter extends CustomPainter {
     final guide = Paint()..color = PingDuckColors.hairline;
     canvas.drawLine(Offset(c.dx, 0), Offset(c.dx, size.height), guide);
     canvas.drawLine(Offset(0, c.dy), Offset(size.width, c.dy), guide);
-    for (final (f, label) in [(0.40, '<5ms'), (0.65, '15ms'), (0.90, '50ms+')]) {
+    for (final (ms, _) in RadarGeometry.ringMs) {
+      final f = RadarGeometry.radiusFor(ms);
+      final label = '${ms}ms';
       canvas.drawCircle(c, f * half, Paint()
         ..color = PingDuckColors.partition
         ..style = PaintingStyle.stroke);
