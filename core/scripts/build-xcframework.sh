@@ -18,9 +18,18 @@ build() {  # <name> <sdk> <archs>
     -DCMAKE_OSX_SYSROOT="$2" \
     -DCMAKE_OSX_ARCHITECTURES="$3" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=$min_ios \
-    -DPINGDUCK_BUILD_SHARED=OFF -DPINGDUCK_BUILD_CLI=OFF -DPINGDUCK_BUILD_TESTS=OFF -DPINGDUCK_PCAP=OFF \
-    -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE="$out/$1/lib"
-  cmake --build "$out/$1" --config Release --target pingduck -- CODE_SIGNING_ALLOWED=NO
+    -DPINGDUCK_BUILD_SHARED=OFF -DPINGDUCK_BUILD_CLI=OFF -DPINGDUCK_BUILD_TESTS=OFF -DPINGDUCK_PCAP=OFF
+  # The Xcode generator does not emit libpingduck.a for a static library whose
+  # only content is the linked object library, but it does archive the object
+  # library itself, and that archive holds every core source. Ship it.
+  cmake --build "$out/$1" --config Release --target pingduck_objects -- CODE_SIGNING_ALLOWED=NO
+  local archive
+  archive="$(find "$out/$1/build/pingduck_objects.build" -maxdepth 2 -name libpingduck_objects.a -path '*Release-*' | head -1)"
+  [ -n "$archive" ] || { echo "no libpingduck_objects.a under $out/$1" >&2; exit 1; }
+  # Fail loudly rather than package an empty archive.
+  nm -g "$archive" | grep -q ' T _pd_scan$' || { echo "$archive lacks pd_scan" >&2; exit 1; }
+  mkdir -p "$out/$1/lib"
+  cp "$archive" "$out/$1/lib/libpingduck.a"
 }
 
 build device iphoneos arm64
