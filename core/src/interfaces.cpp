@@ -1,9 +1,11 @@
 // Local IPv4 interface enumeration and "which one is the LAN" selection.
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <vector>
 
+#include "parsers.hpp"
 #include "platform.hpp"
 
 #if defined(_WIN32)
@@ -19,6 +21,30 @@
 #endif
 
 using namespace pd;
+
+namespace pd {
+
+// /proc/net/route: Iface Destination Gateway ... (hex, in network byte order
+// as the kernel stores it, printed as a native-endian integer).
+std::string proc_route_gateway(std::istream& in, const std::string& iface) {
+    std::string line;
+    std::getline(in, line);  // header
+    while (std::getline(in, line)) {
+        std::istringstream ss(line);
+        std::string name, dest, gw;
+        if (!(ss >> name >> dest >> gw)) continue;
+        if (name != iface || dest != "00000000" || gw.size() != 8) continue;
+        char* end = nullptr;
+        unsigned long v = std::strtoul(gw.c_str(), &end, 16);
+        if (*end != '\0' || v == 0) continue;
+        in_addr a{};
+        a.s_addr = static_cast<uint32_t>(v);
+        return ipv4_to_string(ntohl(a.s_addr));
+    }
+    return {};
+}
+
+}  // namespace pd
 
 namespace {
 
@@ -97,25 +123,6 @@ std::vector<pd_interface> enumerate() {
 
 #else
 
-#if defined(__linux__) || defined(__ANDROID__)
-// /proc/net/route: Iface Destination Gateway ... (hex, little-endian on x86/arm)
-std::string linux_default_gateway(const std::string& iface) {
-    std::ifstream f("/proc/net/route");
-    std::string line;
-    std::getline(f, line);  // header
-    while (std::getline(f, line)) {
-        std::istringstream ss(line);
-        std::string name, dest, gw;
-        if (!(ss >> name >> dest >> gw)) continue;
-        if (name != iface || dest != "00000000") continue;
-        in_addr a{};
-        a.s_addr = static_cast<uint32_t>(std::stoul(gw, nullptr, 16));
-        return ipv4_to_string(ntohl(a.s_addr));
-    }
-    return {};
-}
-#endif
-
 std::vector<pd_interface> enumerate() {
     std::vector<pd_interface> result;
     ifaddrs* list = nullptr;
@@ -134,7 +141,10 @@ std::vector<pd_interface> enumerate() {
         finish_iface(f, ip, prefix);
         copy_str(f.name, sizeof(f.name), i->ifa_name);
 #if defined(__linux__) || defined(__ANDROID__)
-        copy_str(f.gateway, sizeof(f.gateway), linux_default_gateway(i->ifa_name));
+        {
+            std::ifstream route("/proc/net/route");
+            copy_str(f.gateway, sizeof(f.gateway), proc_route_gateway(route, i->ifa_name));
+        }
 #endif
         // Hardware address lives in a sibling entry of a link-layer family.
         for (ifaddrs* j = list; j; j = j->ifa_next) {

@@ -46,13 +46,11 @@ bool parse_cidr(const char* cidr, uint32_t* network, uint8_t* prefix) {
     std::string ip = s.substr(0, slash);
     int p = 32;
     if (slash != std::string::npos) {
-        try {
-            p = std::stoi(s.substr(slash + 1));
-        } catch (...) {
-            return false;
-        }
+        std::string bits = s.substr(slash + 1);
+        if (bits.empty() || bits.size() > 2 || bits.find_first_not_of("0123456789") != std::string::npos) return false;
+        p = std::atoi(bits.c_str());
     }
-    if (p < 0 || p > 32) return false;
+    if (p > 32) return false;
     uint32_t addr;
     if (!parse_ipv4(ip.c_str(), &addr)) return false;
     uint32_t mask = p == 0 ? 0 : 0xFFFFFFFFu << (32 - p);
@@ -64,7 +62,7 @@ bool parse_cidr(const char* cidr, uint32_t* network, uint8_t* prefix) {
 bool parse_mac(const char* mac, uint8_t out[6]) {
     if (!mac) return false;
     int n = 0;
-    for (const char* p = mac; *p && n < 12; ++p) {
+    for (const char* p = mac; *p; ++p) {
         char c = *p;
         int v;
         if (c >= '0' && c <= '9') v = c - '0';
@@ -72,6 +70,7 @@ bool parse_mac(const char* mac, uint8_t out[6]) {
         else if (c >= 'A' && c <= 'F') v = c - 'A' + 10;
         else if (c == ':' || c == '-' || c == '.') continue;
         else return false;
+        if (n == 12) return false;  // more than six bytes of hex
         if (n % 2 == 0) out[n / 2] = static_cast<uint8_t>(v << 4);
         else out[n / 2] |= static_cast<uint8_t>(v);
         ++n;
@@ -190,7 +189,8 @@ int pd_wake_on_lan(const char* mac, const char* broadcast) {
 }
 
 int pd_port_scan(const char* ip, const uint16_t* ports, int count, int timeout_ms, uint8_t* open_out) {
-    if (!ip || !ports || !open_out || count <= 0) return PD_ERR_INVALID_ARG;
+    if (!ip || !ports || !open_out || count <= 0 || timeout_ms <= 0) return PD_ERR_INVALID_ARG;
+    std::memset(open_out, 0, static_cast<size_t>(count));
     pd_init();
 
     sockaddr_in base{};
@@ -216,6 +216,7 @@ int pd_port_scan(const char* ip, const uint16_t* ports, int count, int timeout_m
         });
     }
     for (auto& t : pool) t.join();
+    if (tok.cancelled()) return PD_ERR_CANCELLED;
     return open.load();
 }
 

@@ -6,9 +6,35 @@
 #include <unordered_map>
 #include <vector>
 
+#include "parsers.hpp"
 #include "platform.hpp"
 
 using namespace pd;
+
+namespace pd {
+
+std::vector<std::string> split_csv(const std::string& line, size_t max_fields) {
+    std::vector<std::string> out(1);
+    bool quoted = false;
+    for (size_t i = 0; i < line.size(); ++i) {
+        char c = line[i];
+        if (quoted) {
+            if (c == '"' && i + 1 < line.size() && line[i + 1] == '"') out.back() += '"', ++i;
+            else if (c == '"') quoted = false;
+            else out.back() += c;
+        } else if (c == '"') {
+            quoted = true;
+        } else if (c == ',') {
+            if (out.size() == max_fields) break;
+            out.emplace_back();
+        } else if (c != '\r') {
+            out.back() += c;
+        }
+    }
+    return out;
+}
+
+}  // namespace pd
 
 namespace {
 
@@ -23,27 +49,6 @@ int table_index(int bits) {
     return -1;
 }
 
-// Splits one CSV line honouring double quotes ("" escapes).
-std::vector<std::string> split_csv(const std::string& line) {
-    std::vector<std::string> out(1);
-    bool quoted = false;
-    for (size_t i = 0; i < line.size(); ++i) {
-        char c = line[i];
-        if (quoted) {
-            if (c == '"' && i + 1 < line.size() && line[i + 1] == '"') out.back() += '"', ++i;
-            else if (c == '"') quoted = false;
-            else out.back() += c;
-        } else if (c == '"') {
-            quoted = true;
-        } else if (c == ',') {
-            out.emplace_back();
-        } else if (c != '\r') {
-            out.back() += c;
-        }
-    }
-    return out;
-}
-
 }  // namespace
 
 extern "C" {
@@ -53,24 +58,39 @@ int pd_oui_load(const char* csv_path) {
     std::ifstream f(csv_path);
     if (!f) return PD_ERR_NOT_FOUND;
 
-    std::unique_lock<std::shared_mutex> lock(g_mu);
+    // Parse without the lock so running scans keep resolving vendors, then
+    // merge in one step.
+    std::unordered_map<uint64_t, std::string> tables[3];
+    tables[2].reserve(40000);  // MA-L has ~40k entries
     int loaded = 0;
     std::string line;
     while (std::getline(f, line)) {
-        auto cols = split_csv(line);
+        auto cols = split_csv(line, 3);  // the address column is never used
         if (cols.size() < 3) continue;
         const std::string& hex = cols[1];
-        int bits = static_cast<int>(hex.size()) * 4;
-        int idx = table_index(bits);
+        int idx = table_index(static_cast<int>(hex.size()) * 4);
         if (idx < 0) continue;  // header row or malformed
-        uint64_t prefix;
-        try {
-            prefix = std::stoull(hex, nullptr, 16);
-        } catch (...) {
-            continue;
+        uint64_t prefix = 0;
+        bool ok = true;
+        for (char c : hex) {
+            int v = (c >= '0' && c <= '9') ? c - '0' : (c >= 'A' && c <= 'F') ? c - 'A' + 10
+                  : (c >= 'a' && c <= 'f') ? c - 'a' + 10 : -1;
+            if (v < 0) {
+                ok = false;
+                break;
+            }
+            prefix = prefix << 4 | static_cast<uint64_t>(v);
         }
-        g_tables[idx][prefix] = cols[2];
+        if (!ok) continue;
+        tables[idx][prefix] = std::move(cols[2]);
         ++loaded;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(g_mu);
+    for (int i = 0; i < 3; ++i) {
+        if (g_tables[i].empty()) g_tables[i] = std::move(tables[i]);
+        else
+            for (auto& [k, v] : tables[i]) g_tables[i][k] = std::move(v);
     }
     return loaded;
 }

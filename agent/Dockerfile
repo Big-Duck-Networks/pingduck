@@ -10,21 +10,21 @@
 
 FROM debian:bookworm-slim AS build
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential cmake libpcap-dev ca-certificates curl \
- && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends build-essential cmake libpcap-dev ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY core/CMakeLists.txt core/
 COPY core/include core/include
 COPY core/src core/src
 COPY core/cli core/cli
 RUN cmake -S core -B build -DCMAKE_BUILD_TYPE=Release -DPINGDUCK_PCAP=ON -DPINGDUCK_BUILD_SHARED=OFF \
- && cmake --build build -j"$(nproc)"
+    && cmake --build build -j"$(nproc)"
 RUN curl -fsSL -o /oui.csv https://standards-oui.ieee.org/oui/oui.csv
 
 FROM debian:bookworm-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpcap0.8 \
- && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends libpcap0.8 \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/pingduck_cli /usr/local/bin/pingduck
 COPY --from=build /oui.csv /usr/share/pingduck/oui.csv
 ENTRYPOINT ["pingduck"]

@@ -16,12 +16,12 @@ pingduck/
 
 ## Status
 
-| Phase | Scope | State |
-| --- | --- | --- |
-| 1 | Core engine: ICMP, mDNS, SSDP/UPnP, ARP, port scan, WoL, OUI | Built and validated on Windows + Android 14; libpcap path untested (needs Linux) |
-| 2 | Dart FFI bridge, Riverpod state | Not started (app scaffolded, domain model in place) |
-| 3 | Radar UI, device details, local cache | Not started |
-| 4 | Supabase sync, Docker daemon, intrusion alerts | Dockerfile for one-shot scans only |
+| Phase | Scope                                                        | State                                                                            |
+| ----- | ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| 1     | Core engine: ICMP, mDNS, SSDP/UPnP, ARP, port scan, WoL, OUI | Built and validated on Windows + Android 14; libpcap path untested (needs Linux) |
+| 2     | Dart FFI bridge, Riverpod state                              | Not started (app scaffolded, domain model in place)                              |
+| 3     | Radar UI, device details, local cache                        | Not started                                                                      |
+| 4     | Supabase sync, Docker daemon, intrusion alerts               | Dockerfile for one-shot scans only                                               |
 
 ## pingduck-core
 
@@ -31,15 +31,15 @@ directly. The main entry point is `pd_scan()`. It runs every discovery method in
 parallel, merges results by IP, and fires the callback whenever a device appears
 or gains information, so consumers just upsert by IP.
 
-| Method | How | Works in mobile sandbox? |
-| --- | --- | --- |
-| ICMP sweep | `IcmpSendEcho` (Windows), unprivileged `SOCK_DGRAM` ping sockets (Linux/Android/iOS), raw socket fallback | Yes |
-| mDNS / DNS-SD | Legacy-unicast PTR queries + follow-up on enumerated service types; resolves instance → SRV → A | Yes |
-| SSDP / UPnP | M-SEARCH, then fetches each device's description XML (friendlyName, manufacturer, model) | Yes |
-| Reverse names | Parallel DNS PTR + unicast mDNS + NetBIOS node status, hard 1.5 s cap | Yes |
-| OS ARP cache | `GetIpNetTable2` / `/proc/net/arp` | No (blocked on Android 10+ / iOS 14+) |
-| ARP sniffing | libpcap who-has injection + reply capture | Agent only (root / `CAP_NET_RAW`) |
-| OUI vendor | IEEE MA-L/MA-M/MA-S CSV, plus QEMU/KVM, Docker, Hyper-V and randomized-MAC detection | Yes |
+| Method        | How                                                                                                       | Works in mobile sandbox?              |
+| ------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| ICMP sweep    | `IcmpSendEcho` (Windows), unprivileged `SOCK_DGRAM` ping sockets (Linux/Android/iOS), raw socket fallback | Yes                                   |
+| mDNS / DNS-SD | Legacy-unicast PTR queries + follow-up on enumerated service types; resolves instance → SRV → A           | Yes                                   |
+| SSDP / UPnP   | M-SEARCH, then fetches each device's description XML (friendlyName, manufacturer, model)                  | Yes                                   |
+| Reverse names | Parallel DNS PTR + unicast mDNS + NetBIOS node status, hard 1.5 s cap                                     | Yes                                   |
+| OS ARP cache  | `GetIpNetTable2` / `/proc/net/arp`                                                                        | No (blocked on Android 10+ / iOS 14+) |
+| ARP sniffing  | libpcap who-has injection + reply capture                                                                 | Agent only (root / `CAP_NET_RAW`)     |
+| OUI vendor    | IEEE MA-L/MA-M/MA-S CSV, plus QEMU/KVM, Docker, Hyper-V and randomized-MAC detection                      | Yes                                   |
 
 ### Build
 

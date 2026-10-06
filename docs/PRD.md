@@ -25,13 +25,13 @@ PingDuck is a hybrid network discovery and cybersecurity monitoring platform des
 
 PingDuck utilizes a "Write Once, Run Anywhere" architecture, ensuring the heavy networking logic is unified across all platforms.
 
-| Component | Technology | Role & Functionality |
-| --- | --- | --- |
-| **Core Scanning Engine** | C/C++ (`pingduck-core`) | The low-level brain handling socket connections, ICMP packets, mDNS broadcasts, UPnP XML parsing, and raw ARP packet sniffing (`libpcap`). |
-| **Mobile Frontend** | Flutter & Dart FFI | The consumer-facing UI for iOS and Android. Dart FFI binds directly to the C++ binary in-memory for native execution speeds without writing Kotlin/Swift bridging code. |
-| **Headless Agent** | Docker / Linux | The same C++ engine wrapped in a headless daemon deployed on homelab servers (e.g., Proxmox) for 24/7 continuous network monitoring. |
-| **Cloud Sync & Auth** | Supabase | Handles user authentication, PostgreSQL database syncing between the mobile app and the Docker agent, and routing push notifications. |
-| **Local Cache** | SQLite / Isar | Stores previously discovered networks and devices locally on the mobile device for instant UI rendering upon app launch. |
+| Component                | Technology              | Role & Functionality                                                                                                                                                    |
+| ------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core Scanning Engine** | C/C++ (`pingduck-core`) | The low-level brain handling socket connections, ICMP packets, mDNS broadcasts, UPnP XML parsing, and raw ARP packet sniffing (`libpcap`).                              |
+| **Mobile Frontend**      | Flutter & Dart FFI      | The consumer-facing UI for iOS and Android. Dart FFI binds directly to the C++ binary in-memory for native execution speeds without writing Kotlin/Swift bridging code. |
+| **Headless Agent**       | Docker / Linux          | The same C++ engine wrapped in a headless daemon deployed on homelab servers (e.g., Proxmox) for 24/7 continuous network monitoring.                                    |
+| **Cloud Sync & Auth**    | Supabase                | Handles user authentication, PostgreSQL database syncing between the mobile app and the Docker agent, and routing push notifications.                                   |
+| **Local Cache**          | SQLite / Isar           | Stores previously discovered networks and devices locally on the mobile device for instant UI rendering upon app launch.                                                |
 
 ## 4. Technical Constraints & Sandboxing Strategy
 

@@ -1,0 +1,126 @@
+name: core
+
+on:
+  push:
+    branches: [main]
+    paths: ["core/**", "agent/**", ".github/workflows/core.yml"]
+  pull_request:
+    paths: ["core/**", "agent/**", ".github/workflows/core.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S core -B build -G "Visual Studio 17 2022" -A x64
+      - run: cmake --build build --config Release
+      # The "network" label needs a real LAN; runners do not have one.
+      - run: ctest --test-dir build -C Release -LE network --output-on-failure
+
+  linux:
+    name: Linux (GCC, libpcap)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release -DPINGDUCK_PCAP=ON
+      - run: cmake --build build -j
+      - run: ctest --test-dir build -LE network --output-on-failure
+      - name: ARP scan smoke test (raw libpcap path)
+        # Only the gateway's /30, so the runner's network sees four frames.
+        run: |
+          gw=$(ip route | awk '/^default/ {print $3; exit}')
+          sudo ./build/pingduck_cli arp "$gw/30" --json | tee arp.jsonl
+          grep -q "\"ip\":\"$gw\"" arp.jsonl
+
+  sanitizers:
+    name: Linux (Clang, ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      - run: >
+          cmake -S core -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++
+          -DPINGDUCK_SANITIZE=address,undefined
+      - run: cmake --build build -j
+      - run: ctest --test-dir build -LE network --output-on-failure
+
+  fuzz:
+    name: Fuzz (libFuzzer, 2 min per target)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DPINGDUCK_BUILD_FUZZERS=ON
+      - run: cmake --build build -j
+      # The corpus carries over between runs so coverage keeps growing.
+      - uses: actions/cache@v4
+        with:
+          path: corpus
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: fuzz-corpus-
+      - name: Run fuzzers
+        run: |
+          set -e
+          for t in dns mdns ssdp misc; do
+            dict=""
+            case $t in dns|mdns) dict=-dict=core/fuzz/dict/dns.dict ;; ssdp) dict=-dict=core/fuzz/dict/ssdp.dict ;; esac
+            mkdir -p corpus/$t crashes
+            ./build/fuzz/fuzz_$t $dict -max_total_time=120 -max_len=9000 -timeout=5 \
+              -artifact_prefix=crashes/$t- corpus/$t
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: crashes/
+
+  android:
+    name: Android NDK (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - run: >
+          cmake -S core -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake
+          -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-24 -DPINGDUCK_BUILD_TESTS=ON
+      - run: cmake --build build
+
+  macos:
+    name: macOS (Clang)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build -j
+      - run: ctest --test-dir build -LE network --output-on-failure
+
+  ios:
+    name: iOS xcframework
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash core/scripts/build-xcframework.sh build-ios
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PingDuckCore.xcframework
+          path: build-ios/PingDuckCore.xcframework
+
+  agent:
+    name: Agent Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f agent/Dockerfile -t pingduck-agent .
+      - run: docker run --rm --entrypoint pingduck pingduck-agent oui 50:c7:bf:00:00:01 --oui /usr/share/pingduck/oui.csv

@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include "net_util.hpp"
+#include "parsers.hpp"
 
 namespace pd::dns {
 
@@ -93,9 +94,6 @@ std::string lan_dns_server() {
     return f.gateway;
 }
 
-namespace {
-
-// Returns the PTR target answering `qname`, or "" if the message has none.
 std::string find_ptr_answer(const uint8_t* buf, size_t n, const std::string& qname) {
     Reader r{buf, n};
     uint16_t id, flags, qd, an, ns, ar;
@@ -120,6 +118,8 @@ std::string find_ptr_answer(const uint8_t* buf, size_t n, const std::string& qna
     return {};
 }
 
+namespace {
+
 // NetBIOS node status request for the wildcard name "*" (RFC 1002 §4.2.17).
 std::vector<uint8_t> nbstat_query(uint16_t id) {
     std::vector<uint8_t> q = {static_cast<uint8_t>(id >> 8), static_cast<uint8_t>(id), 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
@@ -129,7 +129,8 @@ std::vector<uint8_t> nbstat_query(uint16_t id) {
     return q;
 }
 
-// First unique workstation (<00>) name in a node status response.
+}  // namespace
+
 std::string parse_nbstat(const uint8_t* buf, size_t n) {
     Reader r{buf, n};
     uint16_t id, flags, qd, an, ns, ar;
@@ -149,6 +150,8 @@ std::string parse_nbstat(const uint8_t* buf, size_t n) {
     }
     return {};
 }
+
+namespace {
 
 bool is_own_address(const std::string& ip) {
     pd_interface list[32];

@@ -12,13 +12,14 @@ yet. Size estimates are rough engineering effort for one developer.
 
 | Phase | State | Summary |
 | --- | --- | --- |
-| 1. Core engine | 🟡 ~80% | ICMP, mDNS, SSDP/UPnP, name lookup, port scan, WoL and OUI work on Windows and Android 14. libpcap ARP is written but has never been compiled. There are no automated tests. |
+| 1. Core engine | 🟡 ~95% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is written but has not run yet. Two checks remain: the ARP scan against `arp-scan` on the LAN, and a first iOS build. |
 | 2. FFI & mobile setup | 🟡 ~10% | Flutter app scaffolded with Riverpod, theme, folder structure and `DiscoveredDevice` model. |
 | 3. UI/UX | ⬜ | Placeholder Radar screen only. |
 | 4. Agent & cloud sync | ⬜ | Dockerfile runs a one-shot CLI scan only. |
 
-Measured so far: a full /24 scan takes ~3.4s on Windows and ~3.6s on Android
-(PRD target: under 15s).
+Measured so far: a full /24 scan takes ~3.5s on Windows and ~3.1s on Android
+(PRD target: under 15s). A /16 ICMP sweep takes ~14s on Android and ~4 min on
+Windows, which has no single-socket path.
 
 ---
 
@@ -28,16 +29,17 @@ Measured so far: a full /24 scan takes ~3.4s on Windows and ~3.6s on Android
 
 | | Item | Size | Notes |
 | --- | --- | --- | --- |
-| ⬜ | Build and validate the libpcap ARP scan on Linux | S | Run `agent/Dockerfile` on the Proxmox host. Compare its results against `arp-scan`. |
-| ⬜ | Unit tests (`ctest`) | M | Cover the DNS/mDNS parser, NetBIOS NBSTAT parser, SSDP headers, UPnP XML extraction, OUI CSV, CIDR/MAC parsing and the scan merger. Use captured packets from the test LAN as fixtures. |
-| ⬜ | Fuzz the packet parsers | M | Every parser reads untrusted bytes from the LAN. Run libFuzzer and ASan/UBSan on `Reader`, `parse_nbstat`, `xml_tag` and the SSDP parser. **This is a security requirement before shipping.** |
-| ⬜ | iOS build (static library / xcframework) | M | Needs a Mac. Check that `SOCK_DGRAM` ICMP strips IP headers as expected on iOS. |
-| ⬜ | Cancellation and stress tests | S | `pd_cancel()` during each method, repeated back-to-back scans, /16 sweeps. |
-| ⬜ | Single-socket async ICMP sweep (POSIX) | M | Replace the 128-thread pool on mobile with one socket that sends all echoes and collects replies. This cuts thread and battery cost. |
-| ⬜ | OUI database format | S | The PRD calls for embedded SQLite; it's currently a CSV loader. Decide and convert (see Decisions). |
-| ⬜ | CI | M | GitHub Actions matrix: Windows MSVC, Linux with pcap, Android NDK and macOS/iOS. |
+| 🟡 | Build and validate the libpcap ARP scan on Linux | S | CI builds it with `PINGDUCK_PCAP=ON`, runs a smoke scan of the runner's gateway, and builds the agent image. Frame building and reply parsing are unit-tested and fuzzed. **Still needed:** run the agent image on the Proxmox host and compare its results against `arp-scan`. |
+| ✅ | Unit tests (`ctest`) | M | `core/tests`: DNS/mDNS, NBSTAT, SSDP headers, UPnP XML, ICMP and ARP frames, procfs tables, OUI CSV, CIDR/MAC parsing, the scan merger and API argument checks. Fixtures are synthetic packets shaped like the test LAN's devices. Captured packets stay out of git because they contain device names. |
+| ✅ | Fuzz the packet parsers | M | `core/fuzz`: four libFuzzer targets cover every parser that reads LAN input. 15 min each locally (MSVC + ASan, seeded from real LAN captures) found nothing. CI adds Clang ASan + UBSan, 2 min per target per push. The review behind this fixed a quadratic `xml_tag`, double XML unescaping, unbounded mDNS/SSDP memory and threads, and an SSDP `LOCATION` that could point the scanner at any host. |
+| 🟡 | iOS build (static library / xcframework) | M | `core/scripts/build-xcframework.sh` builds `PingDuckCore.xcframework` (device + simulator), and CI runs it on macOS. It has not been compiled yet (no Mac here). **Still needed:** on an iPhone, check that `SOCK_DGRAM` ICMP strips IP headers as expected. The parser accepts both forms. |
+| ✅ | Cancellation and stress tests | S | `pingduck_live_tests` (ctest label `network`): `pd_cancel()` during each method, a cancel not leaking into the next scan, 5 back-to-back scans, and an opt-in /16 sweep (`PINGDUCK_STRESS=1`). All pass on Windows and Android 14. |
+| ✅ | Single-socket async ICMP sweep (POSIX) | M | One non-blocking socket, paced bursts, one retry pass. On Android it is faster than the 128-thread pool it replaces (sweep 1.6s vs 2.0s, full scan 3.1s vs 3.6s) and uses ~35% less kernel CPU. Windows keeps the `IcmpSendEcho` thread pool. |
+| ✅ | OUI database format | S | Decided: keep CSV (see Decisions). The loader now reads only the needed columns: 0.36s on the Chromecast (was 0.48s), ~0.1s on desktop. |
+| 🟡 | CI | M | `.github/workflows/core.yml`: Windows MSVC, Linux GCC + libpcap, Clang ASan/UBSan, fuzzing, Android NDK (3 ABIs), macOS, iOS xcframework and the agent image. **Has not run yet.** |
 
 **Exit:** green CI on all four targets, the ARP scan validated on Linux, and the parsers fuzzed with no findings.
+Fuzzing is done. The rest waits on the first CI run and the Proxmox comparison.
 
 ---
 
@@ -126,7 +128,7 @@ Measured so far: a full /24 scan takes ~3.4s on Windows and ~3.6s on Android
 | Decision | Options | Recommendation | Needed by |
 | --- | --- | --- | --- |
 | Local cache | Isar · drift (SQLite) · sqflite | **drift**: SQLite matches the PRD, is actively maintained and has typed queries | Phase 3 |
-| OUI storage | CSV (current) · embedded SQLite | **SQLite** if the app shares it with drift; otherwise keep CSV (a 40k-row hash map loads fast) | Phase 2 |
+| ~~OUI storage~~ | **Decided: CSV.** The app looks vendors up through `pd_oui_lookup` over FFI, so it never reads the table itself. SQLite would add a C dependency to the core for no gain. Load it off the UI thread at startup (0.36s on the slowest test device). | | ✅ |
 | Agent daemon language | C++ with libcurl · thin Go/Rust wrapper around `libpingduck` | **C++**: one toolchain, matches the PRD | Phase 4 |
 | Auth providers | Email magic link · Apple/Google sign-in | Magic link first; Apple sign-in is required on iOS if any social login ships | Phase 4 |
 | Device identity | MAC · IP · MAC with hostname fallback | MAC, with a fallback for randomized MACs | Phase 3 |
@@ -136,6 +138,7 @@ Measured so far: a full /24 scan takes ~3.4s on Windows and ~3.6s on Android
 
 ## Suggested next steps
 
-1. Validate the Linux ARP scan on the Proxmox host (closes the last untested core path).
-2. Apply for the iOS multicast entitlement (long lead time; it doesn't block other work).
-3. Start Phase 2 with the FFI plugin package and `ffigen` bindings, while parser tests and fuzzing finish in parallel.
+1. Push and get the core CI green (the first run covers the Linux libpcap, macOS and iOS builds).
+2. Run the agent image on the Proxmox host and compare its results against `arp-scan`, which closes Phase 1.
+3. Apply for the iOS multicast entitlement (long lead time; it doesn't block other work).
+4. Start Phase 2 with the FFI plugin package and `ffigen` bindings.

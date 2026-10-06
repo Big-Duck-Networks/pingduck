@@ -12,14 +12,18 @@
 
 #include "dns.hpp"
 #include "net_util.hpp"
+#include "parsers.hpp"
 #include "platform.hpp"
 
 using namespace pd;
 using namespace pd::dns;
+using pd::mdns::Collector;
 
 namespace {
 
 constexpr const char* kServicesEnum = "_services._dns-sd._udp.local";
+constexpr size_t kMaxRecords = 8192;
+constexpr size_t kMaxServiceTypes = 256;
 
 // Service types that commonly identify consumer/homelab hardware.
 const char* const kCommonServices[] = {
@@ -61,16 +65,6 @@ std::string ip_from_arpa(const std::string& name) {
     return out;
 }
 
-// Raw facts as announced. Responders (and mDNS/sleep proxies) may announce
-// records for *other* hosts, so nothing is attributed to an IP until the end,
-// when instance -> SRV host -> A record chains are resolved.
-struct Instance {
-    std::string type;    // "_airplay._tcp"
-    std::string host;    // SRV target, "foo.local"
-    std::string src_ip;  // who told us; fallback when no SRV/A is known
-    std::map<std::string, std::string> txt;
-};
-
 struct Record {
     std::string hostname;    // from SRV / A / reverse PTR
     std::string instance;    // DNS-SD instance label
@@ -79,139 +73,52 @@ struct Record {
     std::set<std::string> services;
 };
 
-struct Collector {
-    std::map<std::string, Instance> instances;                 // full instance name -> facts
-    std::map<std::string, std::vector<std::string>> host_ips;  // "foo.local" -> A records
-    std::map<std::string, std::string> host_src;               // "foo.local" -> announcing ip
-    std::map<std::string, std::string> rdns;                   // ip -> "foo.local"
-    std::set<std::string> new_types;                           // to follow up with PTR queries
+// Picks the address for `host`, preferring the announcer's own IP, and
+// anything over link-local (printers often announce a 169.254.x too).
+std::string resolve(const Collector& c, const std::string& host, const std::string& fallback) {
+    const auto& host_ips = c.host_ips;
+    auto it = host_ips.find(host);
+    if (it == host_ips.end() || it->second.empty()) return fallback;
+    const auto& ips = it->second;
+    if (std::find(ips.begin(), ips.end(), fallback) != ips.end()) return fallback;
+    for (auto& ip : ips)
+        if (!is_link_local(ip)) return ip;
+    return ips.front();
+}
 
-    void parse(const uint8_t* buf, size_t n, const std::string& src_ip) {
-        Reader r{buf, n};
-        uint16_t id, flags, qd, an, ns, ar;
-        if (!r.u16(id) || !r.u16(flags) || !r.u16(qd) || !r.u16(an) || !r.u16(ns) || !r.u16(ar)) return;
-        if (!(flags & 0x8000)) return;  // a query, not a response
-
-        for (int i = 0; i < qd; ++i) {
-            std::string q;
-            uint16_t t, c;
-            if (!r.name(q) || !r.u16(t) || !r.u16(c)) return;
+std::map<std::string, Record> build(const Collector& c) {
+    std::map<std::string, Record> out;
+    for (auto& [name, inst] : c.instances) {
+        std::string ip = inst.host.empty() ? inst.src_ip : resolve(c, inst.host, inst.src_ip);
+        if (ip.empty()) continue;
+        Record& rec = out[ip];
+        if (!inst.type.empty()) {
+            rec.services.insert(inst.type);
+            std::string suffix = "." + inst.type + ".local";
+            if (rec.instance.empty() && ends_with(name, suffix))
+                rec.instance = name.substr(0, name.size() - suffix.size());
         }
-
-        int total = an + ns + ar;
-        for (int i = 0; i < total; ++i) {
-            std::string owner;
-            uint16_t type, cls, rdlen, ttl_hi, ttl_lo;
-            if (!r.name(owner) || !r.u16(type) || !r.u16(cls) || !r.u16(ttl_hi) || !r.u16(ttl_lo) || !r.u16(rdlen))
-                return;
-            size_t rd = r.off;
-            if (rd + rdlen > n) return;
-            r.off += rdlen;
-
-            switch (type) {
-                case kTypeA: {
-                    if (rdlen != 4) break;
-                    uint32_t a = static_cast<uint32_t>(buf[rd] << 24 | buf[rd + 1] << 16 | buf[rd + 2] << 8 | buf[rd + 3]);
-                    std::string ip = ipv4_to_string(a);
-                    auto& ips = host_ips[owner];
-                    if (std::find(ips.begin(), ips.end(), ip) == ips.end()) ips.push_back(ip);
-                    host_src.emplace(owner, src_ip);
-                    break;
-                }
-                case kTypePTR: {
-                    std::string target;
-                    size_t p = rd;
-                    if (!r.name_at(p, target)) break;
-                    if (ends_with(owner, ".in-addr.arpa")) {
-                        rdns.emplace(ip_from_arpa(owner), target);
-                    } else if (ends_with(owner, ".ip6.arpa")) {
-                        // IPv6 reverse mappings add nothing to an IPv4 inventory.
-                    } else if (owner == kServicesEnum) {
-                        new_types.insert(target);
-                    } else if (owner.find("._sub.") == std::string::npos) {
-                        Instance& inst = instances[target];
-                        inst.type = strip_local(owner);
-                        if (inst.src_ip.empty()) inst.src_ip = src_ip;
-                    }
-                    break;
-                }
-                case kTypeSRV: {
-                    if (rdlen < 7) break;
-                    std::string target;
-                    size_t p = rd + 6;
-                    if (!r.name_at(p, target)) break;
-                    Instance& inst = instances[owner];
-                    inst.host = target;
-                    if (inst.src_ip.empty()) inst.src_ip = src_ip;
-                    break;
-                }
-                case kTypeTXT: {
-                    Instance& inst = instances[owner];
-                    if (inst.src_ip.empty()) inst.src_ip = src_ip;
-                    size_t p = rd, end = rd + rdlen;
-                    while (p < end) {
-                        size_t l = buf[p++];
-                        if (p + l > end) break;
-                        std::string kv(reinterpret_cast<const char*>(buf + p), l);
-                        p += l;
-                        size_t eq = kv.find('=');
-                        if (eq == std::string::npos || eq + 1 == kv.size()) continue;
-                        inst.txt.emplace(kv.substr(0, eq), kv.substr(eq + 1));
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
+        if (rec.hostname.empty() && !inst.host.empty()) rec.hostname = strip_local(inst.host);
+        for (auto& [k, v] : inst.txt) {
+            if ((k == "md" || k == "model" || k == "am" || k == "usb_MDL" || k == "ty") && rec.model.empty())
+                rec.model = v;
+            else if ((k == "manufacturer" || k == "usb_MFG" || k == "mfg") && rec.vendor.empty())
+                rec.vendor = v;
+            else if (k == "fn" && rec.friendly.empty())
+                rec.friendly = v;
         }
     }
-
-    // Picks the address for `host`, preferring the announcer's own IP, and
-    // anything over link-local (printers often announce a 169.254.x too).
-    std::string resolve(const std::string& host, const std::string& fallback) const {
-        auto it = host_ips.find(host);
-        if (it == host_ips.end() || it->second.empty()) return fallback;
-        const auto& ips = it->second;
-        if (std::find(ips.begin(), ips.end(), fallback) != ips.end()) return fallback;
-        for (auto& ip : ips)
-            if (!is_link_local(ip)) return ip;
-        return ips.front();
+    for (auto& [host, ips] : c.host_ips) {
+        auto src = c.host_src.find(host);
+        Record& rec = out[resolve(c, host, src == c.host_src.end() ? std::string() : src->second)];
+        if (rec.hostname.empty()) rec.hostname = strip_local(host);
     }
-
-    std::map<std::string, Record> build() const {
-        std::map<std::string, Record> out;
-        for (auto& [name, inst] : instances) {
-            std::string ip = inst.host.empty() ? inst.src_ip : resolve(inst.host, inst.src_ip);
-            if (ip.empty()) continue;
-            Record& rec = out[ip];
-            if (!inst.type.empty()) {
-                rec.services.insert(inst.type);
-                std::string suffix = "." + inst.type + ".local";
-                if (rec.instance.empty() && ends_with(name, suffix))
-                    rec.instance = name.substr(0, name.size() - suffix.size());
-            }
-            if (rec.hostname.empty() && !inst.host.empty()) rec.hostname = strip_local(inst.host);
-            for (auto& [k, v] : inst.txt) {
-                if ((k == "md" || k == "model" || k == "am" || k == "usb_MDL" || k == "ty") && rec.model.empty())
-                    rec.model = v;
-                else if ((k == "manufacturer" || k == "usb_MFG" || k == "mfg") && rec.vendor.empty())
-                    rec.vendor = v;
-                else if (k == "fn" && rec.friendly.empty())
-                    rec.friendly = v;
-            }
-        }
-        for (auto& [host, ips] : host_ips) {
-            auto src = host_src.find(host);
-            Record& rec = out[resolve(host, src == host_src.end() ? std::string() : src->second)];
-            if (rec.hostname.empty()) rec.hostname = strip_local(host);
-        }
-        for (auto& [ip, host] : rdns) {
-            Record& rec = out[ip];
-            if (rec.hostname.empty()) rec.hostname = strip_local(host);
-        }
-        return out;
+    for (auto& [ip, host] : c.rdns) {
+        Record& rec = out[ip];
+        if (rec.hostname.empty()) rec.hostname = strip_local(host);
     }
-};
+    return out;
+}
 
 // Google Cast and some IoT devices use a UUID as their mDNS host name.
 bool looks_like_uuid(const std::string& s) {
@@ -229,6 +136,111 @@ std::string display_name(const Record& rec) {
 }
 
 }  // namespace
+
+namespace pd::mdns {
+
+void Collector::parse(const uint8_t* buf, size_t n, const std::string& src_ip) {
+    Reader r{buf, n};
+    uint16_t id, flags, qd, an, ns, ar;
+    if (!r.u16(id) || !r.u16(flags) || !r.u16(qd) || !r.u16(an) || !r.u16(ns) || !r.u16(ar)) return;
+    if (!(flags & 0x8000)) return;  // a query, not a response
+
+    for (int i = 0; i < qd; ++i) {
+        std::string q;
+        uint16_t t, c;
+        if (!r.name(q) || !r.u16(t) || !r.u16(c)) return;
+    }
+
+    int total = an + ns + ar;
+    for (int i = 0; i < total; ++i) {
+        // A busy LAN has a few hundred records; anything far beyond that is a
+        // flood, and further records would only grow memory.
+        if (instances.size() + host_ips.size() + rdns.size() > kMaxRecords) return;
+        std::string owner;
+        uint16_t type, cls, rdlen, ttl_hi, ttl_lo;
+        if (!r.name(owner) || !r.u16(type) || !r.u16(cls) || !r.u16(ttl_hi) || !r.u16(ttl_lo) || !r.u16(rdlen))
+            return;
+        size_t rd = r.off;
+        if (rd + rdlen > n) return;
+        r.off += rdlen;
+
+        switch (type) {
+            case kTypeA: {
+                if (rdlen != 4) break;
+                uint32_t a = static_cast<uint32_t>(buf[rd] << 24 | buf[rd + 1] << 16 | buf[rd + 2] << 8 | buf[rd + 3]);
+                std::string ip = ipv4_to_string(a);
+                auto& ips = host_ips[owner];
+                if (std::find(ips.begin(), ips.end(), ip) == ips.end()) ips.push_back(ip);
+                host_src.emplace(owner, src_ip);
+                break;
+            }
+            case kTypePTR: {
+                std::string target;
+                size_t p = rd;
+                if (!r.name_at(p, target)) break;
+                if (ends_with(owner, ".in-addr.arpa")) {
+                    uint32_t tmp;
+                    std::string ip = ip_from_arpa(owner);
+                    if (parse_ipv4(ip.c_str(), &tmp)) rdns.emplace(ip, target);
+                } else if (ends_with(owner, ".ip6.arpa")) {
+                    // IPv6 reverse mappings add nothing to an IPv4 inventory.
+                } else if (owner == kServicesEnum) {
+                    if (new_types.size() < kMaxServiceTypes) new_types.insert(target);
+                } else if (owner.find("._sub.") == std::string::npos) {
+                    Instance& inst = instances[target];
+                    inst.type = strip_local(owner);
+                    if (inst.src_ip.empty()) inst.src_ip = src_ip;
+                }
+                break;
+            }
+            case kTypeSRV: {
+                if (rdlen < 7) break;
+                std::string target;
+                size_t p = rd + 6;
+                if (!r.name_at(p, target)) break;
+                Instance& inst = instances[owner];
+                inst.host = target;
+                if (inst.src_ip.empty()) inst.src_ip = src_ip;
+                break;
+            }
+            case kTypeTXT: {
+                Instance& inst = instances[owner];
+                if (inst.src_ip.empty()) inst.src_ip = src_ip;
+                size_t p = rd, end = rd + rdlen;
+                while (p < end) {
+                    size_t l = buf[p++];
+                    if (p + l > end) break;
+                    std::string kv(reinterpret_cast<const char*>(buf + p), l);
+                    p += l;
+                    size_t eq = kv.find('=');
+                    if (eq == std::string::npos || eq + 1 == kv.size()) continue;
+                    inst.txt.emplace(kv.substr(0, eq), kv.substr(eq + 1));
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+}
+
+std::vector<pd_device> Collector::devices() const {
+    std::vector<pd_device> out;
+    for (auto& [ip, rec] : build(*this)) {
+        if (ip.empty() || is_link_local(ip)) continue;
+        if (rec.hostname.empty() && rec.instance.empty() && rec.friendly.empty() && rec.services.empty()) continue;
+        pd_device d = make_device(ip);
+        d.sources = PD_SRC_MDNS;
+        copy_str(d.hostname, sizeof(d.hostname), display_name(rec));
+        copy_str(d.model, sizeof(d.model), rec.model);
+        copy_str(d.vendor, sizeof(d.vendor), rec.vendor);
+        for (auto& s : rec.services) append_csv(d.services, sizeof(d.services), s);
+        out.push_back(d);
+    }
+    return out;
+}
+
+}  // namespace pd::mdns
 
 extern "C" int pd_mdns_discover(int timeout_ms, pd_device_cb cb, void* user) {
     if (timeout_ms <= 0) return PD_ERR_INVALID_ARG;
@@ -301,21 +313,13 @@ extern "C" int pd_mdns_discover(int timeout_ms, pd_device_cb cb, void* user) {
         // Follow up on service types we learned about from the enumeration.
         std::vector<std::string> follow;
         for (auto& t : col.new_types)
-            if (queried.insert(t).second) follow.push_back(t);
+            if (queried.size() < kMaxServiceTypes && queried.insert(t).second) follow.push_back(t);
         col.new_types.clear();
         if (!follow.empty()) send_query(follow);
     }
 
     int count = 0;
-    for (auto& [ip, rec] : col.build()) {
-        if (ip.empty() || is_link_local(ip)) continue;
-        if (rec.hostname.empty() && rec.instance.empty() && rec.friendly.empty() && rec.services.empty()) continue;
-        pd_device d = make_device(ip);
-        d.sources = PD_SRC_MDNS;
-        copy_str(d.hostname, sizeof(d.hostname), display_name(rec));
-        copy_str(d.model, sizeof(d.model), rec.model);
-        copy_str(d.vendor, sizeof(d.vendor), rec.vendor);
-        for (auto& s : rec.services) append_csv(d.services, sizeof(d.services), s);
+    for (auto& d : col.devices()) {
         ++count;
         if (cb) cb(&d, user);
     }

@@ -1,0 +1,17 @@
+add_executable(pingduck_tests test_parsers.cpp test_api.cpp)
+target_link_libraries(pingduck_tests PRIVATE pingduck_objects)
+add_test(NAME unit COMMAND pingduck_tests)
+
+add_executable(pingduck_live_tests test_live.cpp)
+target_link_libraries(pingduck_live_tests PRIVATE pingduck_objects)
+add_test(NAME live COMMAND pingduck_live_tests)
+set_tests_properties(live PROPERTIES LABELS network TIMEOUT 900)
+
+if(MSVC)
+  target_compile_options(pingduck_tests PRIVATE /W4 /utf-8)
+  target_compile_options(pingduck_live_tests PRIVATE /W4 /utf-8)
+  target_compile_definitions(pingduck_live_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+  target_compile_options(pingduck_tests PRIVATE -Wall -Wextra)
+  target_compile_options(pingduck_live_tests PRIVATE -Wall -Wextra)
+endif()

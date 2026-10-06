@@ -1,8 +1,8 @@
 // SSDP (UPnP) discovery: M-SEARCH multicast, then fetch each responder's
 // device description XML for friendlyName / manufacturer / modelName.
 //
-// Timing: replies are collected for `timeout_ms`, then all description
-// fetches run in parallel, each capped at min(timeout_ms, 2000) ms.
+// Timing: replies are collected for `timeout_ms`, then description fetches
+// run on a small worker pool, each capped at min(timeout_ms, 2000) ms.
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -10,17 +10,17 @@
 #include <vector>
 
 #include "net_util.hpp"
+#include "parsers.hpp"
 #include "platform.hpp"
 
 using namespace pd;
+using pd::ssdp::Responder;
 
 namespace {
 
-struct Responder {
-    std::string location;
-    std::string server;
-    std::vector<std::string> types;  // short device/service types from ST
-};
+// More responders than this on one LAN means someone is spoofing replies.
+constexpr size_t kMaxResponders = 512;
+constexpr size_t kFetchWorkers = 16;
 
 std::string lower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -34,64 +34,32 @@ std::string trim(const std::string& s) {
     return s.substr(a, b - a + 1);
 }
 
-std::map<std::string, std::string> parse_headers(const std::string& msg) {
-    std::map<std::string, std::string> h;
-    size_t pos = msg.find("\r\n");
-    while (pos != std::string::npos && pos + 2 < msg.size()) {
-        size_t end = msg.find("\r\n", pos + 2);
-        std::string line = msg.substr(pos + 2, end == std::string::npos ? std::string::npos : end - pos - 2);
-        size_t colon = line.find(':');
-        if (colon != std::string::npos) h[lower(trim(line.substr(0, colon)))] = trim(line.substr(colon + 1));
-        pos = end;
-    }
-    return h;
-}
-
-// "urn:schemas-upnp-org:device:MediaRenderer:1" -> "upnp:MediaRenderer"
-std::string short_type(const std::string& st) {
-    for (const char* kind : {":device:", ":service:"}) {
-        size_t p = st.find(kind);
-        if (p == std::string::npos) continue;
-        std::string rest = st.substr(p + std::strlen(kind));
-        size_t colon = rest.find(':');
-        return "upnp:" + rest.substr(0, colon);
-    }
-    return {};
-}
-
-std::string xml_unescape(std::string s) {
-    const std::pair<const char*, const char*> ents[] = {
-        {"&amp;", "&"}, {"&lt;", "<"}, {"&gt;", ">"}, {"&quot;", "\""}, {"&apos;", "'"}};
-    for (auto& [from, to] : ents) {
-        size_t p = 0;
-        while ((p = s.find(from, p)) != std::string::npos) {
-            s.replace(p, std::strlen(from), to);
-            p += std::strlen(to);
+// Single pass, so "&amp;lt;" stays "&lt;".
+std::string xml_unescape(const std::string& s) {
+    static const std::pair<const char*, char> ents[] = {
+        {"&amp;", '&'}, {"&lt;", '<'}, {"&gt;", '>'}, {"&quot;", '"'}, {"&apos;", '\''}};
+    std::string out;
+    out.reserve(s.size());
+    for (size_t i = 0; i < s.size();) {
+        bool matched = false;
+        if (s[i] == '&') {
+            for (auto& [from, to] : ents) {
+                size_t len = std::strlen(from);
+                if (s.compare(i, len, from) == 0) {
+                    out += to;
+                    i += len;
+                    matched = true;
+                    break;
+                }
+            }
         }
+        if (!matched) out += s[i++];
     }
-    return s;
+    return out;
 }
 
-// First <tag>value</tag>, tolerating namespace prefixes like <dev:tag>.
-std::string xml_tag(const std::string& xml, const std::string& tag) {
-    size_t p = 0;
-    while ((p = xml.find(tag + ">", p)) != std::string::npos) {
-        size_t open = xml.rfind('<', p);
-        if (open != std::string::npos && xml[open + 1] != '/' &&
-            xml.find('>', open) == p + tag.size() &&
-            (open + 1 == p || xml[p - 1] == ':')) {
-            size_t start = p + tag.size() + 1;
-            size_t close = xml.find("</", start);
-            if (close == std::string::npos) return {};
-            return trim(xml_unescape(xml.substr(start, close - start)));
-        }
-        p += tag.size();
-    }
-    return {};
-}
-
-// Minimal HTTP/1.0 GET for http:// URLs. Returns the body or "".
-std::string http_get(const std::string& url, int timeout_ms) {
+// Minimal HTTP/1.0 GET for http:// URLs on `expected_host`. Returns the body or "".
+std::string http_get(const std::string& url, const std::string& expected_host, int timeout_ms) {
     const std::string scheme = "http://";
     if (url.compare(0, scheme.size(), scheme) != 0) return {};
     std::string rest = url.substr(scheme.size());
@@ -105,6 +73,10 @@ std::string http_get(const std::string& url, int timeout_ms) {
         host = hostport.substr(0, colon);
         port = static_cast<uint16_t>(std::atoi(hostport.c_str() + colon + 1));
     }
+
+    // Only fetch from the responder itself, so a LAN device cannot point the
+    // scanner at an arbitrary host.
+    if (host != expected_host) return {};
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
@@ -133,6 +105,75 @@ std::string http_get(const std::string& url, int timeout_ms) {
 }
 
 }  // namespace
+
+namespace pd::ssdp {
+
+std::map<std::string, std::string> parse_headers(const std::string& msg) {
+    std::map<std::string, std::string> h;
+    size_t pos = msg.find("\r\n");
+    while (pos != std::string::npos && pos + 2 < msg.size()) {
+        size_t end = msg.find("\r\n", pos + 2);
+        std::string line = msg.substr(pos + 2, end == std::string::npos ? std::string::npos : end - pos - 2);
+        size_t colon = line.find(':');
+        if (colon != std::string::npos) h[lower(trim(line.substr(0, colon)))] = trim(line.substr(colon + 1));
+        pos = end;
+    }
+    return h;
+}
+
+std::string short_type(const std::string& st) {
+    for (const char* kind : {":device:", ":service:"}) {
+        size_t p = st.find(kind);
+        if (p == std::string::npos) continue;
+        std::string rest = st.substr(p + std::strlen(kind));
+        size_t colon = rest.find(':');
+        return "upnp:" + rest.substr(0, colon);
+    }
+    return {};
+}
+
+std::string xml_tag(const std::string& xml, const std::string& tag) {
+    // One forward pass over '<' positions keeps this linear on hostile input.
+    for (size_t open = xml.find('<'); open != std::string::npos; open = xml.find('<', open + 1)) {
+        size_t name_end = xml.find_first_of("<> \t\r\n/", open + 1);
+        if (name_end == std::string::npos) return {};
+        if (xml[name_end] != '>' || name_end == open + 1) continue;
+        size_t name_start = name_end;
+        while (name_start > open + 1 && xml[name_start - 1] != ':') --name_start;
+        if (xml.compare(name_start, name_end - name_start, tag) != 0 || name_end - name_start != tag.size()) continue;
+        size_t start = name_end + 1;
+        size_t close = xml.find("</", start);
+        if (close == std::string::npos) return {};
+        return trim(xml_unescape(xml.substr(start, close - start)));
+    }
+    return {};
+}
+
+bool note_response(const std::string& msg, Responder& r) {
+    if (msg.compare(0, 8, "HTTP/1.1") != 0 && msg.compare(0, 6, "NOTIFY") != 0) return false;
+    auto h = parse_headers(msg);
+    std::string st = h.count("st") ? h["st"] : h["nt"];
+    // Prefer the root device description; any LOCATION is better than none.
+    if (h.count("location") && (r.location.empty() || st == "upnp:rootdevice")) r.location = h["location"];
+    if (r.server.empty() && h.count("server")) r.server = h["server"];
+    std::string t = short_type(st);
+    if (!t.empty() && r.types.size() < 32 && std::find(r.types.begin(), r.types.end(), t) == r.types.end())
+        r.types.push_back(t);
+    return true;
+}
+
+void apply_description(const std::string& xml, const Responder& r, pd_device& d) {
+    for (auto& t : r.types) append_csv(d.services, sizeof(d.services), t);
+    std::string model = xml_tag(xml, "modelName");
+    std::string number = xml_tag(xml, "modelNumber");
+    if (!number.empty() && model.find(number) == std::string::npos) model += model.empty() ? number : " " + number;
+    copy_str(d.hostname, sizeof(d.hostname), xml_tag(xml, "friendlyName"));
+    copy_str(d.vendor, sizeof(d.vendor), xml_tag(xml, "manufacturer"));
+    copy_str(d.model, sizeof(d.model), model.empty() ? r.server : model);
+    append_csv(d.services, sizeof(d.services), short_type(xml_tag(xml, "deviceType")));
+}
+
+}  // namespace pd::ssdp
 
 extern "C" int pd_ssdp_discover(int timeout_ms, pd_device_cb cb, void* user) {
     if (timeout_ms <= 0) return PD_ERR_INVALID_ARG;
@@ -175,40 +216,28 @@ extern "C" int pd_ssdp_discover(int timeout_ms, pd_device_cb cb, void* user) {
         socklen_t fl = sizeof(from);
         int n = static_cast<int>(recvfrom(s.fd, buf, sizeof(buf) - 1, 0, reinterpret_cast<sockaddr*>(&from), &fl));
         if (n <= 0) continue;
-        std::string msg(buf, static_cast<size_t>(n));
-        if (msg.compare(0, 8, "HTTP/1.1") != 0 && msg.compare(0, 6, "NOTIFY") != 0) continue;
-
-        auto h = parse_headers(msg);
-        Responder& r = found[ipv4_to_string(ntohl(from.sin_addr.s_addr))];
-        std::string st = h.count("st") ? h["st"] : h["nt"];
-        // Prefer the root device description; any LOCATION is better than none.
-        if (h.count("location") && (r.location.empty() || st == "upnp:rootdevice")) r.location = h["location"];
-        if (r.server.empty() && h.count("server")) r.server = h["server"];
-        std::string t = short_type(st);
-        if (!t.empty() && std::find(r.types.begin(), r.types.end(), t) == r.types.end()) r.types.push_back(t);
+        std::string ip = ipv4_to_string(ntohl(from.sin_addr.s_addr));
+        if (found.size() >= kMaxResponders && !found.count(ip)) continue;
+        Responder r = found.count(ip) ? found[ip] : Responder{};
+        if (ssdp::note_response(std::string(buf, static_cast<size_t>(n)), r)) found[ip] = std::move(r);
     }
 
     // Fetch device descriptions in parallel.
     std::vector<std::pair<std::string, Responder>> list(found.begin(), found.end());
     std::vector<pd_device> devices(list.size());
+    std::atomic<size_t> next{0};
     std::vector<std::thread> pool;
     int fetch_ms = std::min(timeout_ms, 2000);
-    for (size_t i = 0; i < list.size(); ++i) {
-        pool.emplace_back([&, i] {
-            const auto& [ip, r] = list[i];
-            pd_device& d = devices[i];
-            d = make_device(ip);
-            d.sources = PD_SRC_SSDP;
-            for (auto& t : r.types) append_csv(d.services, sizeof(d.services), t);
-
-            std::string xml = r.location.empty() ? std::string() : http_get(r.location, fetch_ms);
-            std::string model = xml_tag(xml, "modelName");
-            std::string number = xml_tag(xml, "modelNumber");
-            if (!number.empty() && model.find(number) == std::string::npos) model += model.empty() ? number : " " + number;
-            copy_str(d.hostname, sizeof(d.hostname), xml_tag(xml, "friendlyName"));
-            copy_str(d.vendor, sizeof(d.vendor), xml_tag(xml, "manufacturer"));
-            copy_str(d.model, sizeof(d.model), model.empty() ? r.server : model);
-            append_csv(d.services, sizeof(d.services), short_type(xml_tag(xml, "deviceType")));
+    for (size_t w = 0; w < std::min(list.size(), kFetchWorkers); ++w) {
+        pool.emplace_back([&] {
+            for (size_t i = next++; i < list.size() && !tok.cancelled(); i = next++) {
+                const auto& [ip, r] = list[i];
+                pd_device& d = devices[i];
+                d = make_device(ip);
+                d.sources = PD_SRC_SSDP;
+                std::string xml = r.location.empty() ? std::string() : http_get(r.location, ip, fetch_ms);
+                ssdp::apply_description(xml, r, d);
+            }
         });
     }
     for (auto& t : pool) t.join();

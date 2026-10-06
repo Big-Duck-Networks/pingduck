@@ -2,7 +2,37 @@
 // subnet with libpcap and sniff the replies. Unlike ICMP this finds hosts that
 // drop pings (most firewalled phones/IoT) and yields exact MAC addresses.
 // Needs root or CAP_NET_RAW (the Docker agent runs with --net=host + NET_RAW).
+#include "parsers.hpp"
 #include "platform.hpp"
+
+namespace pd {
+
+void build_arp_request(uint8_t frame[42], const uint8_t src_mac[6], uint32_t src_ip, uint32_t target_ip) {
+    std::memset(frame, 0xFF, 6);                 // broadcast
+    std::memcpy(frame + 6, src_mac, 6);
+    frame[12] = 0x08, frame[13] = 0x06;          // ethertype ARP
+    const uint8_t hdr[8] = {0x00, 0x01, 0x08, 0x00, 6, 4, 0x00, 0x01};  // ethernet/IPv4, op=request
+    std::memcpy(frame + 14, hdr, 8);
+    std::memcpy(frame + 22, src_mac, 6);
+    for (int i = 0; i < 4; ++i) frame[28 + i] = static_cast<uint8_t>(src_ip >> (24 - 8 * i));
+    std::memset(frame + 32, 0, 6);
+    for (int i = 0; i < 4; ++i) frame[38 + i] = static_cast<uint8_t>(target_ip >> (24 - 8 * i));
+}
+
+bool parse_arp_reply(const uint8_t* frame, size_t n, uint32_t* ip, uint8_t mac[6]) {
+    if (n < 42) return false;
+    if (frame[12] != 0x08 || frame[13] != 0x06) return false;            // ethertype ARP
+    if (frame[14] != 0x00 || frame[15] != 0x01 || frame[16] != 0x08 ||  // ethernet / IPv4
+        frame[17] != 0x00 || frame[18] != 6 || frame[19] != 4)
+        return false;
+    if (frame[20] != 0x00 || frame[21] != 0x02) return false;  // op = reply
+    std::memcpy(mac, frame + 22, 6);
+    *ip = static_cast<uint32_t>(frame[28]) << 24 | static_cast<uint32_t>(frame[29]) << 16 |
+          static_cast<uint32_t>(frame[30]) << 8 | frame[31];
+    return true;
+}
+
+}  // namespace pd
 
 #if defined(PINGDUCK_WITH_PCAP)
 
@@ -24,18 +54,6 @@ bool find_interface(const char* name, pd_interface* out) {
     for (int i = 0; i < n; ++i)
         if (std::strcmp(list[i].name, name) == 0) return *out = list[i], true;
     return false;
-}
-
-void build_request(uint8_t frame[42], const uint8_t src_mac[6], uint32_t src_ip, uint32_t target_ip) {
-    std::memset(frame, 0xFF, 6);                 // broadcast
-    std::memcpy(frame + 6, src_mac, 6);
-    frame[12] = 0x08, frame[13] = 0x06;          // ethertype ARP
-    const uint8_t hdr[8] = {0x00, 0x01, 0x08, 0x00, 6, 4, 0x00, 0x01};  // ethernet/IPv4, op=request
-    std::memcpy(frame + 14, hdr, 8);
-    std::memcpy(frame + 22, src_mac, 6);
-    for (int i = 0; i < 4; ++i) frame[28 + i] = static_cast<uint8_t>(src_ip >> (24 - 8 * i));
-    std::memset(frame + 32, 0, 6);
-    for (int i = 0; i < 4; ++i) frame[38 + i] = static_cast<uint8_t>(target_ip >> (24 - 8 * i));
 }
 
 }  // namespace
@@ -84,7 +102,7 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
             for (uint32_t i = 0; i < count && !tok.cancelled(); ++i) {
                 uint32_t target = first + i;
                 if (target == src_ip) continue;
-                build_request(frame, src_mac, src_ip, target);
+                build_arp_request(frame, src_mac, src_ip, target);
                 pcap_inject(p, frame, sizeof(frame));
                 if ((i & 31) == 31) std::this_thread::sleep_for(std::chrono::milliseconds(2));
             }
@@ -103,15 +121,15 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
         const u_char* data;
         int rc = pcap_next_ex(p, &hdr, &data);
         if (rc < 0) break;
-        if (rc == 0 || hdr->caplen < 42) continue;
-        if (data[12] != 0x08 || data[13] != 0x06 || data[21] != 2) continue;
-
-        uint32_t ip = static_cast<uint32_t>(data[28] << 24 | data[29] << 16 | data[30] << 8 | data[31]);
-        if (ip < first || ip >= first + count || !seen.insert(ip).second) continue;
+        if (rc == 0) continue;
+        uint32_t ip;
+        uint8_t mac[6];
+        if (!parse_arp_reply(data, hdr->caplen, &ip, mac)) continue;
+        if (ip < first || ip - first >= count || !seen.insert(ip).second) continue;
 
         pd_device d = make_device(ipv4_to_string(ip));
         d.sources = PD_SRC_ARP;
-        copy_str(d.mac, sizeof(d.mac), mac_to_string(data + 22));
+        copy_str(d.mac, sizeof(d.mac), mac_to_string(mac));
         pd_oui_lookup(d.mac, d.vendor, sizeof(d.vendor));
         if (cb) cb(&d, user);
     }
