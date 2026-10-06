@@ -8,16 +8,18 @@ yet. Size estimates are rough engineering effort for one developer.
 
 ---
 
-## Where we are (2026-10-05)
+## Where we are (2026-10-06)
 
 | Phase | State | Summary |
 | --- | --- | --- |
-| 1. Core engine | 🟡 ~95% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is written but has not run yet. Two checks remain: the ARP scan against `arp-scan` on the LAN, and a first iOS build. |
-| 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android (Chromecast, Android 14): 24 devices stream into the app in ~5s. iOS is configured but has never been built. |
+| 1. Core engine | 🟡 ~98% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is green on all targets, including the iOS xcframework. One check remains: the ARP scan against `arp-scan` on the LAN. |
+| 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android (Chromecast, Android 14): 24 devices stream into the app in ~5s. The iOS core compiles in CI, but the app has never run on an iPhone. |
 | 3. UI/UX | ✅ | The "Precision Editorial Recon" design is built across 3 tabs (Overview, Tools, Account) plus onboarding. Topology is built but parked off the tab bar. Tools holds Node Inspect and the Homelab Agent screen; the device list is titled with the Wi-Fi name. Drift cache, real diagnostics, icons and splash are in. On a Pixel 8 Pro: cached devices on the first frame in about 100 ms, and ~1% of frames over 16.7 ms during a scan. |
 | 4. Agent & cloud sync | ⬜ | Dockerfile runs a one-shot CLI scan only. |
 | 5. Subscriptions | ⬜ | Not started. The tiers below are a proposal. |
-| 6. Launch readiness | ⬜ | |
+| 6. Network tools (Fing parity) | ⬜ | Traceroute, DNS lookup, network details and a speed test. |
+| 7. Recognition & security (Fing parity) | ⬜ | Device fingerprinting and router/security checks. |
+| 8. Launch readiness | ⬜ | |
 
 Measured so far: a full /24 scan takes ~3.5s on Windows and ~3.1s on Android
 (PRD target: under 15s). A /16 ICMP sweep takes ~14s on Android and ~4 min on
@@ -34,14 +36,14 @@ Windows, which has no single-socket path.
 | 🟡 | Build and validate the libpcap ARP scan on Linux | S | CI builds it with `PINGDUCK_PCAP=ON`, runs a smoke scan of the runner's gateway, and builds the agent image. Frame building and reply parsing are unit-tested and fuzzed. **Still needed:** run the agent image on the Proxmox host and compare its results against `arp-scan`. |
 | ✅ | Unit tests (`ctest`) | M | `core/tests`: DNS/mDNS, NBSTAT, SSDP headers, UPnP XML, ICMP and ARP frames, procfs tables, OUI CSV, CIDR/MAC parsing, the scan merger and API argument checks. Fixtures are synthetic packets shaped like the test LAN's devices. Captured packets stay out of git because they contain device names. |
 | ✅ | Fuzz the packet parsers | M | `core/fuzz`: four libFuzzer targets cover every parser that reads LAN input. 15 min each locally (MSVC + ASan, seeded from real LAN captures) found nothing. CI adds Clang ASan + UBSan, 2 min per target per push. The review behind this fixed a quadratic `xml_tag`, double XML unescaping, unbounded mDNS/SSDP memory and threads, and an SSDP `LOCATION` that could point the scanner at any host. |
-| 🟡 | iOS build (static library / xcframework) | M | `core/scripts/build-xcframework.sh` builds `PingDuckCore.xcframework` (device + simulator), and CI runs it on macOS. It has not been compiled yet (no Mac here). **Still needed:** on an iPhone, check that `SOCK_DGRAM` ICMP strips IP headers as expected. The parser accepts both forms. |
+| ✅ | iOS build (static library / xcframework) | M | `core/scripts/build-xcframework.sh` builds `PingDuckCore.xcframework` (device + simulator), and CI runs it on macOS. It compiles in CI (the first attempt failed; fixed in `9bcf82b` by switching to the Xcode generator). **Still needed:** on an iPhone, check that `SOCK_DGRAM` ICMP strips IP headers as expected. The parser accepts both forms. |
 | ✅ | Cancellation and stress tests | S | `pingduck_live_tests` (ctest label `network`): `pd_cancel()` during each method, a cancel not leaking into the next scan, 5 back-to-back scans, and an opt-in /16 sweep (`PINGDUCK_STRESS=1`). All pass on Windows and Android 14. |
 | ✅ | Single-socket async ICMP sweep (POSIX) | M | One non-blocking socket, paced bursts, one retry pass. On Android it is faster than the 128-thread pool it replaces (sweep 1.6s vs 2.0s, full scan 3.1s vs 3.6s) and uses ~35% less kernel CPU. Windows keeps the `IcmpSendEcho` thread pool. |
 | ✅ | OUI database format | S | Decided: keep CSV (see Decisions). The loader now reads only the needed columns: 0.36s on the Chromecast (was 0.48s), ~0.1s on desktop. |
-| 🟡 | CI | M | `.github/workflows/core.yml`: Windows MSVC, Linux GCC + libpcap, Clang ASan/UBSan, fuzzing, Android NDK (3 ABIs), macOS, iOS xcframework and the agent image. **Has not run yet.** |
+| ✅ | CI | M | `.github/workflows/core.yml`: Windows MSVC, Linux GCC + libpcap, Clang ASan/UBSan, fuzzing, Android NDK (3 ABIs), macOS, iOS xcframework and the agent image. All 10 jobs green since 2026-10-06. |
 
 **Exit:** green CI on all four targets, the ARP scan validated on Linux, and the parsers fuzzed with no findings.
-Fuzzing is done. The rest waits on the first CI run and the Proxmox comparison.
+CI is green and fuzzing found nothing. Only the Proxmox comparison remains. The on-device iOS ICMP check moves with the Phase 2 iPhone run.
 
 ---
 
@@ -132,7 +134,44 @@ and cancelling or refunding revokes access on the server.
 
 ---
 
-## Phase 6: Launch readiness
+## Phase 6: Network tools (Fing parity)
+
+**Goal:** the everyday tools users expect from a network app like Fing, so PingDuck can replace it for
+casual use. Each one is cheap and fits into Node Inspect or the Tools tab.
+
+| | Item | Size | Notes |
+| --- | --- | --- | --- |
+| ⬜ | Traceroute | M | Add it to the core (TTL-limited ICMP on the existing socket path) and show hops with RTT in Node Inspect. Works on any host, not just LAN devices. |
+| ⬜ | DNS lookup | S | A, AAAA, PTR, MX and TXT records against the system resolver or a chosen server. The core already has a DNS parser. |
+| ⬜ | Network details screen | S | SSID, local IP, subnet, gateway, public IP, ISP. Android does not expose the DNS server to the app (see Phase 2), so show it only where the platform gives it. |
+| ⬜ | Internet speed test | M | Download, upload and latency against a public endpoint (decide which: an M-Lab NDT7 server or a self-hosted endpoint). Keep the history per network. |
+
+**Exit:** each tool works on Android and iOS against the test LAN and a public host, with results that match
+the desktop tools (`tracert`/`traceroute`, `nslookup`, a reference speed test) to within normal variance.
+
+---
+
+## Phase 7: Device recognition and security (Fing parity)
+
+**Goal:** close Fing's biggest advantage, which is naming what each device is (make, model, OS), and flag risky setups.
+
+| | Item | Size | Notes |
+| --- | --- | --- | --- |
+| ⬜ | Fingerprint rules | L | Combine the signals the core already gathers (OUI, mDNS service types and TXT records, UPnP model fields, NetBIOS names, hostname patterns, open ports) into make/model/OS guesses, using a rules file shipped as an asset and updated like the OUI database. Keep `DeviceKind`'s rule: guess only from real signals and show the confidence. |
+| ⬜ | Agent-side signals | M | The agent can see DHCP options (option 55 fingerprints) and HTTP banners the phone cannot. Feed them into the same rules. |
+| ⬜ | User corrections | S | Let users fix a wrong guess. Later, opt-in sharing of corrections could build a crowd-sourced database (needs a privacy review first). |
+| ⬜ | Router and security checks | M | Check the gateway for open admin ports, exposed UPnP/IGD, Telnet and similar. Reuse the port scan and UPnP data that already carry risk hints. Show it as one "network health" summary. |
+| ⬜ | Exposed services report | S | List devices with risky open ports (Telnet, SMB, RDP, unauthenticated web admin) across the LAN, not one device at a time. |
+
+Out of scope on purpose: **blocking or pausing devices.** Fingbox does this with ARP spoofing, which is fragile,
+can break networks and looks like an attack to other tools. Revisit only if users ask for it strongly.
+
+**Exit:** on the test LAN, most devices show a make or model that matches the real device, and the security
+summary flags a deliberately opened test port.
+
+---
+
+## Phase 8: Launch readiness
 
 | | Item | Notes |
 | --- | --- | --- |
@@ -165,7 +204,7 @@ and cancelling or refunding revokes access on the server.
 | Agent daemon language | C++ with libcurl · thin Go/Rust wrapper around `libpingduck` | **C++**: one toolchain, matches the PRD | Phase 4 |
 | Auth providers | Email magic link · Apple/Google sign-in | Magic link first; Apple sign-in is required on iOS if any social login ships | Phase 4 |
 | Device identity | MAC · IP · MAC with hostname fallback | **IP for now** (the app sees no MACs on Android). Switch to MAC with a hostname fallback when the agent supplies MACs. | Phase 4 |
-| Free vs Pro | What stays free · what is paid | **Free:** on-device scans, radar, topology, device list, Node Inspect (ping, quick port scan), one remembered network. **Pro:** Homelab Agent (MACs, 24/7 monitoring), intrusion alerts, cloud sync across devices, unlimited networks with history, deep port scans, export. The free tier must be useful on its own: it is the store listing's first impression. | Phase 4 (shapes the schema) |
+| Free vs Pro | What stays free · what is paid | **Free:** on-device scans, radar, topology, device list, Node Inspect (ping, quick port scan), the Phase 6 tools, one remembered network. **Pro:** Homelab Agent (MACs, 24/7 monitoring), intrusion alerts, cloud sync across devices, unlimited networks with history, deep port scans, the Phase 7 security checks, export. The free tier must be useful on its own: it is the store listing's first impression. | Phase 4 (shapes the schema) |
 | Billing provider | RevenueCat · native StoreKit 2 + Play Billing | **RevenueCat**: one SDK for both stores, receipt validation, and webhooks into Supabase. It costs a share of revenue above a threshold. Native avoids that cost but means building receipt validation for two stores. | Phase 5 |
 | Pricing | Monthly · annual · lifetime | Monthly + annual (annual about 40% cheaper) with a 7-day trial. Skip lifetime: it does not pay for a hosted backend. Set prices from comparable network tools. | Phase 5 |
 | Monorepo package layout | Core as an FFI plugin package · core built inside the app | **FFI plugin package** (`packages/pingduck_core`) | Phase 2 |
@@ -174,9 +213,9 @@ and cancelling or refunding revokes access on the server.
 
 ## Suggested next steps
 
-1. Push and get the core CI green (the first run covers the Linux libpcap, macOS and iOS builds).
-2. Decide Free vs Pro and the billing provider. Both shape the Phase 4 schema and agent pairing.
-3. Apply for the iOS multicast entitlement, and set up App Store Connect and Play Console early. Both have long lead times.
-4. Finish Phase 3: app icon, splash, and a timing pass on a physical phone.
-5. Run the agent image on the Proxmox host and compare its results against `arp-scan`, which closes Phase 1.
-6. Start Phase 4 with the Supabase schema, designed with entitlements in mind.
+1. Decide Free vs Pro and the billing provider. Both shape the Phase 4 schema and agent pairing.
+2. Apply for the iOS multicast entitlement, and set up App Store Connect and Play Console early. Both have long lead times.
+3. Run the agent image on the Proxmox host and compare its results against `arp-scan`, which closes Phase 1.
+4. Start Phase 4 with the Supabase schema, designed with entitlements in mind.
+5. First iPhone run (needs a Mac): app scan, `SOCK_DGRAM` ICMP check, and mDNS without the multicast entitlement.
+6. Decide whether launch waits for the Phase 6 tools. They are small, and a speed test and traceroute are what store reviewers and users compare against Fing.
