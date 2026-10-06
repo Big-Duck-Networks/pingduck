@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <mutex>
+#include <new>
 #include <thread>
 #include <vector>
 
@@ -134,6 +135,14 @@ void pd_shutdown(void) {
 }
 
 void pd_cancel(void) { ++g_cancel_gen; }
+
+void pd_forward_copy(const pd_device* dev, void* owned_cb) {
+    if (!dev || !owned_cb) return;
+    auto* copy = new (std::nothrow) pd_device(*dev);
+    if (copy) reinterpret_cast<pd_device_owned_cb>(owned_cb)(copy);
+}
+
+void pd_device_free(pd_device* dev) { delete dev; }
 
 const char* pd_strerror(int code) {
     switch (code) {

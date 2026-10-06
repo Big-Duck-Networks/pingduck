@@ -77,4 +77,36 @@ TEST("oui: longest prefix wins across MA-L, MA-M and MA-S") {
 }
 #endif
 
+TEST("api: pd_forward_copy hands out owned copies") {
+    static pd_device* received = nullptr;
+    pd_device d{};
+    std::snprintf(d.ip, sizeof(d.ip), "10.42.0.9");
+    d.rtt_ms = 4;
+    pd_forward_copy(&d, reinterpret_cast<void*>(+[](pd_device* copy) { received = copy; }));
+    REQUIRE(received != nullptr);
+    CHECK(received != &d);
+    CHECK_EQ(std::string(received->ip), std::string("10.42.0.9"));
+    CHECK_EQ(received->rtt_ms, 4);
+    pd_device_free(received);
+    pd_forward_copy(nullptr, nullptr);  // tolerated
+    pd_device_free(nullptr);
+}
+
+TEST("api: pd_set_lan_hints validates and clears") {
+    CHECK_EQ(pd_set_lan_hints("10.42.0.1", "10.42.0.100"), PD_OK);
+    CHECK_EQ(pd_set_lan_hints("10.42.0.300", nullptr), PD_ERR_INVALID_ARG);
+    CHECK_EQ(pd_set_lan_hints("10.42.0.1", "dns"), PD_ERR_INVALID_ARG);
+    CHECK_EQ(pd_set_lan_hints(nullptr, ""), PD_OK);
+}
+
+TEST("oui: load from an in-memory buffer") {
+    const std::string csv = "Registry,Assignment,Organization Name\nMA-L,A4C3F0,Intel Corporate\n";
+    CHECK_EQ(pd_oui_load_buffer(csv.data(), static_cast<int64_t>(csv.size())), 1);
+    char out[PD_VENDOR_LEN];
+    REQUIRE(pd_oui_lookup("a4:c3:f0:00:00:01", out, sizeof(out)) == PD_OK);
+    CHECK_EQ(std::string(out), std::string("Intel Corporate"));
+    CHECK_EQ(pd_oui_load_buffer(nullptr, 3), PD_ERR_INVALID_ARG);
+    CHECK_EQ(pd_oui_load_buffer(csv.data(), -1), PD_ERR_INVALID_ARG);
+}
+
 int main(int argc, char** argv) { return check::run(argc, argv); }

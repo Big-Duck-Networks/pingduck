@@ -9,6 +9,7 @@ set -euo pipefail
 
 core="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$core/build-ios}"
+mkdir -p "$out" && out="$(cd "$out" && pwd)"  # absolute: CMake and xcodebuild run elsewhere
 min_ios=13.0
 
 build() {  # <name> <sdk> <archs>
@@ -17,7 +18,8 @@ build() {  # <name> <sdk> <archs>
     -DCMAKE_OSX_SYSROOT="$2" \
     -DCMAKE_OSX_ARCHITECTURES="$3" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=$min_ios \
-    -DPINGDUCK_BUILD_SHARED=OFF -DPINGDUCK_BUILD_CLI=OFF -DPINGDUCK_BUILD_TESTS=OFF -DPINGDUCK_PCAP=OFF
+    -DPINGDUCK_BUILD_SHARED=OFF -DPINGDUCK_BUILD_CLI=OFF -DPINGDUCK_BUILD_TESTS=OFF -DPINGDUCK_PCAP=OFF \
+    -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE="$out/$1/lib"
   cmake --build "$out/$1" --config Release --target pingduck -- CODE_SIGNING_ALLOWED=NO
 }
 
@@ -26,7 +28,7 @@ build simulator iphonesimulator "arm64;x86_64"
 
 rm -rf "$out/PingDuckCore.xcframework"
 xcodebuild -create-xcframework \
-  -library "$(find "$out/device" -name libpingduck.a -path '*Release*' | head -1)" -headers "$core/include" \
-  -library "$(find "$out/simulator" -name libpingduck.a -path '*Release*' | head -1)" -headers "$core/include" \
+  -library "$out/device/lib/libpingduck.a" -headers "$core/include" \
+  -library "$out/simulator/lib/libpingduck.a" -headers "$core/include" \
   -output "$out/PingDuckCore.xcframework"
 echo "built $out/PingDuckCore.xcframework"

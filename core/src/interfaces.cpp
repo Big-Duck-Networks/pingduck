@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 #include <vector>
 
@@ -170,14 +171,44 @@ std::vector<pd_interface> enumerate() {
 
 #endif
 
+// Host-app hints (pd_set_lan_hints), host order; 0 = unset.
+std::mutex g_hint_mu;
+uint32_t g_hint_gateway = 0, g_hint_dns = 0;
+
+// Fills an empty gateway/DNS with a hint inside that interface's subnet.
+std::vector<pd_interface> with_hints(std::vector<pd_interface> all) {
+    std::lock_guard<std::mutex> lock(g_hint_mu);
+    for (auto& f : all) {
+        uint32_t ip = 0;
+        parse_ipv4(f.ip, &ip);
+        uint32_t mask = f.prefix_len == 0 ? 0 : 0xFFFFFFFFu << (32 - f.prefix_len);
+        if (!f.gateway[0] && g_hint_gateway && (g_hint_gateway & mask) == (ip & mask))
+            copy_str(f.gateway, sizeof(f.gateway), ipv4_to_string(g_hint_gateway));
+        // The DNS server may live off-subnet (e.g. 1.1.1.1), so it only
+        // needs an interface that routes somewhere.
+        if (!f.dns[0] && g_hint_dns && f.gateway[0]) copy_str(f.dns, sizeof(f.dns), ipv4_to_string(g_hint_dns));
+    }
+    return all;
+}
+
 }  // namespace
 
 extern "C" {
 
+int pd_set_lan_hints(const char* gateway, const char* dns) {
+    uint32_t gw = 0, ns = 0;
+    if (gateway && gateway[0] && !parse_ipv4(gateway, &gw)) return PD_ERR_INVALID_ARG;
+    if (dns && dns[0] && !parse_ipv4(dns, &ns)) return PD_ERR_INVALID_ARG;
+    std::lock_guard<std::mutex> lock(g_hint_mu);
+    g_hint_gateway = gw;
+    g_hint_dns = ns;
+    return PD_OK;
+}
+
 int pd_list_interfaces(pd_interface* out, int max) {
     if (!out || max <= 0) return PD_ERR_INVALID_ARG;
     pd_init();
-    auto all = enumerate();
+    auto all = with_hints(enumerate());
     int n = 0;
     for (auto& f : all) {
         if (n >= max) break;
@@ -189,7 +220,7 @@ int pd_list_interfaces(pd_interface* out, int max) {
 int pd_default_interface(pd_interface* out) {
     if (!out) return PD_ERR_INVALID_ARG;
     pd_init();
-    auto all = enumerate();
+    auto all = with_hints(enumerate());
     const pd_interface* best = nullptr;
     int best_score = -1;
     for (auto& f : all) {

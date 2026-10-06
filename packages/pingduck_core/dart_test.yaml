@@ -1,0 +1,3 @@
+tags:
+  native:
+    # Needs libpingduck on the library path and a LAN.

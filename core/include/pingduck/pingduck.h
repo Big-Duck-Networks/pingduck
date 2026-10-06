@@ -84,6 +84,14 @@ typedef struct pd_interface {
 /* Called once per discovered/updated device. `dev` is only valid during the call. */
 typedef void (*pd_device_cb)(const pd_device* dev, void* user);
 
+/* For bindings whose callbacks run asynchronously (Dart NativeCallable.listener):
+ * pass pd_forward_copy as the `cb` of any discovery call and a
+ * pd_device_owned_cb as its `user`. Each device then arrives as a heap copy
+ * that the receiver releases with pd_device_free(). */
+typedef void (*pd_device_owned_cb)(pd_device* dev);
+PD_API void pd_forward_copy(const pd_device* dev, void* owned_cb);
+PD_API void pd_device_free(pd_device* dev);
+
 /* ---- Lifecycle --------------------------------------------------------- */
 PD_API const char* pd_version(void);
 PD_API int  pd_init(void);       /* safe to call more than once */
@@ -99,6 +107,12 @@ PD_API void pd_cancel(void);
 PD_API int pd_default_interface(pd_interface* out);
 /* Fills up to `max` interfaces; returns the count written or a negative error. */
 PD_API int pd_list_interfaces(pd_interface* out, int max);
+
+/* Gateway and DNS server learned by the host app, for platforms that hide
+ * them from native code (Android 10+ blocks /proc/net/route). They fill the
+ * gaps of the interface whose subnet contains them; values the OS reports
+ * win. Either may be NULL or "" to clear it. */
+PD_API int pd_set_lan_hints(const char* gateway, const char* dns);
 
 /* ---- Active discovery -------------------------------------------------- */
 /* Ping a single host. Returns RTT in ms (>= 0) or a negative error. */
@@ -159,6 +173,8 @@ PD_API int pd_wake_on_lan(const char* mac, const char* broadcast);
 /* Load the IEEE MA-L registry CSV (https://standards-oui.ieee.org/oui/oui.csv).
  * Returns the number of entries loaded. */
 PD_API int pd_oui_load(const char* csv_path);
+/* Same as pd_oui_load, from CSV text in memory (e.g. a bundled app asset). */
+PD_API int pd_oui_load_buffer(const char* csv, int64_t len);
 /* Returns PD_OK and fills `out` with the vendor name, or PD_ERR_NOT_FOUND. */
 PD_API int pd_oui_lookup(const char* mac, char* out, int out_len);
 

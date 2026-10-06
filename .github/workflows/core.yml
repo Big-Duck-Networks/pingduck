@@ -19,9 +19,10 @@ jobs:
   windows:
     name: Windows (MSVC)
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - run: cmake -S core -B build -G "Visual Studio 17 2022" -A x64
+      - run: cmake -S core -B build -A x64
       - run: cmake --build build --config Release
       # The "network" label needs a real LAN; runners do not have one.
       - run: ctest --test-dir build -C Release -LE network --output-on-failure
@@ -29,6 +30,7 @@ jobs:
   linux:
     name: Linux (GCC, libpcap)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
@@ -39,12 +41,13 @@ jobs:
         # Only the gateway's /30, so the runner's network sees four frames.
         run: |
           gw=$(ip route | awk '/^default/ {print $3; exit}')
-          sudo ./build/pingduck_cli arp "$gw/30" --json | tee arp.jsonl
+          sudo timeout 60 ./build/pingduck_cli arp "$gw/30" --json | tee arp.jsonl
           grep -q "\"ip\":\"$gw\"" arp.jsonl
 
   sanitizers:
     name: Linux (Clang, ASan + UBSan)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
@@ -57,6 +60,7 @@ jobs:
   fuzz:
     name: Fuzz (libFuzzer, 2 min per target)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DPINGDUCK_BUILD_FUZZERS=ON
@@ -86,6 +90,7 @@ jobs:
   android:
     name: Android NDK (${{ matrix.abi }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       matrix:
         abi: [arm64-v8a, armeabi-v7a, x86_64]
@@ -100,6 +105,7 @@ jobs:
   macos:
     name: macOS (Clang)
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release
@@ -109,6 +115,7 @@ jobs:
   ios:
     name: iOS xcframework
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: bash core/scripts/build-xcframework.sh build-ios
@@ -120,6 +127,7 @@ jobs:
   agent:
     name: Agent Docker image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f agent/Dockerfile -t pingduck-agent .

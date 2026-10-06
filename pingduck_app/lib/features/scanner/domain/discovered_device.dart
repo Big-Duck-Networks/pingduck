@@ -51,6 +51,19 @@ class DiscoveredDevice {
 
   String get displayName => hostname ?? model ?? vendor ?? ip;
 
+  /// The same device, marked as not (yet) answering the current scan.
+  DiscoveredDevice offline() => DiscoveredDevice(
+        ip: ip,
+        mac: mac,
+        hostname: hostname,
+        vendor: vendor,
+        model: model,
+        services: services,
+        sources: sources,
+        firstSeen: firstSeen,
+        lastSeen: lastSeen,
+      );
+
   /// Merges a newer report for the same device, keeping known fields.
   DiscoveredDevice merge(DiscoveredDevice other) => DiscoveredDevice(
         ip: other.ip,

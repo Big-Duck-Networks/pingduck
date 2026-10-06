@@ -13,7 +13,7 @@ yet. Size estimates are rough engineering effort for one developer.
 | Phase | State | Summary |
 | --- | --- | --- |
 | 1. Core engine | 🟡 ~95% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is written but has not run yet. Two checks remain: the ARP scan against `arp-scan` on the LAN, and a first iOS build. |
-| 2. FFI & mobile setup | 🟡 ~10% | Flutter app scaffolded with Riverpod, theme, folder structure and `DiscoveredDevice` model. |
+| 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android (Chromecast, Android 14): 24 devices stream into the app in ~5s. iOS is configured but has never been built. |
 | 3. UI/UX | ⬜ | Placeholder Radar screen only. |
 | 4. Agent & cloud sync | ⬜ | Dockerfile runs a one-shot CLI scan only. |
 
@@ -49,15 +49,17 @@ Fuzzing is done. The rest waits on the first CI run and the Proxmox comparison.
 
 | | Item | Size | Notes |
 | --- | --- | --- | --- |
-| ⬜ | Package the core as a Flutter FFI plugin | M | Use the `packages/pingduck_core` template from `flutter create --template=plugin_ffi`. It builds the CMake project for Android (Gradle `externalNativeBuild`) and iOS (podspec). |
-| ⬜ | Generate bindings with `ffigen` from `pingduck.h` | S | Write `lib/core/ffi/scanner_bridge.dart` as a thin, idiomatic wrapper around the generated code. |
-| ⬜ | Background execution | M | `pd_scan` blocks, so run it on a helper isolate. Deliver callbacks with `NativeCallable.listener` and map them into a `Stream<DiscoveredDevice>`. Wire cancellation to `pd_cancel()`. |
-| ⬜ | `ScanController` (Riverpod `Notifier`) | M | Upsert devices by IP and track scan phases (idle/sweeping/enriching/done) and errors. |
-| ⬜ | Network context from the platform | S | Wi-Fi subnet, gateway and DNS via `network_info_plus`. Android's policy routing hides the gateway from the core. |
-| ⬜ | Platform permissions and config | M | **Android:** `INTERNET`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, and a `MulticastLock` held during scans. **iOS:** `NSLocalNetworkUsageDescription`, `NSBonjourServices` list, and the multicast entitlement (see Risks). |
-| ⬜ | Bundle the OUI database as an asset | S | Load it from `assets/oui_database/` at startup. |
+| ✅ | Package the core as a Flutter FFI plugin | M | `packages/pingduck_core` builds `core/` through CMake on Android, Windows and Linux. The iOS/macOS podspecs compile it through `Classes/` forwarders, which have not been built yet. |
+| ✅ | Generate bindings with `ffigen` from `pingduck.h` | S | `lib/src/bindings.g.dart`, wrapped by the idiomatic `PingDuckCore` API in the plugin. The app talks to it through the narrow `ScannerBridge` interface (`lib/core/ffi/scanner_bridge.dart`), so it can be faked in tests. |
+| ✅ | Background execution | M | Blocking calls run on helper isolates. The new core trampoline `pd_forward_copy` hands each device to a `NativeCallable.listener` as a heap copy, and an end marker keeps the listener open until the last core callback. Plugin tests cover cancel mid-scan and 20 rapid sessions. |
+| ✅ | `ScanController` (Riverpod `Notifier`) | M | Upserts by IP and keeps names from earlier scans. Phases are idle/scanning/done/cancelled/failed: the core does not report sweep vs. enrichment, so those two were dropped. 6 unit tests with a fake bridge. |
+| ✅ | Network context from the platform | S | `network_info_plus` provides the Wi-Fi subnet and gateway, passed to the core through the new `pd_set_lan_hints()`. The DNS server is not exposed by the plugin, so the gateway stands in for it. |
+| 🟡 | Platform permissions and config | M | Android: permissions plus a `MulticastLock` in `MainActivity`, held only during scans. iOS: `NSLocalNetworkUsageDescription` and `NSBonjourServices` are added. **Still needed:** the multicast entitlement, which must wait for Apple's approval (adding it early breaks signing). |
+| ✅ | Bundle the OUI database as an asset | S | `assets/oui_database/oui.csv` (MA-L + MA-M + MA-S, 54k entries, 1.9 MB), refreshed by `dart run tool/update_oui.dart`. Loaded from memory through the new `pd_oui_load_buffer()`, off the UI isolate, on the first scan. |
 
 **Exit:** on a physical Android phone and iPhone, tapping "Scan" streams the same devices the CLI finds.
+Android passes (`integration_test/scan_test.dart` on the Chromecast: 24 devices, the same set the CLI finds). The app gets no MACs
+on Android because the OS hides the ARP table, which is expected (see Phase 4). Still needed: an iPhone run.
 
 ---
 

@@ -1,6 +1,7 @@
 // IEEE OUI -> vendor lookup, loaded from the public registry CSVs
 // (MA-L oui.csv, and optionally MA-M mam.csv / MA-S oui36.csv).
 #include <fstream>
+#include <sstream>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
@@ -49,15 +50,8 @@ int table_index(int bits) {
     return -1;
 }
 
-}  // namespace
-
-extern "C" {
-
-int pd_oui_load(const char* csv_path) {
-    if (!csv_path) return PD_ERR_INVALID_ARG;
-    std::ifstream f(csv_path);
-    if (!f) return PD_ERR_NOT_FOUND;
-
+// Loads registry rows from `f`. Returns the number of entries loaded.
+int load_csv(std::istream& f) {
     // Parse without the lock so running scans keep resolving vendors, then
     // merge in one step.
     std::unordered_map<uint64_t, std::string> tables[3];
@@ -93,6 +87,23 @@ int pd_oui_load(const char* csv_path) {
             for (auto& [k, v] : tables[i]) g_tables[i][k] = std::move(v);
     }
     return loaded;
+}
+
+}  // namespace
+
+extern "C" {
+
+int pd_oui_load(const char* csv_path) {
+    if (!csv_path) return PD_ERR_INVALID_ARG;
+    std::ifstream f(csv_path);
+    if (!f) return PD_ERR_NOT_FOUND;
+    return load_csv(f);
+}
+
+int pd_oui_load_buffer(const char* csv, int64_t len) {
+    if (!csv || len < 0) return PD_ERR_INVALID_ARG;
+    std::istringstream in(std::string(csv, static_cast<size_t>(len)));
+    return load_csv(in);
 }
 
 int pd_oui_lookup(const char* mac, char* out, int out_len) {

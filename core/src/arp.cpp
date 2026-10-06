@@ -38,6 +38,7 @@ bool parse_arp_reply(const uint8_t* frame, size_t n, uint32_t* ip, uint8_t mac[6
 
 #include <pcap/pcap.h>
 
+#include <algorithm>
 #include <chrono>
 #include <set>
 #include <thread>
@@ -94,6 +95,12 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
         pcap_freecode(&prog);
     }
 
+    // On Linux (TPACKET_V3) a blocking pcap_next_ex() can wait forever when no
+    // packets arrive, ignoring the read timeout, so the deadline below would
+    // never be checked. Read non-blocking and wait on the fd ourselves.
+    pcap_setnonblock(p, 1, err);
+    const int pfd = pcap_get_selectable_fd(p);
+
     // Two passes of who-has so a single dropped frame does not hide a host.
     std::atomic<bool> sending{true};
     std::thread sender([&] {
@@ -121,7 +128,12 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
         const u_char* data;
         int rc = pcap_next_ex(p, &hdr, &data);
         if (rc < 0) break;
-        if (rc == 0) continue;
+        if (rc == 0) {
+            int wait = static_cast<int>(std::min<int64_t>(50, deadline - now_ms()));
+            if (pfd >= 0) wait_readable(pfd, wait > 0 ? wait : 0);
+            else std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
         uint32_t ip;
         uint8_t mac[6];
         if (!parse_arp_reply(data, hdr->caplen, &ip, mac)) continue;
