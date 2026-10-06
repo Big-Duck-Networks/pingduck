@@ -127,9 +127,11 @@ class ScanController extends Notifier<ScanState> {
   ScannerBridge get _bridge => ref.read(scannerBridgeProvider);
   LocalStore get _store => ref.read(localStoreProvider);
 
-  Future<void> scan({Duration timeout = const Duration(seconds: 3)}) async {
+  /// Without [timeout], uses the Settings choice (`scanTimeoutSec`), else 3s.
+  Future<void> scan({Duration? timeout}) async {
     if (state.isScanning) return;
     state = state.copyWith(phase: ScanPhase.scanning, clearFailure: true, startedAt: DateTime.now());
+    timeout ??= Duration(seconds: int.tryParse(await _store.setting('scanTimeoutSec') ?? '') ?? 3);
 
     await ref.read(wifiNameAccessProvider).ensure();
     final lan = await _bridge.lanInfo();

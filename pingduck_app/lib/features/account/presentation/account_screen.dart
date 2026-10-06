@@ -7,6 +7,7 @@ import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../scanner/application/scan_controller.dart';
+import '../../settings/presentation/settings_screen.dart';
 
 /// App version and build, e.g. "1.0.0 (1)"; null until loaded (or in tests).
 final appVersionProvider = FutureProvider<String?>((ref) async {
@@ -46,7 +47,10 @@ class AccountScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const PdSectionHeader(title: 'Account', icon: Icons.person_outline),
+        const PdSectionHeader(
+          title: 'Account',
+          icon: Icons.person_outline,
+        ),
         const SizedBox(height: 16),
         PdPanel(
           background: PingDuckColors.canvas,
@@ -87,6 +91,52 @@ class AccountScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               const PdButton(label: 'Sign in · coming with cloud sync', icon: Icons.login),
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PdPanel(
+          title: 'Settings',
+          icon: Icons.tune_outlined,
+          child: Semantics(
+            button: true,
+            label: 'App settings',
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: PingDuckColors.canvas,
+                  border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: PingDuckColors.surface1,
+                        border: Border.all(color: PingDuckColors.partition),
+                      ),
+                      child: const Icon(Icons.tune_outlined, size: 20, color: PingDuckColors.ink),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('App settings', style: PdText.headlineSm),
+                          const SizedBox(height: 2),
+                          Text('Reply timeout, cloud sync and alerts', style: PdText.bodySm),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),

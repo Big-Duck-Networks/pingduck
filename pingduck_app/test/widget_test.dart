@@ -213,4 +213,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('OVERVIEW'), findsOneWidget);
   });
+
+  testWidgets('account tab has settings section and app settings menu item', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Settings'), findsNothing);
+    expect(find.text('SETTINGS'), findsOneWidget);
+    expect(find.text('App settings'), findsOneWidget);
+
+    await tester.tap(find.text('App settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('APP SETTINGS'), findsOneWidget);
+    expect(find.text('SCANNING'), findsOneWidget);
+    expect(find.text('CLOUD & ALERTS'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('ACCOUNT'), findsWidgets);
+  });
 }
+
