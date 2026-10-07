@@ -39,8 +39,8 @@ bool parse_arp_reply(const uint8_t* frame, size_t n, uint32_t* ip, uint8_t mac[6
 #include <pcap/pcap.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
-#include <set>
 #include <thread>
 #include <vector>
 
@@ -101,23 +101,38 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
     pcap_setnonblock(p, 1, err);
     const int pfd = pcap_get_selectable_fd(p);
 
-    // Two passes of who-has so a single dropped frame does not hide a host.
+    // Pace the who-has frames. Access points hold broadcasts for power-saving
+    // Wi-Fi clients until the next beacon and drop them when that queue fills,
+    // so an unpaced burst silently loses most phones and laptops. The second
+    // pass waits, then only asks hosts that have not answered yet. 2 ms per
+    // frame matches arp-scan's default rate; 1 ms still lost Wi-Fi clients.
+    constexpr auto kFrameGap = std::chrono::microseconds(2000);
+    constexpr auto kRetryDelay = std::chrono::milliseconds(500);
+    std::vector<std::atomic<bool>> answered(count);
     std::atomic<bool> sending{true};
     std::thread sender([&] {
         uint8_t frame[42];
+        auto next = std::chrono::steady_clock::now();
         for (int pass = 0; pass < 2 && !tok.cancelled(); ++pass) {
+            if (pass > 0) {
+                const auto resume = std::chrono::steady_clock::now() + kRetryDelay;
+                while (!tok.cancelled() && std::chrono::steady_clock::now() < resume)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                next = std::chrono::steady_clock::now();
+            }
             for (uint32_t i = 0; i < count && !tok.cancelled(); ++i) {
                 uint32_t target = first + i;
-                if (target == src_ip) continue;
+                if (target == src_ip || answered[i].load(std::memory_order_relaxed)) continue;
                 build_arp_request(frame, src_mac, src_ip, target);
+                std::this_thread::sleep_until(next);
                 pcap_inject(p, frame, sizeof(frame));
-                if ((i & 31) == 31) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                next += kFrameGap;
             }
         }
         sending = false;
     });
 
-    std::set<uint32_t> seen;
+    int found = 0;
     int64_t deadline = INT64_MAX;
     for (;;) {
         if (tok.cancelled()) break;
@@ -137,7 +152,9 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
         uint32_t ip;
         uint8_t mac[6];
         if (!parse_arp_reply(data, hdr->caplen, &ip, mac)) continue;
-        if (ip < first || ip - first >= count || !seen.insert(ip).second) continue;
+        // The capture also sees this host's own replies to other machines' queries.
+        if (ip == src_ip || ip < first || ip - first >= count || answered[ip - first].exchange(true)) continue;
+        ++found;
 
         pd_device d = make_device(ipv4_to_string(ip));
         d.sources = PD_SRC_ARP;
@@ -149,7 +166,7 @@ extern "C" int pd_arp_scan(const char* iface, const char* cidr, int timeout_ms, 
     sender.join();
     pcap_close(p);
     if (tok.cancelled()) return PD_ERR_CANCELLED;
-    return static_cast<int>(seen.size());
+    return found;
 }
 
 #else

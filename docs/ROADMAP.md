@@ -12,7 +12,7 @@ yet. Size estimates are rough engineering effort for one developer.
 
 | Phase | State | Summary |
 | --- | --- | --- |
-| 1. Core engine | 🟡 ~98% | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is green on all targets, including the iOS xcframework. One check remains: the ARP scan against `arp-scan` on the LAN. |
+| 1. Core engine | ✅ | Unit tests, fuzzing, cancellation and /16 stress tests, and the single-socket ICMP sweep are done. CI is green on all targets, including the iOS xcframework. The libpcap ARP scan matches `arp-scan` on the LAN. |
 | 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android (Chromecast, Android 14): 24 devices stream into the app in ~5s. The iOS core compiles in CI, but the app has never run on an iPhone. |
 | 3. UI/UX | ✅ | The "Precision Editorial Recon" design is built across 3 tabs (Overview, Tools, Account) plus onboarding. Topology is built but parked off the tab bar. Tools holds Node Inspect and the Homelab Agent screen; the device list is titled with the Wi-Fi name. Drift cache, real diagnostics, icons and splash are in. On a Pixel 8 Pro: cached devices on the first frame in about 100 ms, and ~1% of frames over 16.7 ms during a scan. |
 | 4. Agent & cloud sync | ⬜ | Dockerfile runs a one-shot CLI scan only. |
@@ -33,7 +33,7 @@ Windows, which has no single-socket path.
 
 | | Item | Size | Notes |
 | --- | --- | --- | --- |
-| 🟡 | Build and validate the libpcap ARP scan on Linux | S | CI builds it with `PINGDUCK_PCAP=ON`, runs a smoke scan of the runner's gateway, and builds the agent image. Frame building and reply parsing are unit-tested and fuzzed. **Still needed:** run the agent image on the Proxmox host and compare its results against `arp-scan`. |
+| ✅ | Build and validate the libpcap ARP scan on Linux | S | CI builds it with `PINGDUCK_PCAP=ON`, runs a smoke scan of the runner's gateway, and builds the agent image. Frame building and reply parsing are unit-tested and fuzzed. Compared against `arp-scan` 1.9.7 on the test LAN (2026-10-06, native build on an Ubuntu 22.04 KVM guest bridged onto the LAN): the first version found only 15–17 of ~22 hosts. Unpaced bursts made the AP drop broadcasts queued for power-saving Wi-Fi clients (`arp-scan -B 100M` lost the same hosts). Sends are now paced at 2 ms per frame, and the retry pass waits 500 ms and asks only hosts that have not answered. Over 6 alternating rounds, pingduck found 90.9% of the union of hosts against `arp-scan`'s 91.6%. A /24 takes ~3.6s; a /16 would take ~4–5 min. The scan also no longer reports the scanning host from its own ARP replies. The Docker image itself has not been run on the LAN. |
 | ✅ | Unit tests (`ctest`) | M | `core/tests`: DNS/mDNS, NBSTAT, SSDP headers, UPnP XML, ICMP and ARP frames, procfs tables, OUI CSV, CIDR/MAC parsing, the scan merger and API argument checks. Fixtures are synthetic packets shaped like the test LAN's devices. Captured packets stay out of git because they contain device names. |
 | ✅ | Fuzz the packet parsers | M | `core/fuzz`: four libFuzzer targets cover every parser that reads LAN input. 15 min each locally (MSVC + ASan, seeded from real LAN captures) found nothing. CI adds Clang ASan + UBSan, 2 min per target per push. The review behind this fixed a quadratic `xml_tag`, double XML unescaping, unbounded mDNS/SSDP memory and threads, and an SSDP `LOCATION` that could point the scanner at any host. |
 | ✅ | iOS build (static library / xcframework) | M | `core/scripts/build-xcframework.sh` builds `PingDuckCore.xcframework` (device + simulator), and CI runs it on macOS. It compiles in CI (the first attempt failed; fixed in `9bcf82b` by switching to the Xcode generator). **Still needed:** on an iPhone, check that `SOCK_DGRAM` ICMP strips IP headers as expected. The parser accepts both forms. |
@@ -43,7 +43,7 @@ Windows, which has no single-socket path.
 | ✅ | CI | M | `.github/workflows/core.yml`: Windows MSVC, Linux GCC + libpcap, Clang ASan/UBSan, fuzzing, Android NDK (3 ABIs), macOS, iOS xcframework and the agent image. All 10 jobs green since 2026-10-06. |
 
 **Exit:** green CI on all four targets, the ARP scan validated on Linux, and the parsers fuzzed with no findings.
-CI is green and fuzzing found nothing. Only the Proxmox comparison remains. The on-device iOS ICMP check moves with the Phase 2 iPhone run.
+Done: CI is green, fuzzing found nothing, and the ARP scan matches `arp-scan`. The on-device iOS ICMP check moves with the Phase 2 iPhone run.
 
 ---
 
@@ -192,6 +192,7 @@ summary flags a deliberately opened test port.
 | Parsers run on untrusted network input | Memory-safety bug becomes remote crash or exploit | Fuzz the parsers and run sanitizers in CI (Phase 1). |
 | Isar maintenance status is uncertain | Local cache built on a stalled dependency | Decide the local DB before Phase 3 (see Decisions). |
 | Docker host networking on Proxmox | Agent can't see the LAN from a default bridge network | Document the VM and privileged-LXC setups, and detect the bridge network at startup with a clear error. |
+| Hypervisor traffic filters | During the ARP comparison, the KVM host's management layer (DuckStack) attached a libvirt MAC allowlist to the test VM, cutting it off from all but 3 hosts. It is not yet known whether the sweeps triggered it. | Find out what triggered it before running the agent on that host. Cover hypervisor filters (libvirt `clean-traffic`, Proxmox firewall) in the deployment guide, and warn when an ARP sweep gets replies from almost none of the hosts that ICMP finds. |
 
 ---
 
@@ -215,7 +216,6 @@ summary flags a deliberately opened test port.
 
 1. Decide Free vs Pro and the billing provider. Both shape the Phase 4 schema and agent pairing.
 2. Apply for the iOS multicast entitlement, and set up App Store Connect and Play Console early. Both have long lead times.
-3. Run the agent image on the Proxmox host and compare its results against `arp-scan`, which closes Phase 1.
-4. Start Phase 4 with the Supabase schema, designed with entitlements in mind.
-5. First iPhone run (needs a Mac): app scan, `SOCK_DGRAM` ICMP check, and mDNS without the multicast entitlement.
-6. Decide whether launch waits for the Phase 6 tools. They are small, and a speed test and traceroute are what store reviewers and users compare against Fing.
+3. Start Phase 4 with the Supabase schema, designed with entitlements in mind.
+4. First iPhone run (needs a Mac): app scan, `SOCK_DGRAM` ICMP check, and mDNS without the multicast entitlement.
+5. Decide whether launch waits for the Phase 6 tools. They are small, and a speed test and traceroute are what store reviewers and users compare against Fing.
