@@ -9,7 +9,7 @@ Date of Issue:       2026-10-06
 Product:             PingDuck Network Discovery & Reconnaissance Platform
 ```
 
-Companion to [PRD.md](PRD.md) and [TECHNICAL_SPEC_POWERSYNC.md](TECHNICAL_SPEC_POWERSYNC.md). Each phase has a goal, its work items, and an exit
+Companion to [PRD.md](PRD.md). Each phase has a goal, its work items, and an exit
 criterion that defines "done". Phases overlap where noted; nothing here is dated
 yet. Size estimates are rough engineering effort for one developer.
 
@@ -105,12 +105,12 @@ layer (it was 11.9 ms), but the emulator renders in software, so its 23% over-bu
 
 | | Item | Size | Notes |
 | --- | --- | --- | --- |
-| ⬜ | PostgreSQL schema and PowerSync sync rules | M | Tables for `networks`, `devices`, `device_events`, `agents` and `push_tokens`, plus PowerSync sync rules for user-partitioned streaming. See `DOC-TECH-PDSYNC-001`. |
-| ⬜ | Auth in the app (`features/auth`) | M | JWT-compatible auth (magic link / OAuth) supplying tokens to PowerSync's credentials connector. |
-| ⬜ | Agent pairing | M | The app shows a short pairing code and the agent exchanges it for a scoped, revocable token. **The agent never holds master database keys.** |
-| ⬜ | Agent daemon | L | Scan on an interval with the ARP, ICMP, mDNS and SSDP methods, diff against the last state, and upsert changes to the PostgreSQL backend. Config via env vars; health check; graceful shutdown. |
-| ⬜ | Intrusion alerts | M | A new MAC creates a `device_events` row. A backend trigger sends the push through FCM/APNs. "Known device" allow-list in the app. |
-| ⬜ | Realtime sync in the app (`services/powersync_sync.dart`) | M | PowerSync Flutter SDK streams backend changes directly into the client's Drift SQLite store. The agent's data (with MACs) enriches what the phone can see. |
+| 🟡 | Supabase schema and RLS | M | `supabase/migrations/20261006120000_initial_schema.sql`: `plans` and `entitlements` (Fing-style tiers, limits as data), the daily scan quota (`claim_scan`), `networks`, `agents` with code pairing (`create_pairing_code`, `claim_pairing_code`, `revoke_agent`), `devices` and `device_events` written by `agent_sync`, `push_tokens`, `prune_history`, RLS on every table and Realtime on devices and events. **Still needed:** run `supabase/tests/run_tests.sh` (Docker) or apply to the Supabase project and run `schema_test.sql`; it has not been executed yet. Schedule `prune_history` with pg_cron. |
+| ⬜ | Auth in the app (`features/auth`) | M | Supabase Auth. Anonymous sign-in on first launch so the Free tier's daily scan count follows the install; upgrade to magic link or Apple/Google sign-in without losing data. |
+| ⬜ | Agent pairing | M | The app shows a short pairing code and the agent exchanges it for a scoped, revocable token. **The agent never holds the service-role key.** |
+| ⬜ | Agent daemon | L | Scan on an interval with the ARP, ICMP, mDNS and SSDP methods, and report each scan through `agent_sync`, which diffs against the stored state and records events. Config via env vars; health check; graceful shutdown. |
+| ⬜ | Intrusion alerts | M | A new MAC creates a `device_events` row. A database webhook or Edge Function sends the push through FCM/APNs to `push_tokens`, gated on the plan's `notifications` flag. "Known device" allow-list in the app. |
+| ⬜ | Realtime sync in the app (`services/supabase_sync.dart`) | M | Subscribe to device and event changes with Supabase Realtime and write them into the Drift cache, so the UI keeps reading locally. The agent's data (with MACs) enriches what the phone can see. |
 | ⬜ | Settings (`features/settings`) | S | Agent status, sync toggle, notification preferences. |
 | ⬜ | Proxmox deployment guide | S | Docker in a VM, or a privileged LXC. `--net=host` and `NET_RAW` are required. |
 
@@ -129,9 +129,9 @@ sense for a later desktop or web product.
 
 | | Item | Size | Notes |
 | --- | --- | --- | --- |
-| ⬜ | Tier definition | S | Decide what is free and what is Pro (proposal under Decisions). Settle this before the Phase 4 schema, because entitlements gate agent pairing and sync. |
+| ✅ | Tier definition | S | Free, Premium and Pro, mirroring Fing (see Decisions). Encoded in the `plans` table, which gates the scan quota, agent pairing and sync. |
 | ⬜ | Billing integration | M | RevenueCat (recommended) or native StoreKit 2 + Play Billing. Monthly and annual products, intro trial, family sharing on iOS. |
-| ⬜ | Server-side entitlements | M | Store webhooks (RevenueCat, or App Store Server Notifications and Play RTDN) write the entitlement to the backend database. PowerSync sync rules and backend endpoints check it, so agent pairing and sync are enforced on the server. |
+| ⬜ | Server-side entitlements | M | Store webhooks (RevenueCat, or App Store Server Notifications and Play RTDN) write the entitlement to Supabase. RLS and the RPCs check it, so agent pairing and sync are enforced on the server. |
 | ⬜ | Paywall and upgrade points | M | One paywall in the design system, reached from the gated features (pair agent, enable sync, alerts, deep scan) and from the Account tab. No dark patterns: clear price, period and trial terms. |
 | ⬜ | Account tab: subscription state | S | Current plan, renewal date, Manage subscription (opens the store's own page), Restore purchases. Apple requires Restore. |
 | ⬜ | Legal | S | Privacy Policy and Terms of Use (EULA) URLs, linked from the paywall and the About footer. Apple rejects subscription apps without them. Confirm the legal entity name (the app currently says "Big Duck Networks"). |
@@ -210,13 +210,13 @@ summary flags a deliberately opened test port.
 | Decision | Options | Recommendation | Needed by |
 | --- | --- | --- | --- |
 | ~~Local cache~~ | **Decided: drift** (SQLite). | | ✅ |
-| ~~Cloud sync engine~~ | **Decided: PowerSync** (PostgreSQL backend + client Drift/SQLite local-first sync). Zero UI blocking; offline-first by default. See [TECHNICAL_SPEC_POWERSYNC.md](TECHNICAL_SPEC_POWERSYNC.md). | | ✅ |
+| ~~Cloud sync engine~~ | **Decided: Supabase** (Postgres, Auth, Realtime) with the Drift cache on the phone. PowerSync was considered and dropped. | | ✅ |
 | ~~OUI storage~~ | **Decided: CSV.** The app looks vendors up through `pd_oui_lookup` over FFI, so it never reads the table itself. SQLite would add a C dependency to the core for no gain. Load it off the UI thread at startup (0.36s on the slowest test device). | | ✅ |
 | Agent daemon language | C++ with libcurl · thin Go/Rust wrapper around `libpingduck` | **C++**: one toolchain, matches the PRD | Phase 4 |
 | Auth providers | Email magic link · Apple/Google sign-in | Magic link first; Apple sign-in is required on iOS if any social login ships | Phase 4 |
 | Device identity | MAC · IP · MAC with hostname fallback | **IP for now** (the app sees no MACs on Android). Switch to MAC with a hostname fallback when the agent supplies MACs. | Phase 4 |
-| Free vs Pro | What stays free · what is paid | **Free:** on-device scans, radar, topology, device list, Node Inspect (ping, quick port scan), the Phase 6 tools, one remembered network. **Pro:** Homelab Agent (MACs, 24/7 monitoring), intrusion alerts, cloud sync across devices, unlimited networks with history, deep port scans, the Phase 7 security checks, export. The free tier must be useful on its own: it is the store listing's first impression. | Phase 4 (shapes the schema) |
-| Billing provider | RevenueCat · native StoreKit 2 + Play Billing | **RevenueCat**: one SDK for both stores, receipt validation, and webhooks into the backend. It costs a share of revenue above a threshold. Native avoids that cost but means building receipt validation for two stores. | Phase 5 |
+| ~~Free vs Pro~~ | **Decided: mirror Fing's plans.** **Free:** 3 scans a day, the network tools, basic device recognition, no monitoring. **Premium** (Fing: $7.99/mo, $69.99/yr): unlimited scans, the Homelab Agent on up to 2 networks, full event history, push alerts, security checks, scheduled speed tests. **Pro** (Fing: $16.99/mo, $149.99/yr): 3 monitored networks; shared workspaces and multiple users come later. Limits live in the `plans` table. | | ✅ |
+| Billing provider | RevenueCat · native StoreKit 2 + Play Billing | **RevenueCat**: one SDK for both stores, receipt validation, and webhooks into Supabase. It costs a share of revenue above a threshold. Native avoids that cost but means building receipt validation for two stores. | Phase 5 |
 | Pricing | Monthly · annual · lifetime | Monthly + annual (annual about 40% cheaper) with a 7-day trial. Skip lifetime: it does not pay for a hosted backend. Set prices from comparable network tools. | Phase 5 |
 | Monorepo package layout | Core as an FFI plugin package · core built inside the app | **FFI plugin package** (`packages/pingduck_core`) | Phase 2 |
 
@@ -224,8 +224,8 @@ summary flags a deliberately opened test port.
 
 ## Suggested next steps
 
-1. Decide Free vs Pro and the billing provider. Both shape the Phase 4 schema and agent pairing.
+1. Decide the billing provider (RevenueCat recommended) and final prices.
 2. Apply for the iOS multicast entitlement, and set up App Store Connect and Play Console early. Both have long lead times.
-3. Start Phase 4 with the PostgreSQL schema and PowerSync sync rules, designed with entitlements in mind.
+3. Run the schema tests against the new Supabase project, then build auth (anonymous first) and the scan quota in the app.
 4. First iPhone run (needs a Mac): app scan, `SOCK_DGRAM` ICMP check, and mDNS without the multicast entitlement.
 5. Decide whether launch waits for the Phase 6 tools. They are small, and a speed test and traceroute are what store reviewers and users compare against Fing.

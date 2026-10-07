@@ -34,7 +34,7 @@ final storageUsageProvider = FutureProvider<({int networks, int devices})>((ref)
   return ref.read(localStoreProvider).usage();
 });
 
-/// Account tab. Sign-in and cloud sync arrive with Phase 4 (PowerSync); until
+/// Account tab. Sign-in and cloud sync arrive with Phase 4 (Supabase); until
 /// then everything stays on this device, and this tab says so.
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
