@@ -6,6 +6,7 @@ import '../../../core/network/lan_connectivity.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/scan_quota.dart';
 import '../../device_details/application/diagnostics_controller.dart';
 import '../../shell/app_shell.dart';
 import '../../tools/presentation/tools_screen.dart';
@@ -382,6 +383,9 @@ class _FailureBanner extends StatelessWidget {
     final text = switch (failure?.kind) {
       ScanFailureKind.noNetwork => 'Not on a local network. Connect to Wi-Fi and rescan.',
       ScanFailureKind.permission => 'Scanning was blocked by a permission. Allow Local Network access and rescan.',
+      ScanFailureKind.quotaExceeded => "You've used today's free scans. More at "
+          '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(nextQuotaReset()))}, '
+          'or go Premium for unlimited scans.',
       _ => 'Scan failed: ${failure?.message ?? 'unknown error'}',
     };
     return PdPanel(

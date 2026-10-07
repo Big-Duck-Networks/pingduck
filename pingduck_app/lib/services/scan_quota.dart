@@ -1,0 +1,82 @@
+import 'dart:async';
+
+import 'local_storage.dart';
+
+/// Answer to "may this install run another scan today?".
+class QuotaResult {
+  const QuotaResult({required this.allowed, this.remaining, this.limit});
+
+  final bool allowed;
+
+  /// Scans left today; null when the plan is unlimited.
+  final int? remaining;
+
+  /// Daily limit; null when the plan is unlimited.
+  final int? limit;
+}
+
+abstract interface class ScanQuota {
+  Future<QuotaResult> claim();
+}
+
+/// Claims scans from the server (`claim_scan`, counted per UTC day), and
+/// falls back to a local count when the server is unreachable. The local
+/// count mirrors the server's last answer, so going offline neither blocks
+/// scanning nor resets the allowance.
+class ServerScanQuota implements ScanQuota {
+  ServerScanQuota(this._store, this._claimOnServer, {DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+
+  /// The Free tier's limit, assumed until the server has answered once.
+  static const defaultLimit = 3;
+  static const _timeout = Duration(seconds: 5);
+
+  final LocalStore _store;
+  final Future<Map<String, dynamic>> Function() _claimOnServer;
+  final DateTime Function() _clock;
+
+  String get _today => _clock().toUtc().toIso8601String().substring(0, 10);
+
+  @override
+  Future<QuotaResult> claim() async {
+    final day = _today;
+    Map<String, dynamic>? answer;
+    try {
+      answer = await _claimOnServer().timeout(_timeout);
+    } catch (_) {
+      // Offline, signed out, or the server is down: count locally.
+    }
+    if (answer != null) {
+      final result = QuotaResult(
+        allowed: answer['allowed'] == true,
+        remaining: (answer['remaining'] as num?)?.toInt(),
+        limit: (answer['limit'] as num?)?.toInt(),
+      );
+      await _remember(day, result);
+      return result;
+    }
+    return _claimLocally(day);
+  }
+
+  Future<void> _remember(String day, QuotaResult r) async {
+    await _store.setSetting('quotaLimit', r.limit?.toString() ?? 'none');
+    await _store.setSetting('quotaDay', day);
+    if (r.limit != null) await _store.setSetting('quotaUsed', '${r.limit! - (r.remaining ?? 0)}');
+  }
+
+  Future<QuotaResult> _claimLocally(String day) async {
+    final saved = await _store.setting('quotaLimit');
+    if (saved == 'none') return const QuotaResult(allowed: true);
+    final limit = int.tryParse(saved ?? '') ?? defaultLimit;
+    final used = await _store.setting('quotaDay') == day ? int.tryParse(await _store.setting('quotaUsed') ?? '') ?? 0 : 0;
+    if (used >= limit) return QuotaResult(allowed: false, remaining: 0, limit: limit);
+    await _store.setSetting('quotaDay', day);
+    await _store.setSetting('quotaUsed', '${used + 1}');
+    return QuotaResult(allowed: true, remaining: limit - used - 1, limit: limit);
+  }
+}
+
+/// When the daily allowance comes back: midnight UTC, in local time.
+DateTime nextQuotaReset([DateTime? now]) {
+  final utc = (now ?? DateTime.now()).toUtc();
+  return DateTime.utc(utc.year, utc.month, utc.day + 1).toLocal();
+}

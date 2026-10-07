@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/ffi/scanner_bridge.dart';
 import '../../../core/network/network_context.dart';
 import '../../../services/local_storage.dart';
+import '../../../services/scan_quota.dart';
+import '../../auth/session.dart';
 import '../domain/device_kind.dart';
 import '../domain/discovered_device.dart';
 
@@ -93,6 +95,11 @@ class ScanState {
 final scannerBridgeProvider = Provider<ScannerBridge>((ref) => FfiScannerBridge());
 final multicastLockProvider = Provider<MulticastLock>((ref) => const MulticastLock());
 
+final scanQuotaProvider = Provider<ScanQuota>((ref) => ServerScanQuota(ref.read(localStoreProvider), () async {
+      final result = await (await signedInClient()).rpc('claim_scan');
+      return Map<String, dynamic>.from(result as Map);
+    }));
+
 /// One-time location prompt that reveals the Wi-Fi name (see [WifiNameAccess]).
 final wifiNameAccessProvider = Provider<WifiNameAccess>((ref) {
   final store = ref.read(localStoreProvider);
@@ -140,6 +147,19 @@ class ScanController extends Notifier<ScanState> {
       state = state.copyWith(
         phase: ScanPhase.failed,
         failure: const ScanFailure(ScanFailureKind.noNetwork, 'Not connected to a local network.'),
+        finishedAt: DateTime.now(),
+      );
+      return;
+    }
+
+    // Free plans get a few scans a day. Checked only once a LAN is found, so
+    // a scan that could not run does not use one; cached devices stay shown.
+    final quota = await ref.read(scanQuotaProvider).claim();
+    if (!ref.mounted) return;
+    if (!quota.allowed) {
+      state = state.copyWith(
+        phase: ScanPhase.failed,
+        failure: const ScanFailure(ScanFailureKind.quotaExceeded, 'Daily scan limit reached.'),
         finishedAt: DateTime.now(),
       );
       return;

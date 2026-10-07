@@ -35,6 +35,7 @@ void main() {
       overrides: [
         scannerBridgeProvider.overrideWithValue(bridge),
         multicastLockProvider.overrideWithValue(FakeLock()),
+        scanQuotaProvider.overrideWithValue(FakeQuota()),
         localStoreProvider.overrideWithValue(store),
         restoredScanProvider.overrideWithValue(restored!),
         onboardedProvider.overrideWith(() => Onboarded(onboarded)),

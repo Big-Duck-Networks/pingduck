@@ -10,12 +10,14 @@ import 'fakes.dart';
 void main() {
   late FakeBridge bridge;
   late FakeLock lock;
+  late FakeQuota quota;
   late LocalStore store;
   late ProviderContainer container;
 
   ProviderContainer make({ScanState restored = const ScanState()}) => ProviderContainer(overrides: [
         scannerBridgeProvider.overrideWithValue(bridge),
         multicastLockProvider.overrideWithValue(lock),
+        scanQuotaProvider.overrideWithValue(quota),
         localStoreProvider.overrideWithValue(store),
         restoredScanProvider.overrideWithValue(restored),
       ]);
@@ -23,6 +25,7 @@ void main() {
   setUp(() {
     bridge = FakeBridge();
     lock = FakeLock();
+    quota = FakeQuota();
     store = memoryStore();
     container = make();
   });
@@ -215,6 +218,20 @@ void main() {
     expect(state().phase, ScanPhase.failed);
     expect(state().failure!.kind, ScanFailureKind.noNetwork);
     expect(bridge.scans, 0);
+    expect(quota.claims, 0, reason: 'a scan that cannot run must not use the daily allowance');
+  });
+
+  test('daily limit stops the scan and leaves cached devices as they were', () async {
+    container.dispose();
+    final cached = dev('10.42.0.20', hostname: 'Living Room TV', rtt: 4);
+    container = make(restored: ScanState(devices: {cached.ip: cached}));
+    quota.allowed = false;
+    await ctrl().scan();
+    expect(state().phase, ScanPhase.failed);
+    expect(state().failure!.kind, ScanFailureKind.quotaExceeded);
+    expect(bridge.scans, 0);
+    expect(lock.held, 0);
+    expect(state().devices[cached.ip], cached);
   });
 
   test('failures surface with their kind and release the lock', () async {

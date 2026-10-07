@@ -6,11 +6,24 @@ import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/network/network_context.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/services/local_storage.dart';
+import 'package:pingduck_app/services/scan_quota.dart';
 
 const testLan =
     LanInfo(ip: '10.42.0.17', cidr: '10.42.0.0/24', gateway: '10.42.0.1', interfaceName: 'wlan0', ssid: 'CyberLab_5G');
 
 LocalStore memoryStore() => LocalStore(NativeDatabase.memory());
+
+/// Plan check that allows every scan, or refuses all once [allowed] is false.
+class FakeQuota implements ScanQuota {
+  bool allowed = true;
+  int claims = 0;
+
+  @override
+  Future<QuotaResult> claim() async {
+    claims++;
+    return QuotaResult(allowed: allowed, remaining: allowed ? null : 0);
+  }
+}
 
 /// Scripted bridge: the test pushes devices and then finishes the scan.
 class FakeBridge implements ScannerBridge {
