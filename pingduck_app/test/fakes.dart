@@ -13,15 +13,22 @@ const testLan =
 
 LocalStore memoryStore() => LocalStore(NativeDatabase.memory());
 
-/// Plan check that allows every scan, or refuses all once [allowed] is false.
+/// Plan check that allows every scan, or refuses once [allowed] or
+/// [automaticAllowed] is false.
 class FakeQuota implements ScanQuota {
-  bool allowed = true;
-  int claims = 0;
+  bool allowed = true, automaticAllowed = true;
+  int claims = 0, automaticClaims = 0;
 
   @override
   Future<QuotaResult> claim() async {
     claims++;
     return QuotaResult(allowed: allowed, remaining: allowed ? null : 0);
+  }
+
+  @override
+  Future<bool> claimAutomatic() async {
+    automaticClaims++;
+    return automaticAllowed;
   }
 }
 

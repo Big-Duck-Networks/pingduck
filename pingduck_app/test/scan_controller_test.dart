@@ -234,6 +234,28 @@ void main() {
     expect(state().devices[cached.ip], cached);
   });
 
+  test('automatic scans skip the daily allowance', () async {
+    final running = ctrl().scan(automatic: true);
+    await pumpEventQueue();
+    expect(quota.claims, 0);
+    expect(quota.automaticClaims, 1);
+    await bridge.finish();
+    await running;
+    expect(state().phase, ScanPhase.done);
+  });
+
+  test('an automatic scan that is too soon is skipped silently', () async {
+    container.dispose();
+    final cached = dev('10.42.0.20', hostname: 'Living Room TV', rtt: 4);
+    container = make(restored: ScanState(devices: {cached.ip: cached}));
+    quota.automaticAllowed = false;
+    await ctrl().scan(automatic: true);
+    expect(state().phase, ScanPhase.idle);
+    expect(state().failure, isNull);
+    expect(bridge.scans, 0);
+    expect(state().devices[cached.ip], cached);
+  });
+
   test('failures surface with their kind and release the lock', () async {
     final running = ctrl().scan();
     await pumpEventQueue();

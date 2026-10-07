@@ -37,7 +37,7 @@ class AppShell extends ConsumerWidget {
       final was = prev?.value, now = next.value;
       if (was == null || now == null || was == now) return;
       final scanner = ref.read(scanControllerProvider.notifier);
-      now ? scanner.scan() : scanner.cancel();
+      now ? scanner.scan(automatic: true) : scanner.cancel();
     });
     return Scaffold(
       appBar: const _Header(),

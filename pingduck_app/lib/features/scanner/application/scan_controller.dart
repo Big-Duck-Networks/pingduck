@@ -135,8 +135,12 @@ class ScanController extends Notifier<ScanState> {
   LocalStore get _store => ref.read(localStoreProvider);
 
   /// Without [timeout], uses the Settings choice (`scanTimeoutSec`), else 3s.
-  Future<void> scan({Duration? timeout}) async {
+  /// [automatic] scans are the ones the app starts itself (launch, Wi-Fi
+  /// reconnect): they do not use the daily allowance, but are rate-limited on
+  /// Free plans and skipped silently when too soon.
+  Future<void> scan({Duration? timeout, bool automatic = false}) async {
     if (state.isScanning) return;
+    final before = state;
     state = state.copyWith(phase: ScanPhase.scanning, clearFailure: true, startedAt: DateTime.now());
     timeout ??= Duration(seconds: int.tryParse(await _store.setting('scanTimeoutSec') ?? '') ?? 3);
 
@@ -154,9 +158,16 @@ class ScanController extends Notifier<ScanState> {
 
     // Free plans get a few scans a day. Checked only once a LAN is found, so
     // a scan that could not run does not use one; cached devices stay shown.
-    final quota = await ref.read(scanQuotaProvider).claim();
-    if (!ref.mounted) return;
-    if (!quota.allowed) {
+    final quota = ref.read(scanQuotaProvider);
+    if (automatic) {
+      final allowed = await quota.claimAutomatic();
+      if (!ref.mounted) return;
+      if (!allowed) {
+        state = before;
+        return;
+      }
+    } else if (!(await quota.claim()).allowed) {
+      if (!ref.mounted) return;
       state = state.copyWith(
         phase: ScanPhase.failed,
         failure: const ScanFailure(ScanFailureKind.quotaExceeded, 'Daily scan limit reached.'),

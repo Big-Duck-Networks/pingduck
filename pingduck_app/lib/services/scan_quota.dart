@@ -16,7 +16,12 @@ class QuotaResult {
 }
 
 abstract interface class ScanQuota {
+  /// A scan the user asked for. Counts against the daily limit.
   Future<QuotaResult> claim();
+
+  /// A scan the app starts on its own (launch, Wi-Fi reconnect). Free, but
+  /// on limited plans at most one per [ServerScanQuota.automaticInterval].
+  Future<bool> claimAutomatic();
 }
 
 /// Claims scans from the server (`claim_scan`, counted per UTC day), and
@@ -28,6 +33,7 @@ class ServerScanQuota implements ScanQuota {
 
   /// The Free tier's limit, assumed until the server has answered once.
   static const defaultLimit = 3;
+  static const automaticInterval = Duration(minutes: 30);
   static const _timeout = Duration(seconds: 5);
 
   final LocalStore _store;
@@ -55,6 +61,16 @@ class ServerScanQuota implements ScanQuota {
       return result;
     }
     return _claimLocally(day);
+  }
+
+  @override
+  Future<bool> claimAutomatic() async {
+    if (await _store.setting('quotaLimit') == 'none') return true;
+    final now = _clock();
+    final last = DateTime.tryParse(await _store.setting('autoScanAt') ?? '');
+    if (last != null && now.difference(last) < automaticInterval) return false;
+    await _store.setSetting('autoScanAt', now.toUtc().toIso8601String());
+    return true;
   }
 
   Future<void> _remember(String day, QuotaResult r) async {

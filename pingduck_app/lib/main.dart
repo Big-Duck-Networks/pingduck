@@ -75,7 +75,9 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> {
     // Offline, there is nothing to scan; the shell starts one when Wi-Fi returns.
     if (ref.read(onboardedProvider)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (await ref.read(lanConnectedProvider.future)) ref.read(scanControllerProvider.notifier).scan();
+        if (await ref.read(lanConnectedProvider.future)) {
+          ref.read(scanControllerProvider.notifier).scan(automatic: true);
+        }
       });
     }
   }
@@ -91,7 +93,7 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> {
           ? const AppShell()
           : OnboardingScreen(onDone: () async {
               await ref.read(onboardedProvider.notifier).complete();
-              ref.read(scanControllerProvider.notifier).scan();
+              ref.read(scanControllerProvider.notifier).scan(automatic: true);
             }),
     );
   }

@@ -63,6 +63,24 @@ void main() {
     expect((await q.claim()).remaining, 2);
   });
 
+  test('automatic scans are free but at most one per 30 minutes on Free', () async {
+    final q = quota();
+    expect(await q.claimAutomatic(), isTrue);
+    now = now.add(const Duration(minutes: 29));
+    expect(await q.claimAutomatic(), isFalse);
+    now = now.add(const Duration(minutes: 1));
+    expect(await q.claimAutomatic(), isTrue);
+    expect((await q.claim()).remaining, 2, reason: 'automatic scans do not use the daily allowance');
+  });
+
+  test('automatic scans are not rate-limited on unlimited plans', () async {
+    server = {'allowed': true, 'remaining': null, 'limit': null};
+    await quota().claim();
+    for (var i = 0; i < 5; i++) {
+      expect(await quota().claimAutomatic(), isTrue);
+    }
+  });
+
   test('nextQuotaReset is the next UTC midnight', () {
     expect(nextQuotaReset(DateTime.utc(2026, 10, 7, 23, 59)).toUtc(), DateTime.utc(2026, 10, 8));
     expect(nextQuotaReset(DateTime.utc(2026, 12, 31, 12)).toUtc(), DateTime.utc(2027, 1, 1));
