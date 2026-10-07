@@ -238,5 +238,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('ACCOUNT'), findsWidgets);
   });
+
+  testWidgets('account tab displays Made on Long Island tag in about panel', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Made on Long Island'), 200);
+    expect(find.text('Made on Long Island'), findsOneWidget);
+  });
 }
 

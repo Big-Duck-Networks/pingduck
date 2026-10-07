@@ -10,8 +10,8 @@ pingduck/
 ├── core/           pingduck-core: C++17 engine with a plain C ABI (pingduck.h) + CLI
 ├── pingduck_app/   Flutter app (iOS / Android), feature-first layout
 ├── agent/          Docker image for the headless agent (libpcap ARP mode)
-├── supabase/       Database migrations (Phase 4)
-└── docs/           PRD and design notes
+├── backend/        PostgreSQL schema and PowerSync sync rules (Phase 4)
+└── docs/           PRD, technical specifications (IEC/IEEE 82079-1), and design notes
 ```
 
 ## Status
@@ -21,7 +21,7 @@ pingduck/
 | 1     | Core engine: ICMP, mDNS, SSDP/UPnP, ARP, port scan, WoL, OUI | Built and validated on Windows + Android 14; libpcap path untested (needs Linux) |
 | 2     | Dart FFI bridge, Riverpod state                              | Not started (app scaffolded, domain model in place)                              |
 | 3     | Radar UI, device details, local cache                        | Not started                                                                      |
-| 4     | Supabase sync, Docker daemon, intrusion alerts               | Dockerfile for one-shot scans only                                               |
+| 4     | PowerSync & PostgreSQL sync, Docker daemon, alerts           | Dockerfile for one-shot scans only                                               |
 
 ## pingduck-core
 
