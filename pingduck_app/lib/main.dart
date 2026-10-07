@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/constants/supabase_config.dart';
 import 'core/network/lan_connectivity.dart';
 import 'core/theme/pingduck_theme.dart';
 import 'features/onboarding/onboarding_screen.dart';
@@ -19,6 +21,10 @@ Future<void> main() async {
   final store = LocalStore();
   final restored = await restoreLastScan(store);
   final onboarded = await store.setting('onboarded') == '1';
+
+  // Reads the saved session from disk only; nothing here waits on the network,
+  // so launch stays instant offline.
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
 
   runApp(ProviderScope(
     overrides: [
