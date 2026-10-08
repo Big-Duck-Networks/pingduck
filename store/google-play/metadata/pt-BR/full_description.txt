@@ -1,0 +1,12 @@
+O PingDuck encontra todos os dispositivos na sua rede em segundos. Descubra nomes de host, fabricantes de hardware, histórico de latência e portas abertas sem rastreamento e sem cadastro obrigatório. O inventário dos seus aparelhos fica guardado com total privacidade no seu celular.
+
+PRINCIPAIS RECURSOS:
+• Varredura LAN Instantânea: Escaneie toda a sua sub-rede Wi-Fi e descubra todos os aparelhos conectados em segundos.
+• Identificação de Dispositivos: Veja o fabricante (via consulta IEEE OUI), nomes de host, endereços IP e endereços MAC.
+• Monitoramento de Ping e Latência: Acompanhe os tempos de resposta de ping em tempo real para encontrar gargalos na rede.
+• Scanner de Portas: Identifique portas abertas comuns (HTTP, HTTPS, SSH, SMB, RTSP e mais) e seus serviços ativos.
+• Detecção mDNS e Bonjour: Descubra dispositivos de casa inteligente, impressoras, Apple AirPlay, Chromecast e serviços UPnP.
+• Privacidade por Padrão: Sem anúncios, sem SDKs de rastreamento e sem envio de dados para a nuvem. O que você escaneia fica no seu dispositivo.
+• Exportar e Compartilhar: Salve e exporte os resultados das varreduras diretamente do seu celular.
+
+Perfeito para administradores de rede, entusiastas de homelab e qualquer pessoa que queira saber quem está conectado ao seu Wi-Fi.

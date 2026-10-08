@@ -1,0 +1,12 @@
+PingDuck encuentra todos los dispositivos en tu red en segundos. Descubre nombres de host, fabricantes de hardware, historial de latencia y puertos abiertos sin rastreo y sin registro obligatorio. El inventario de tus dispositivos se queda de forma privada en tu teléfono.
+
+CARACTERÍSTICAS PRINCIPALES:
+• Descubrimiento LAN instantáneo: Escanea toda tu subred Wi-Fi y descubre todos los dispositivos conectados en segundos.
+• Identificación de dispositivos: Consulta nombres de fabricantes (mediante búsqueda IEEE OUI), nombres de host, direcciones IP y direcciones MAC.
+• Monitor de Ping y Latencia: Monitorea tiempos de respuesta de ping en tiempo real para detectar problemas en la red.
+• Escáner de Puertos: Detecta puertos abiertos comunes (HTTP, HTTPS, SSH, SMB, RTSP y más) para identificar servicios activos.
+• Detección mDNS y Bonjour: Encuentra dispositivos domésticos inteligentes, impresoras, Apple AirPlay, Chromecast y servicios UPnP.
+• Privacidad por defecto: Sin anuncios, sin SDKs de análisis y sin subir tu inventario de red a la nube. Lo que escaneas permanece en tu dispositivo.
+• Exportar y Compartir: Guarda y exporta los resultados del escaneo directamente desde tu dispositivo.
+
+Ideal para administradores de red, entusiastas de homelabs y cualquiera que desee saber qué está conectado a su Wi-Fi.

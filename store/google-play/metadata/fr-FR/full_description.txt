@@ -1,0 +1,12 @@
+PingDuck détecte chaque appareil de votre réseau en quelques secondes. Découvrez les noms d'hôtes, constructeurs matériels, l'historique de latence et les ports ouverts, sans pistage et sans inscription obligatoire. L'inventaire de vos appareils reste strictement privé sur votre téléphone.
+
+FONCTIONNALITÉS CLÉS :
+• Découverte LAN instantanée : Scannez l'ensemble de votre sous-réseau Wi-Fi et identifiez tous les appareils connectés en quelques secondes.
+• Identification des appareils : Consultez les noms des fabricants (recherche IEEE OUI), noms d'hôtes, adresses IP et adresses MAC.
+• Suivi du Ping et de la Latence : Surveillez les temps de réponse ping en temps réel pour localiser les ralentissements réseau.
+• Scanner de Ports : Repérez les ports ouverts courants (HTTP, HTTPS, SSH, SMB, RTSP et plus) pour identifier les services actifs.
+• Détection mDNS et Bonjour : Découvrez les objets connectés, imprimantes, Apple AirPlay, Chromecast et services UPnP.
+• Confidentialité absolue : Aucune publicité, aucun SDK d'analyse et aucun téléversement dans le cloud. Vos scans restent sur votre appareil.
+• Exportation et Partage : Enregistrez et exportez vos résultats d'analyse directement depuis votre smartphone.
+
+Idéal pour les administrateurs réseau, passionnés de homelab et toute personne souhaitant sécuriser son réseau Wi-Fi.

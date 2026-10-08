@@ -1,0 +1,73 @@
+Locale,Language,App Title (Max 30),Short Description (Max 80),Full Description (Max 4000)
+en-US,English (United States),"PingDuck: Network Scanner","Find every device on your Wi-Fi: names, vendors, latency and open ports.","PingDuck finds every device on your network in seconds. Discover hostnames, hardware vendors, latency history, and open ports with zero tracking and no mandatory sign-in. Your device inventory stays privately on your phone.
+
+KEY FEATURES:
+• Instant LAN Discovery: Scan your entire Wi-Fi subnet and discover all connected devices in seconds.
+• Device Identification: See manufacturer vendor names (via IEEE OUI lookup), hostnames, IP addresses, and MAC addresses.
+• Ping & Latency Tracking: Monitor real-time ping response times and packet latency to spot network bottlenecks.
+• Port Scanner: Detect common open ports (HTTP, HTTPS, SSH, SMB, RTSP, and more) to identify active services.
+• mDNS & Bonjour Detection: Discover smart home devices, printers, Apple AirPlay, Chromecast, and UPnP services.
+• Privacy by Default: No ads, no analytics SDKs, and no cloud upload of your local network inventory. What you scan stays on your device.
+• Export & Share: Save and export device scan results directly from your device.
+
+Perfect for network administrators, homelab enthusiasts, and anyone who wants to know what is connected to their Wi-Fi."
+es-419,Spanish (Latin America),"PingDuck: Escáner de Red","Descubre dispositivos en tu Wi-Fi: nombres, marcas, latencia y puertos.","PingDuck encuentra todos los dispositivos en tu red en segundos. Descubre nombres de host, fabricantes de hardware, historial de latencia y puertos abiertos sin rastreo y sin registro obligatorio. El inventario de tus dispositivos se queda de forma privada en tu teléfono.
+
+CARACTERÍSTICAS PRINCIPALES:
+• Descubrimiento LAN instantáneo: Escanea toda tu subred Wi-Fi y descubre todos los dispositivos conectados en segundos.
+• Identificación de dispositivos: Consulta nombres de fabricantes (mediante búsqueda IEEE OUI), nombres de host, direcciones IP y direcciones MAC.
+• Monitor de Ping y Latencia: Monitorea tiempos de respuesta de ping en tiempo real para detectar problemas en la red.
+• Escáner de Puertos: Detecta puertos abiertos comunes (HTTP, HTTPS, SSH, SMB, RTSP y más) para identificar servicios activos.
+• Detección mDNS y Bonjour: Encuentra dispositivos domésticos inteligentes, impresoras, Apple AirPlay, Chromecast y servicios UPnP.
+• Privacidad por defecto: Sin anuncios, sin SDKs de análisis y sin subir tu inventario de red a la nube. Lo que escaneas permanece en tu dispositivo.
+• Exportar y Compartir: Guarda y exporta los resultados del escaneo directamente desde tu dispositivo.
+
+Ideal para administradores de red, entusiastas de homelabs y cualquiera que desee saber qué está conectado a su Wi-Fi."
+de-DE,German (Germany),"PingDuck: Netzwerk-Scanner","Geräte im WLAN finden: Namen, Hersteller, Latenz und offene Ports.","PingDuck findet jedes Gerät in Ihrem Netzwerk in Sekundenschnelle. Entdecken Sie Hostnamen, Hardware-Hersteller, Latenzverläufe und offene Ports – ohne Tracking und ohne Registrierungszwang. Ihr Geräteinventar bleibt privat auf Ihrem Smartphone.
+
+HAUPTFUNKTIONEN:
+• Blitzschnelle LAN-Erkennung: Scannen Sie Ihr gesamtes WLAN-Subnetz und erkennen Sie alle verbundenen Geräte in Sekunden.
+• Geräte-Identifikation: Sehen Sie Herstellernamen (über IEEE OUI-Abfrage), Hostnamen, IP-Adressen und MAC-Adressen.
+• Ping- und Latenz-Tracking: Überwachen Sie Ping-Antwortzeiten in Echtzeit, um Netzwerk-Engpässe schnell zu erkennen.
+• Port-Scanner: Finden Sie gängige offene Ports (HTTP, HTTPS, SSH, SMB, RTSP u. v. m.), um aktive Dienste zu identifizieren.
+• mDNS & Bonjour-Erkennung: Entdecken Sie Smart-Home-Geräte, Drucker, Apple AirPlay, Chromecast und UPnP-Dienste.
+• Datenschutz standardmäßig: Keine Werbung, keine Analyse-SDKs und kein Cloud-Upload Ihrer Netzwerkdaten. Was Sie scannen, bleibt auf Ihrem Gerät.
+• Exportieren & Teilen: Speichern und exportieren Sie Scan-Ergebnisse direkt von Ihrem Gerät.
+
+Perfekt für Netzwerkadministratoren, Homelab-Enthusiasten und alle, die genau wissen wollen, wer sich in ihrem WLAN befindet."
+fr-FR,French (France),"PingDuck: Scanner Réseau","Trouvez les appareils Wi-Fi : noms, marques, latence et ports ouverts.","PingDuck détecte chaque appareil de votre réseau en quelques secondes. Découvrez les noms d'hôtes, constructeurs matériels, l'historique de latence et les ports ouverts, sans pistage et sans inscription obligatoire. L'inventaire de vos appareils reste strictement privé sur votre téléphone.
+
+FONCTIONNALITÉS CLÉS :
+• Découverte LAN instantanée : Scannez l'ensemble de votre sous-réseau Wi-Fi et identifiez tous les appareils connectés en quelques secondes.
+• Identification des appareils : Consultez les noms des fabricants (recherche IEEE OUI), noms d'hôtes, adresses IP et adresses MAC.
+• Suivi du Ping et de la Latence : Surveillez les temps de réponse ping en temps réel pour localiser les ralentissements réseau.
+• Scanner de Ports : Repérez les ports ouverts courants (HTTP, HTTPS, SSH, SMB, RTSP et plus) pour identifier les services actifs.
+• Détection mDNS et Bonjour : Découvrez les objets connectés, imprimantes, Apple AirPlay, Chromecast et services UPnP.
+• Confidentialité absolue : Aucune publicité, aucun SDK d'analyse et aucun téléversement dans le cloud. Vos scans restent sur votre appareil.
+• Exportation et Partage : Enregistrez et exportez vos résultats d'analyse directement depuis votre smartphone.
+
+Idéal pour les administrateurs réseau, passionnés de homelab et toute personne souhaitant sécuriser son réseau Wi-Fi."
+pt-BR,Portuguese (Brazil),"PingDuck: Scanner de Rede","Veja aparelhos no seu Wi-Fi: nomes, marcas, latência e portas abertas.","O PingDuck encontra todos os dispositivos na sua rede em segundos. Descubra nomes de host, fabricantes de hardware, histórico de latência e portas abertas sem rastreamento e sem cadastro obrigatório. O inventário dos seus aparelhos fica guardado com total privacidade no seu celular.
+
+PRINCIPAIS RECURSOS:
+• Varredura LAN Instantânea: Escaneie toda a sua sub-rede Wi-Fi e descubra todos os aparelhos conectados em segundos.
+• Identificação de Dispositivos: Veja o fabricante (via consulta IEEE OUI), nomes de host, endereços IP e endereços MAC.
+• Monitoramento de Ping e Latência: Acompanhe os tempos de resposta de ping em tempo real para encontrar gargalos na rede.
+• Scanner de Portas: Identifique portas abertas comuns (HTTP, HTTPS, SSH, SMB, RTSP e mais) e seus serviços ativos.
+• Detecção mDNS e Bonjour: Descubra dispositivos de casa inteligente, impressoras, Apple AirPlay, Chromecast e serviços UPnP.
+• Privacidade por Padrão: Sem anúncios, sem SDKs de rastreamento e sem envio de dados para a nuvem. O que você escaneia fica no seu dispositivo.
+• Exportar e Compartilhar: Salve e exporte os resultados das varreduras diretamente do seu celular.
+
+Perfeito para administradores de rede, entusiastas de homelab e qualquer pessoa que queira saber quem está conectado ao seu Wi-Fi."
+ja-JP,Japanese (Japan),"PingDuck: ネットワークスキャナー","Wi-Fi接続機器を即座に検出：ホスト名、メーカー、Ping、ポート。","PingDuckは、Wi-Fiネットワーク上のすべての接続機器をわずか数秒で検出します。トラッキングやアカウント登録は不要。ホスト名、ハードウェアメーカー、レイテンシ履歴、開放ポートを安全に調査できます。ネットワークデータが外部サーバーへ送信されることはありません。
+
+主な機能：
+• 高速LANスキャン：Wi-Fiサブネット全体を瞬時にスキャンし、接続中の全デバイスを一覧表示。
+• デバイス詳細識別：IEEE OUI照会によるメーカー名、ホスト名、IPアドレス、MACアドレスを表示。
+• Pingと応答速度の測定：リアルタイムでPing応答時間とパケット遅延を監視し、通信速度のボトルネックを特定。
+• ポートスキャナー：一般的な開放ポート（HTTP、HTTPS、SSH、SMB、RTSPなど）を検出し、稼働中のサービスを確認。
+• mDNS / Bonjour対応：スマートホーム家電、プリンター、Apple AirPlay、Chromecast、UPnPデバイスを自動検出。
+• プライバシー最優先：広告なし、解析SDKなし、クラウドへのスキャンデータ送信なし。スキャン結果はお使いの端末内のみに保存されます。
+• スキャン結果のエクスポート：検出結果をデバイスから直接保存・共有可能。
+
+ネットワーク管理者、ホームラボ運用者、Wi-Fiの接続状況を把握したいすべての方に最適です。"

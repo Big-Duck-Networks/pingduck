@@ -1,0 +1,12 @@
+PingDuck findet jedes Gerät in Ihrem Netzwerk in Sekundenschnelle. Entdecken Sie Hostnamen, Hardware-Hersteller, Latenzverläufe und offene Ports – ohne Tracking und ohne Registrierungszwang. Ihr Geräteinventar bleibt privat auf Ihrem Smartphone.
+
+HAUPTFUNKTIONEN:
+• Blitzschnelle LAN-Erkennung: Scannen Sie Ihr gesamtes WLAN-Subnetz und erkennen Sie alle verbundenen Geräte in Sekunden.
+• Geräte-Identifikation: Sehen Sie Herstellernamen (über IEEE OUI-Abfrage), Hostnamen, IP-Adressen und MAC-Adressen.
+• Ping- und Latenz-Tracking: Überwachen Sie Ping-Antwortzeiten in Echtzeit, um Netzwerk-Engpässe schnell zu erkennen.
+• Port-Scanner: Finden Sie gängige offene Ports (HTTP, HTTPS, SSH, SMB, RTSP u. v. m.), um aktive Dienste zu identifizieren.
+• mDNS & Bonjour-Erkennung: Entdecken Sie Smart-Home-Geräte, Drucker, Apple AirPlay, Chromecast und UPnP-Dienste.
+• Datenschutz standardmäßig: Keine Werbung, keine Analyse-SDKs und kein Cloud-Upload Ihrer Netzwerkdaten. Was Sie scannen, bleibt auf Ihrem Gerät.
+• Exportieren & Teilen: Speichern und exportieren Sie Scan-Ergebnisse direkt von Ihrem Gerät.
+
+Perfekt für Netzwerkadministratoren, Homelab-Enthusiasten und alle, die genau wissen wollen, wer sich in ihrem WLAN befindet.

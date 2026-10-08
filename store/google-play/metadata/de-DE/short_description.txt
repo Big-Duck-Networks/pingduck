@@ -1,0 +1,1 @@
+Geräte im WLAN finden: Namen, Hersteller, Latenz und offene Ports.
