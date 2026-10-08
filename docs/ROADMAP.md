@@ -189,6 +189,7 @@ summary flags a deliberately opened test port.
 | ⬜ | Crash reporting and analytics | PostHog (`posthog_flutter` in the app; optionally the website too). Opt-in. Product events only (scan started/finished, sign-up, paywall views); never IPs, MACs, hostnames, SSIDs or device lists. Before it ships, update the privacy policy, FAQ and homepage, which all say "no analytics", and add PostHog to the providers list. |
 | ⬜ | Privacy policy and store listings | App Store review notes explaining local network scanning, location (Wi-Fi name only) and the subscription. The policy itself is drafted in Phase 5. |
 | ⬜ | Copy pass | Run the global `no-ai-slop` skill in Detect mode over the website (homepage, FAQ, privacy, terms), the store listings and the app's user-facing strings, then edit what it flags. |
+| ⬜ | Dark mode | Follow the system setting, with Appearance: System / Light / Dark in App settings. The ~300 `PingDuckColors` uses (15 files, mostly `const`) and the colors baked into `PdText` become a `PdPalette` theme extension with light and dark values, read through the theme. The painters (radar, sparkline, topology, duck mark) take the palette as a parameter. Size M–L. |
 | ⬜ | Performance and battery pass | Scan cost on older phones; agent CPU and memory on small hosts. |
 
 ---
