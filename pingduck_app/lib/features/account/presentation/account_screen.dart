@@ -6,6 +6,8 @@ import 'package:pingduck_core/pingduck_core.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../auth/account_auth.dart';
+import '../../auth/sign_in_screen.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../settings/presentation/settings_screen.dart';
 
@@ -34,8 +36,9 @@ final storageUsageProvider = FutureProvider<({int networks, int devices})>((ref)
   return ref.read(localStoreProvider).usage();
 });
 
-/// Account tab. Sign-in and cloud sync arrive with Phase 4 (Supabase); until
-/// then everything stays on this device, and this tab says so.
+/// Account tab: who is signed in, settings, local data and about. Signing in
+/// gives the install an account to sync and pair agents with later; scans and
+/// the inventory stay on this device either way.
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
 
@@ -47,52 +50,9 @@ class AccountScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const PdSectionHeader(
-          title: 'Account',
-          icon: Icons.person_outline,
-        ),
+        const PdSectionHeader(title: 'Account', icon: Icons.person_outline),
         const SizedBox(height: 16),
-        PdPanel(
-          background: PingDuckColors.canvas,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: PingDuckColors.surface1,
-                      border: Border.all(color: PingDuckColors.partition),
-                    ),
-                    child: const Icon(Icons.person_outline, color: PingDuckColors.inkMuted),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Not signed in', style: PdText.headlineSm),
-                        const SizedBox(height: 2),
-                        Text('Everything stays on this device.', style: PdText.bodySm),
-                      ],
-                    ),
-                  ),
-                  const PdChip('LOCAL'),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'An account will sync your inventory across devices and connect the Homelab Agent for '
-                'intrusion alerts.',
-                style: PdText.bodySm,
-              ),
-              const SizedBox(height: 12),
-              const PdButton(label: 'Sign in · coming with cloud sync', icon: Icons.login),
-            ],
-          ),
-        ),
+        const _IdentityPanel(),
         const SizedBox(height: 16),
         PdPanel(
           title: 'Settings',
@@ -101,9 +61,7 @@ class AccountScreen extends ConsumerWidget {
             button: true,
             label: 'App settings',
             child: InkWell(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-              ),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: const BoxDecoration(
@@ -198,6 +156,124 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
+/// Signed-in email with sign-out, or the way to sign in. Until sign-in,
+/// the install runs on an anonymous account that only counts scans.
+class _IdentityPanel extends ConsumerWidget {
+  const _IdentityPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final email = ref.watch(accountEmailProvider).value;
+    return PdPanel(
+      background: PingDuckColors.canvas,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: PingDuckColors.surface1,
+                  border: Border.all(color: PingDuckColors.partition),
+                ),
+                child: Icon(
+                  email == null ? Icons.person_outline : Icons.person,
+                  color: email == null ? PingDuckColors.inkMuted : PingDuckColors.ink,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(email ?? 'Not signed in', style: PdText.headlineSm, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(email == null ? 'No account needed.' : 'Signed in with email', style: PdText.bodySm),
+                  ],
+                ),
+              ),
+              email == null ? const PdChip('LOCAL') : const PdChip('SIGNED IN', tone: PdTone.live),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            email == null
+                ? 'Your devices and notes stay on this phone either way. An account keeps your plan on a new '
+                      'phone, and later syncs your inventory and connects the Homelab Agent for intrusion alerts.'
+                : 'Your inventory stays on this device until cloud sync arrives.',
+            style: PdText.bodySm,
+          ),
+          const SizedBox(height: 12),
+          email == null
+              ? PdButton(
+                  label: 'Sign in or create account',
+                  icon: Icons.login,
+                  style: PdButtonStyle.primary,
+                  onPressed: () async {
+                    final ok = await Navigator.of(
+                      context,
+                    ).push<bool>(MaterialPageRoute(builder: (_) => const SignInScreen()));
+                    if (ok == true && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signed in')));
+                    }
+                  },
+                )
+              : PdButton(
+                  label: 'Sign out',
+                  icon: Icons.logout,
+                  onPressed: () => ref.read(accountAuthProvider).signOut(),
+                ),
+          if (email != null) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => _confirmDelete(context, ref),
+                child: Text('DELETE ACCOUNT', style: PdText.labelLg.copyWith(color: PingDuckColors.critical)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Apple requires in-app deletion for any app that creates accounts.
+Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('DELETE ACCOUNT?', style: PdText.labelLg),
+      content: Text(
+        'Permanently deletes your account and the email, plan and scan history stored with it. This can’t be '
+        'undone. Devices and notes on this phone stay until you clear them. Subscriptions are billed by Apple or '
+        'Google, so cancel any in the store first.',
+        style: PdText.bodyMd,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text('DELETE', style: PdText.labelLg.copyWith(color: PingDuckColors.critical)),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+  try {
+    await ref.read(accountAuthProvider).deleteAccount();
+    messenger.showSnackBar(const SnackBar(content: Text('Account deleted')));
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Couldn’t delete the account. Check your connection and try again.')),
+    );
+  }
+}
+
 /// Product identity, versions and legal. Third-party notices stay reachable
 /// (BSD/MIT/OFL require it) but as a quiet text link, as in most commercial
 /// apps.
@@ -231,21 +307,19 @@ class _AboutPanel extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              PdChip('Made on Long Island'),
-            ],
-          ),
+          const Wrap(spacing: 8, runSpacing: 6, children: [PdChip('Made on Long Island')]),
           const SizedBox(height: 16),
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: PdField(label: 'Version', value: version ?? '—')),
+                Expanded(
+                  child: PdField(label: 'Version', value: version ?? '—'),
+                ),
                 const SizedBox(width: 8),
-                Expanded(child: PdField(label: 'Discovery engine', value: core ?? '—')),
+                Expanded(
+                  child: PdField(label: 'Discovery engine', value: core ?? '—'),
+                ),
               ],
             ),
           ),

@@ -4,12 +4,19 @@ import 'package:drift/native.dart';
 import 'package:pingduck_app/core/ffi/scanner_bridge.dart';
 import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/network/network_context.dart';
+import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/services/local_storage.dart';
 import 'package:pingduck_app/services/scan_quota.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
-const testLan =
-    LanInfo(ip: '10.42.0.17', cidr: '10.42.0.0/24', gateway: '10.42.0.1', interfaceName: 'wlan0', ssid: 'CyberLab_5G');
+const testLan = LanInfo(
+  ip: '10.42.0.17',
+  cidr: '10.42.0.0/24',
+  gateway: '10.42.0.1',
+  interfaceName: 'wlan0',
+  ssid: 'CyberLab_5G',
+);
 
 LocalStore memoryStore() => LocalStore(NativeDatabase.memory());
 
@@ -29,6 +36,70 @@ class FakeQuota implements ScanQuota {
   Future<bool> claimAutomatic() async {
     automaticClaims++;
     return automaticAllowed;
+  }
+}
+
+/// Email and password accounts held in [accounts] (email to password); every
+/// emailed code is [goodCode].
+class FakeAuth implements AccountAuth {
+  FakeAuth({Map<String, String> accounts = const {}}) : accounts = {...accounts};
+  final Map<String, String> accounts;
+  static const goodCode = '123456';
+  String? _email;
+  final _changes = StreamController<String?>.broadcast();
+  final resets = <String>[];
+  int deletions = 0;
+
+  void _signedIn(String? email) => _changes.add(_email = email);
+
+  static AuthException _err(String code) => AuthException(code, code: code);
+
+  @override
+  String? get email => _email;
+
+  @override
+  Stream<String?> emailChanges() async* {
+    yield _email;
+    yield* _changes.stream;
+  }
+
+  @override
+  Future<void> signIn(String email, String password) async {
+    if (accounts[email] != password) throw _err('invalid_credentials');
+    _signedIn(email);
+  }
+
+  @override
+  Future<bool> startSignUp(String email, String password) async {
+    if (accounts.containsKey(email)) throw _err('email_exists');
+    return true;
+  }
+
+  @override
+  Future<void> finishSignUp(String email, String code, String password) async {
+    if (code != goodCode) throw _err('otp_expired');
+    accounts[email] = password;
+    _signedIn(email);
+  }
+
+  @override
+  Future<void> sendPasswordReset(String email) async => resets.add(email);
+
+  @override
+  Future<void> finishPasswordReset(String email, String code, String newPassword) async {
+    if (code != goodCode) throw _err('otp_expired');
+    accounts[email] = newPassword;
+    _signedIn(email);
+  }
+
+  @override
+  Future<void> signOut() async => _signedIn(null);
+
+  @override
+  Future<void> deleteAccount() async {
+    deletions++;
+    accounts.remove(_email);
+    _signedIn(null);
   }
 }
 
@@ -106,16 +177,22 @@ class FakeLock implements MulticastLock {
   Future<void> release() async => held--;
 }
 
-DiscoveredDevice dev(String ip, {String? hostname, int? rtt, String? mac, String? vendor, List<String> services = const []}) =>
-    DiscoveredDevice(
-      ip: ip,
-      hostname: hostname,
-      rttMs: rtt,
-      mac: mac,
-      vendor: vendor,
-      services: services,
-      isOnline: true,
-      sources: const {DiscoverySource.icmp},
-      firstSeen: DateTime(2026, 10, 5),
-      lastSeen: DateTime(2026, 10, 5),
-    );
+DiscoveredDevice dev(
+  String ip, {
+  String? hostname,
+  int? rtt,
+  String? mac,
+  String? vendor,
+  List<String> services = const [],
+}) => DiscoveredDevice(
+  ip: ip,
+  hostname: hostname,
+  rttMs: rtt,
+  mac: mac,
+  vendor: vendor,
+  services: services,
+  isOnline: true,
+  sources: const {DiscoverySource.icmp},
+  firstSeen: DateTime(2026, 10, 5),
+  lastSeen: DateTime(2026, 10, 5),
+);

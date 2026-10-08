@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/theme/pingduck_theme.dart';
+import 'package:pingduck_app/core/widgets/pd_widgets.dart';
 import 'package:pingduck_app/features/topology/presentation/topology_screen.dart';
 import 'package:pingduck_app/main.dart';
 
@@ -13,12 +16,19 @@ import 'fakes.dart';
 void main() {
   late FakeBridge bridge;
   late FakeLan lan;
+  late FakeAuth auth;
 
   /// Seeds the cache like a previous session did, then restores from it the
   /// way main() does.
-  Future<Widget> app(WidgetTester tester,
-      {required bool onboarded, List<DiscoveredDevice> cached = const [], bool connected = true}) async {
+  Future<Widget> app(
+    WidgetTester tester, {
+    required bool onboarded,
+    List<DiscoveredDevice> cached = const [],
+    bool connected = true,
+    Map<String, String> accounts = const {},
+  }) async {
     bridge = FakeBridge();
+    auth = FakeAuth(accounts: accounts);
     lan = FakeLan(connected);
     final store = memoryStore();
     addTearDown(store.close);
@@ -40,15 +50,18 @@ void main() {
         restoredScanProvider.overrideWithValue(restored!),
         onboardedProvider.overrideWith(() => Onboarded(onboarded)),
         lanConnectivityProvider.overrideWithValue(lan),
+        accountAuthProvider.overrideWithValue(auth),
       ],
       child: const PingDuckApp(),
     );
   }
 
   /// The ledger sits below the radar, outside the lazily built viewport.
-  Future<void> scrollTo(WidgetTester tester, Finder f) =>
-      tester.scrollUntilVisible(f, 300,
-          scrollable: find.descendant(of: find.byType(CustomScrollView), matching: find.byType(Scrollable)).first);
+  Future<void> scrollTo(WidgetTester tester, Finder f) => tester.scrollUntilVisible(
+    f,
+    300,
+    scrollable: find.descendant(of: find.byType(CustomScrollView), matching: find.byType(Scrollable)).first,
+  );
 
   Future<void> settleScan(WidgetTester tester) async {
     await tester.pump();
@@ -79,9 +92,9 @@ void main() {
     await tester.pumpWidget(await app(tester, onboarded: true, cached: [cached]));
 
     await scrollTo(tester, find.text('Living Room TV'));
-    expect(find.text('CyberLab_5G'), findsOneWidget);  // remembered from the last scan
+    expect(find.text('CyberLab_5G'), findsOneWidget); // remembered from the last scan
     await tester.pump();
-    expect(bridge.scans, 1);  // returning users get a scan on launch
+    expect(bridge.scans, 1); // returning users get a scan on launch
 
     bridge.devices!.add(dev('10.42.0.20', rtt: 4));
     await tester.pump();
@@ -92,7 +105,9 @@ void main() {
   testWidgets('tapping a device card opens Node Inspect under Tools', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(await app(tester, onboarded: true, cached: [dev('10.42.0.20', hostname: 'Living Room TV')]));
+    await tester.pumpWidget(
+      await app(tester, onboarded: true, cached: [dev('10.42.0.20', hostname: 'Living Room TV')]),
+    );
     await settleScan(tester);
 
     await scrollTo(tester, find.text('Living Room TV'));
@@ -141,14 +156,19 @@ void main() {
     final store = memoryStore();
     addTearDown(store.close);
     final cached = dev('10.42.0.20', hostname: 'Living Room TV', rtt: 4);
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        scannerBridgeProvider.overrideWithValue(bridge),
-        localStoreProvider.overrideWithValue(store),
-        restoredScanProvider.overrideWithValue(ScanState(devices: {cached.ip: cached})),
-      ],
-      child: MaterialApp(theme: PingDuckTheme.light(), home: const Scaffold(body: TopologyScreen())),
-    ));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          scannerBridgeProvider.overrideWithValue(bridge),
+          localStoreProvider.overrideWithValue(store),
+          restoredScanProvider.overrideWithValue(ScanState(devices: {cached.ip: cached})),
+        ],
+        child: MaterialApp(
+          theme: PingDuckTheme.light(),
+          home: const Scaffold(body: TopologyScreen()),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('ACTIVE SUBNET'), findsOneWidget);
     expect(find.text('Living Room TV'), findsWidgets);
@@ -157,14 +177,15 @@ void main() {
   testWidgets('off Wi-Fi the Overview hides all data; reconnecting rescans', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(await app(tester,
-        onboarded: true, connected: false, cached: [dev('10.42.0.20', hostname: 'Living Room TV')]));
+    await tester.pumpWidget(
+      await app(tester, onboarded: true, connected: false, cached: [dev('10.42.0.20', hostname: 'Living Room TV')]),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Not connected to Wi-Fi'), findsOneWidget);
     expect(find.text('Living Room TV'), findsNothing);
     expect(find.text('INTERFACE TELEMETRY'), findsNothing);
-    expect(find.text('OFFLINE'), findsOneWidget);  // header chip
+    expect(find.text('OFFLINE'), findsOneWidget); // header chip
 
     // Wi-Fi comes back: data returns and a fresh scan starts.
     final scansBefore = bridge.scans;
@@ -202,7 +223,7 @@ void main() {
     expect(find.text('MY NETWORKS'), findsOneWidget);
     expect(find.text('CyberLab_5G'), findsOneWidget);
     expect(find.text('CONNECTED'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);  // devices on that network
+    expect(find.text('2'), findsOneWidget); // devices on that network
 
     await tester.tap(find.text('FORGET NETWORK'));
     await tester.pumpAndSettle();
@@ -252,5 +273,147 @@ void main() {
     await tester.scrollUntilVisible(find.text('Made on Long Island'), 200);
     expect(find.text('Made on Long Island'), findsOneWidget);
   });
-}
 
+  Future<void> openSignIn(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not signed in'), findsOneWidget);
+    await tester.tap(find.text('SIGN IN OR CREATE ACCOUNT'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> fill(WidgetTester tester, {String? email, String? password, String? code}) async {
+    if (email != null) await tester.enterText(find.byKey(const Key('email')), email);
+    if (password != null) await tester.enterText(find.byKey(const Key('password')), password);
+    if (code != null) await tester.enterText(find.byKey(const Key('code')), code);
+  }
+
+  Finder pdButton(String label) => find.byWidgetPredicate((w) => w is PdButton && w.label == label);
+
+  /// Taps the button labelled [text], not a title that reads the same.
+  Future<void> tapText(WidgetTester tester, String text) async {
+    final button = find
+        .ancestor(of: find.text(text), matching: find.byWidgetPredicate((w) => w is PdButton || w is TextButton))
+        .first;
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('creating an account confirms the email, then signs in', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+    await openSignIn(tester);
+    await tapText(tester, 'CREATE ACCOUNT');
+
+    await fill(tester, email: 'not-an-email', password: 'longenough');
+    await tapText(tester, 'CREATE ACCOUNT');
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+
+    await fill(tester, email: ' duck@example.com ', password: 'short');
+    await tapText(tester, 'CREATE ACCOUNT');
+    expect(find.textContaining('at least 8 characters'), findsOneWidget);
+
+    await fill(tester, password: 'quackquack');
+    await tapText(tester, 'CREATE ACCOUNT');
+    expect(find.textContaining('Enter the code we sent to duck@example.com'), findsOneWidget);
+
+    await fill(tester, code: '000000');
+    await tapText(tester, 'CONFIRM');
+    expect(find.textContaining('wrong or has expired'), findsOneWidget);
+
+    await fill(tester, code: FakeAuth.goodCode);
+    await tapText(tester, 'CONFIRM');
+    expect(find.text('duck@example.com'), findsOneWidget);
+    expect(find.text('SIGNED IN'), findsOneWidget);
+    expect(auth.accounts, {'duck@example.com': 'quackquack'});
+
+    await tapText(tester, 'SIGN OUT');
+    expect(find.text('Not signed in'), findsOneWidget);
+    expect(find.text('DELETE ACCOUNT'), findsNothing);
+  });
+
+  testWidgets('an email that has an account is told to sign in', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true, accounts: {'duck@example.com': 'quackquack'}));
+    await settleScan(tester);
+    await openSignIn(tester);
+    await tapText(tester, 'CREATE ACCOUNT');
+    await fill(tester, email: 'duck@example.com', password: 'otherpassword');
+    await tapText(tester, 'CREATE ACCOUNT');
+    expect(find.textContaining('already has an account'), findsOneWidget);
+  });
+
+  testWidgets('signing in checks the password', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true, accounts: {'duck@example.com': 'quackquack'}));
+    await settleScan(tester);
+    await openSignIn(tester);
+
+    await fill(tester, email: 'duck@example.com', password: 'wrong');
+    await tapText(tester, 'SIGN IN');
+    expect(find.text('Wrong email or password.'), findsOneWidget);
+
+    await fill(tester, password: 'quackquack');
+    await tapText(tester, 'SIGN IN');
+    expect(find.text('duck@example.com'), findsOneWidget);
+  });
+
+  testWidgets('a forgotten password is reset with an emailed code', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true, accounts: {'duck@example.com': 'forgotten'}));
+    await settleScan(tester);
+    await openSignIn(tester);
+
+    await tapText(tester, 'FORGOT PASSWORD?');
+    await fill(tester, email: 'duck@example.com');
+    await tapText(tester, 'EMAIL ME A CODE');
+    expect(auth.resets, ['duck@example.com']);
+
+    await fill(tester, code: FakeAuth.goodCode, password: 'newquackquack');
+    await tapText(tester, 'SET PASSWORD');
+    expect(find.text('duck@example.com'), findsOneWidget);
+    expect(auth.accounts['duck@example.com'], 'newquackquack');
+  });
+
+  testWidgets('Google is shown disabled; Apple only on iOS', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+    await openSignIn(tester);
+    final google = tester.widget<PdButton>(pdButton('Continue with Google'));
+    expect(google.onPressed, isNull);
+    expect(pdButton('Continue with Apple'), findsNothing);
+  });
+
+  testWidgets('iOS also shows Apple, disabled', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await tester.pumpWidget(await app(tester, onboarded: true));
+      await settleScan(tester);
+      await openSignIn(tester);
+      final apple = tester.widget<PdButton>(pdButton('Continue with Apple'));
+      expect(apple.onPressed, isNull);
+      expect(pdButton('Continue with Google'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('deleting the account asks first, then signs out', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true, accounts: {'duck@example.com': 'quackquack'}));
+    await settleScan(tester);
+    await openSignIn(tester);
+    await fill(tester, email: 'duck@example.com', password: 'quackquack');
+    await tapText(tester, 'SIGN IN');
+
+    await tapText(tester, 'DELETE ACCOUNT');
+    await tapText(tester, 'CANCEL');
+    expect(auth.deletions, 0);
+    expect(find.text('duck@example.com'), findsOneWidget);
+
+    await tapText(tester, 'DELETE ACCOUNT');
+    await tapText(tester, 'DELETE');
+    expect(auth.deletions, 1);
+    expect(find.text('Not signed in'), findsOneWidget);
+    expect(find.text('Account deleted'), findsOneWidget);
+  });
+}
