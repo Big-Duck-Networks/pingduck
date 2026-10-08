@@ -165,6 +165,27 @@ update device_events set created_at = now() - interval '8 days' where kind = 'ne
 select prune_history();
 select pg_temp.check((select count(*) from device_events) = 3, 'prune drops events older than the plan keeps');
 
+-- ---- Account deletion ------------------------------------------------------
+set role anon;
+select pg_temp.expect_error($$select delete_account()$$, 'permission denied');
+reset role;
+
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select claim_scan();
+insert into networks (id, cidr, gateway_ip) values
+    ('bbbbbbbb-0000-0000-0000-000000000002', '192.168.1.0/24', '192.168.1.1');
+insert into push_tokens (token, platform) values ('test-token-2', 'android');
+select delete_account();
+reset role;
+
+select pg_temp.check(not exists (select 1 from auth.users where id = '22222222-2222-2222-2222-222222222222'), 'delete_account removes the user');
+select pg_temp.check(not exists (select 1 from scan_usage where user_id = '22222222-2222-2222-2222-222222222222')
+    and not exists (select 1 from networks where owner_id = '22222222-2222-2222-2222-222222222222')
+    and not exists (select 1 from push_tokens where user_id = '22222222-2222-2222-2222-222222222222'), 'delete_account removes their data');
+select pg_temp.check(exists (select 1 from auth.users where id = '11111111-1111-1111-1111-111111111111')
+    and exists (select 1 from networks where owner_id = '11111111-1111-1111-1111-111111111111'), 'other accounts are untouched');
+
 reset role;
 rollback;
 select 'ALL SCHEMA TESTS PASSED' as result;
