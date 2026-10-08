@@ -39,8 +39,9 @@ class FakeQuota implements ScanQuota {
   }
 }
 
-/// Email and password accounts held in [accounts] (email to password); every
-/// emailed code is [goodCode].
+/// Email and password accounts held in [accounts] (email to password). Sign-ups
+/// wait in [pending] until the test calls [clickLink]; every emailed reset
+/// code is [goodCode].
 class FakeAuth implements AccountAuth {
   FakeAuth({Map<String, String> accounts = const {}}) : accounts = {...accounts};
   final Map<String, String> accounts;
@@ -48,6 +49,10 @@ class FakeAuth implements AccountAuth {
   String? _email;
   final _changes = StreamController<String?>.broadcast();
   final resets = <String>[];
+  final pending = <String>{};
+  final _clicked = <String>{};
+
+  void clickLink(String email) => _clicked.add(email);
   int deletions = 0;
 
   void _signedIn(String? email) => _changes.add(_email = email);
@@ -72,14 +77,17 @@ class FakeAuth implements AccountAuth {
   @override
   Future<bool> startSignUp(String email, String password) async {
     if (accounts.containsKey(email)) throw _err('email_exists');
+    pending.add(email);
     return true;
   }
 
   @override
-  Future<void> finishSignUp(String email, String code, String password) async {
-    if (code != goodCode) throw _err('otp_expired');
+  Future<bool> completeSignUp(String email, String password) async {
+    if (!pending.contains(email) || !_clicked.contains(email)) return false;
+    pending.remove(email);
     accounts[email] = password;
     _signedIn(email);
+    return true;
   }
 
   @override

@@ -11,3 +11,8 @@ const supabasePublishableKey = String.fromEnvironment(
   'SUPABASE_PUBLISHABLE_KEY',
   defaultValue: 'sb_publishable_eWbf9jGpxBWQ6t7Vtz8r5A_mWfdmVrK',
 );
+
+/// Where an email confirmation link lands. The page there offers a
+/// pingduck://auth-callback link back into the app, which works on any device.
+/// Must be in the project's Redirect URLs allow list.
+const confirmEmailRedirect = 'https://pingduck.app/confirmed';

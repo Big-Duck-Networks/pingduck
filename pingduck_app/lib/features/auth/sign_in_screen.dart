@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,8 +12,8 @@ import 'account_auth.dart';
 
 enum _Step { signIn, signUp, confirm, forgot, reset }
 
-/// Email and password sign-in, account creation (confirmed with an emailed
-/// code) and password reset. Google, and Apple on iOS, are shown but not wired
+/// Email and password sign-in, account creation (confirmed by clicking an
+/// emailed link) and password reset (by emailed code). Google, and Apple on iOS, are shown but not wired
 /// up yet. Pops with true once signed in.
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -22,7 +24,7 @@ class SignInScreen extends ConsumerStatefulWidget {
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends ConsumerState<SignInScreen> {
+class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBindingObserver {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _code = TextEditingController();
@@ -30,25 +32,49 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   bool _busy = false, _showPassword = false;
   String? _error;
 
+  /// While waiting on the confirmation link: checks every few seconds, since
+  /// the link may be opened on another device while this screen is up.
+  Timer? _watch;
+  static const watchInterval = Duration(seconds: 5);
+
   static final _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   AccountAuth get _auth => ref.read(accountAuthProvider);
   String get _emailText => _email.text.trim();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Coming back from the browser (or the "Open PingDuck" link) is the usual
+  /// moment the link has just been clicked.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _step == _Step.confirm) _checkConfirmed(quiet: true);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _watch?.cancel();
     _email.dispose();
     _password.dispose();
     _code.dispose();
     super.dispose();
   }
 
-  void _go(_Step step) => setState(() {
-    _step = step;
-    _error = null;
-    _code.clear();
-    if (step == _Step.reset) _password.clear();
-  });
+  void _go(_Step step) {
+    _watch?.cancel();
+    if (step == _Step.confirm) _watch = Timer.periodic(watchInterval, (_) => _checkConfirmed(quiet: true));
+    setState(() {
+      _step = step;
+      _error = null;
+      _code.clear();
+      if (step == _Step.reset) _password.clear();
+    });
+  }
 
   void _done() {
     if (mounted) Navigator.of(context).pop(true);
@@ -104,16 +130,26 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Future<void> _signUp() async {
     if (!_valid(newPassword: true)) return;
     await _run(() async {
-      final needsCode = await _auth.startSignUp(_emailText, _password.text);
-      needsCode ? _go(_Step.confirm) : _done();
+      final needsLink = await _auth.startSignUp(_emailText, _password.text);
+      needsLink ? _go(_Step.confirm) : _done();
     });
   }
 
-  Future<void> _confirm() async {
-    if (!_valid(code: true)) return;
+  /// [quiet] checks (timer, app resume) say nothing until the link is clicked.
+  Future<void> _checkConfirmed({bool quiet = false}) async {
+    if (_busy) return;
+    if (quiet) {
+      try {
+        if (await _auth.completeSignUp(_emailText, _password.text)) _done();
+      } catch (_) {}
+      return;
+    }
     await _run(() async {
-      await _auth.finishSignUp(_emailText, _code.text.trim(), _password.text);
-      _done();
+      if (await _auth.completeSignUp(_emailText, _password.text)) {
+        _done();
+      } else {
+        _error = 'Not confirmed yet. Tap the link in the email we sent to $_emailText.';
+      }
     });
   }
 
@@ -222,22 +258,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       ),
     ],
     _Step.confirm => [
-      Text('Enter the code we sent to $_emailText to confirm it’s yours.', style: PdText.bodySm),
-      const SizedBox(height: 12),
-      _codeField(onSubmitted: _confirm),
+      Text(
+        'We sent a link to $_emailText. Tap it to confirm your email, on this phone or any other device. '
+        'This screen finishes on its own once you do.',
+        style: PdText.bodySm,
+      ),
       const SizedBox(height: 12),
       PdButton(
-        label: _busy ? 'Checking…' : 'Confirm',
+        label: _busy ? 'Checking…' : 'I’ve confirmed',
         icon: Icons.check,
         style: PdButtonStyle.primary,
-        onPressed: _busy ? null : _confirm,
+        onPressed: _busy ? null : _checkConfirmed,
       ),
       const SizedBox(height: 8),
       Wrap(
         alignment: WrapAlignment.spaceBetween,
         children: [
           TextButton(onPressed: _busy ? null : () => _go(_Step.signUp), child: const Text('CHANGE EMAIL')),
-          TextButton(onPressed: _busy ? null : _signUp, child: const Text('RESEND CODE')),
+          TextButton(onPressed: _busy ? null : _signUp, child: const Text('RESEND LINK')),
         ],
       ),
     ],

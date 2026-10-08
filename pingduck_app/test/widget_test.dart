@@ -302,7 +302,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('creating an account confirms the email, then signs in', (tester) async {
+  testWidgets('creating an account waits for the emailed link, then signs in', (tester) async {
     await tester.pumpWidget(await app(tester, onboarded: true));
     await settleScan(tester);
     await openSignIn(tester);
@@ -318,14 +318,16 @@ void main() {
 
     await fill(tester, password: 'quackquack');
     await tapText(tester, 'CREATE ACCOUNT');
-    expect(find.textContaining('Enter the code we sent to duck@example.com'), findsOneWidget);
+    expect(find.textContaining('We sent a link to duck@example.com'), findsOneWidget);
+    expect(auth.pending, {'duck@example.com'});
 
-    await fill(tester, code: '000000');
-    await tapText(tester, 'CONFIRM');
-    expect(find.textContaining('wrong or has expired'), findsOneWidget);
+    await tapText(tester, 'I’VE CONFIRMED');
+    expect(find.textContaining('Not confirmed yet'), findsOneWidget);
 
-    await fill(tester, code: FakeAuth.goodCode);
-    await tapText(tester, 'CONFIRM');
+    // Clicked on another device: the screen notices on its next check.
+    auth.clickLink('duck@example.com');
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     expect(find.text('duck@example.com'), findsOneWidget);
     expect(find.text('SIGNED IN'), findsOneWidget);
     expect(auth.accounts, {'duck@example.com': 'quackquack'});
@@ -333,6 +335,21 @@ void main() {
     await tapText(tester, 'SIGN OUT');
     expect(find.text('Not signed in'), findsOneWidget);
     expect(find.text('DELETE ACCOUNT'), findsNothing);
+  });
+
+  testWidgets('returning to the app after clicking the link finishes sign-up', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+    await openSignIn(tester);
+    await tapText(tester, 'CREATE ACCOUNT');
+    await fill(tester, email: 'duck@example.com', password: 'quackquack');
+    await tapText(tester, 'CREATE ACCOUNT');
+
+    auth.clickLink('duck@example.com');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text('duck@example.com'), findsOneWidget);
   });
 
   testWidgets('an email that has an account is told to sign in', (tester) async {

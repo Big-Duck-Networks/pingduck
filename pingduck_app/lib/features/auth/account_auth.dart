@@ -1,12 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/constants/supabase_config.dart';
 import 'session.dart';
 
 /// Email and password accounts. Creating one upgrades this install's
 /// anonymous user in place, so its id (and the scan count tied to it) carries
-/// over; the address is confirmed with a code emailed once. Codes rather than
-/// links: they need no deep-link setup and can be read on another device.
+/// over, once the person clicks the link emailed to the address. Password
+/// reset uses an emailed code, which works whichever device opens the email.
 abstract interface class AccountAuth {
   /// Email of the signed-in account; null while anonymous or signed out.
   String? get email;
@@ -19,12 +20,13 @@ abstract interface class AccountAuth {
   Future<void> signIn(String email, String password);
 
   /// Starts turning this install into an account for [email]. Returns true
-  /// when a confirmation code was emailed, false when the project confirmed
+  /// when a confirmation link was emailed, false when the project confirmed
   /// the address on the spot (and the password is already set).
   Future<bool> startSignUp(String email, String password);
 
-  /// Confirms the address with the emailed [code] and sets the password.
-  Future<void> finishSignUp(String email, String code, String password);
+  /// Checks whether the link has been clicked (on any device). If so, sets
+  /// the password and returns true.
+  Future<bool> completeSignUp(String email, String password);
 
   /// Emails a code that lets [finishPasswordReset] set a new password.
   Future<void> sendPasswordReset(String email);
@@ -59,16 +61,19 @@ class SupabaseAccountAuth implements AccountAuth {
   Future<bool> startSignUp(String email, String password) async {
     await signedInClient();
     // An anonymous user can only set a password once it has a confirmed email.
-    final user = (await _auth.updateUser(UserAttributes(email: email))).user;
+    final user = (await _auth.updateUser(UserAttributes(email: email), emailRedirectTo: confirmEmailRedirect)).user;
     if (user?.email != email) return true;
     await _auth.updateUser(UserAttributes(password: password));
     return false;
   }
 
   @override
-  Future<void> finishSignUp(String email, String code, String password) async {
-    await _auth.verifyOTP(email: email, token: code, type: OtpType.emailChange);
+  Future<bool> completeSignUp(String email, String password) async {
+    // The link confirms the address on the server; a refresh brings it here.
+    final user = (await _auth.refreshSession()).user;
+    if (user?.email != email) return false;
     await _auth.updateUser(UserAttributes(password: password));
+    return true;
   }
 
   @override
