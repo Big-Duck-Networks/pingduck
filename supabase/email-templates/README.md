@@ -13,6 +13,13 @@ the Supabase dashboard, with the subject below.
 The app never sends Confirm signup, Magic Link or Invite, so those stay as
 they are.
 
+`account_deleted.html` ("Sorry to see you go", subject `Your PingDuck account
+is deleted`) is not a dashboard template. Supabase Auth has no deletion email,
+so `delete_account` sends it itself through pg_net and Resend's API (see
+`migrations/20261008120000_goodbye_email.sql`, which embeds this file; after
+editing it, regenerate that function). It needs the Resend API key in Vault:
+`select vault.create_secret('re_...', 'resend_api_key');`.
+
 Sign-up is confirmed by link: `email_change.html` links `{{ .ConfirmationURL }}`,
 which confirms the address and redirects to `https://pingduck.app/confirmed`
 (the app passes it as `emailRedirectTo`). That page has an Open PingDuck button

@@ -176,6 +176,11 @@ select claim_scan();
 insert into networks (id, cidr, gateway_ip) values
     ('bbbbbbbb-0000-0000-0000-000000000002', '192.168.1.0/24', '192.168.1.1');
 insert into push_tokens (token, platform) values ('test-token-2', 'android');
+reset role;
+-- A real account: the goodbye email is attempted, and never blocks deletion.
+update auth.users set email = 'goodbye-test@example.invalid' where id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 select delete_account();
 reset role;
 
