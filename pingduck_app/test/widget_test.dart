@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
+import 'package:pingduck_app/core/constants/app_version.dart';
 import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/theme/pingduck_theme.dart';
 import 'package:pingduck_app/core/widgets/pd_widgets.dart';
@@ -272,6 +273,9 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('Made on Long Island'), 200);
     expect(find.text('Made on Long Island'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text(AppVersion.display), 200);
+    expect(find.text('${AppVersion.gitCommit} · ${AppVersion.buildDate}'), findsOneWidget);
   });
 
   Future<void> openSignIn(WidgetTester tester) async {

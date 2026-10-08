@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pingduck_core/pingduck_core.dart';
 
+import '../../../core/constants/app_version.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
@@ -10,16 +10,6 @@ import '../../auth/account_auth.dart';
 import '../../auth/sign_in_screen.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../settings/presentation/settings_screen.dart';
-
-/// App version and build, e.g. "1.0.0 (1)"; null until loaded (or in tests).
-final appVersionProvider = FutureProvider<String?>((ref) async {
-  try {
-    final info = await PackageInfo.fromPlatform();
-    return '${info.version} (${info.buildNumber})';
-  } catch (_) {
-    return null;
-  }
-});
 
 /// Engine version, or null when the native library is not loaded (tests).
 final coreVersionProvider = Provider<String?>((ref) {
@@ -284,7 +274,6 @@ class _AboutPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final version = ref.watch(appVersionProvider).value;
     final core = ref.watch(coreVersionProvider);
     return PdPanel(
       background: PingDuckColors.canvas,
@@ -314,7 +303,11 @@ class _AboutPanel extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: PdField(label: 'Version', value: version ?? '—'),
+                  child: PdField(
+                    label: 'Version',
+                    value: AppVersion.display,
+                    sub: '${AppVersion.gitCommit} · ${AppVersion.buildDate}',
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -358,7 +351,7 @@ class _AboutPanel extends ConsumerWidget {
                 onPressed: () => showLicensePage(
                   context: context,
                   applicationName: 'PingDuck',
-                  applicationVersion: version,
+                  applicationVersion: AppVersion.display,
                   applicationLegalese: '© ${DateTime.now().year} $company',
                 ),
                 child: Text('Third-party notices', style: PdText.bodySm.copyWith(color: PingDuckColors.inkSecondary)),

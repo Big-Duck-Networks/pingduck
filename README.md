@@ -11,6 +11,7 @@ pingduck/
 ├── pingduck_app/   Flutter app (iOS / Android), feature-first layout
 ├── agent/          Docker image for the headless agent (libpcap ARP mode)
 ├── supabase/       Database migrations and schema tests (Phase 4)
+├── tools/          Build number and version generator utilities
 └── docs/           PRD, technical specifications (IEC/IEEE 82079-1), and design notes
 ```
 
@@ -100,3 +101,35 @@ pingduck_cli oui <mac> --oui oui.csv
 docker build -f agent/Dockerfile -t pingduck-agent .
 docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN pingduck-agent
 ```
+
+## Versioning & Build Generator
+
+The Flutter app version in [`pingduck_app/pubspec.yaml`](pingduck_app/pubspec.yaml) is managed by [`tools/build_number_gen.dart`](tools/build_number_gen.dart). It automatically synchronizes the version, build number, and Git commit hash into a compile-time constant file at [`pingduck_app/lib/core/constants/app_version.dart`](pingduck_app/lib/core/constants/app_version.dart).
+
+```sh
+# Standard build increment (1.0.0+1 -> 1.0.0+2)
+dart run tools/build_number_gen.dart
+
+# Semantic version releases
+dart run tools/build_number_gen.dart --patch      # 1.0.0+1 -> 1.0.1+2
+dart run tools/build_number_gen.dart --minor      # 1.0.0+1 -> 1.1.0+2
+dart run tools/build_number_gen.dart --major      # 1.0.0+1 -> 2.0.0+2
+dart run tools/build_number_gen.dart --calver     # Date-based (YYYY.MM.DD)
+
+# CI/CD & Inspection
+dart run tools/build_number_gen.dart --sync       # Read current version (e.g. 1.0.0+1)
+dart run tools/build_number_gen.dart --sync --json # Machine-readable JSON output
+dart run tools/build_number_gen.dart --dry-run    # Preview changes without modifying files
+dart run tools/build_number_gen.dart --git        # Use Git commit count as build number
+dart run tools/build_number_gen.dart --github-output # Export to $GITHUB_OUTPUT for CI
+```
+
+Flutter widgets can access compile-time version metadata with zero async overhead:
+
+```dart
+import 'package:pingduck_app/core/constants/app_version.dart';
+
+Text(AppVersion.display);     // "v1.0.0 (2)"
+Text(AppVersion.gitCommit);   // "5c826f2"
+```
+
