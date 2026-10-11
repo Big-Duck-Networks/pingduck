@@ -895,4 +895,38 @@ The first push of tonight's 4 unpushed commits runs the **old** `core.yml`, whic
 
 ## AMENDMENTS
 
-- (none yet)
+- 2026-10-11: **`pingduck` goes public** (user decision). Where this entry conflicts with a task above, this entry wins.
+  - **Done before going public:**
+    - licences: `LICENSE.md` (FSL-1.1-ALv2) at the root, Apache-2.0 in `agent/LICENSE` and `core/LICENSE`, `agent/Cargo.toml` set to `Apache-2.0`, README "License" section. **Task 12's licence question is answered.**
+    - the two real LAN MACs replaced in tests;
+    - history rewritten with `git filter-repo`: real MACs gone, author email set to `1407156+Solox312@users.noreply.github.com`. The repo-local `user.email` is set to the same address.
+  - **Platform limits that no longer apply:**
+    - unlimited standard-runner minutes, including Windows and macOS. **Drop the minutes budget**, AC 14 and lever 1. `ios.yml` runs weekly and on PRs labelled `apple`.
+    - `ubuntu-24.04-arm` has 4 vCPU.
+    - branch protection and rulesets, environments with environment secrets, deployment-branch rules and **required reviewers** are all available.
+  - **Changes to tasks:**
+    - **Task 1.5**: no `pingduck-releases` repo and no `RELEASES_TOKEN`. Windows installers are released in `pingduck` itself. The stable URL is `https://github.com/Big-Duck-Networks/pingduck/releases/latest/download/PingDuckSetup.exe`, which is what `windows-release.yml` already documented. Tasks 23 and 24 use it. Agent and app release notes in the same repo become public changelogs.
+    - **Task 1**: store release secrets as **environment** secrets.
+      - `production-android`: `ANDROID_*`, `PLAY_*`
+      - `production-database`: `SUPABASE_*`
+      - `production-windows`: `AZURE_*`
+      - Give each environment the user as **required reviewer** and a deployment-branch rule of `main`.
+      - The Android internal-track upload on `main` (Task 17) uses environment `internal-android` with the same `ANDROID_*`/`PLAY_*` secrets and **no** reviewer.
+    - **Task 30 is no longer deferred.** Do it right after Phase 1: a ruleset on `main` requiring the `ci` jobs and `database.yml`'s `test`, PRs required, force-push blocked.
+    - Keep the release guard's tag and migration checks. Its "main is green" check becomes a backstop to the ruleset.
+    - **Task 13**: add `actions/attest-build-provenance` (free for public repos) on the image digest, besides cosign. Users can then check with `gh attestation verify oci://ghcr.io/big-duck-networks/pingduck-agent:latest -R Big-Duck-Networks/pingduck`.
+    - **Task 22/23**: also attest the installer and both exes (`actions/attest-build-provenance` with `subject-path`).
+  - **New tasks (public-repo hygiene):**
+    - **Task 0a**: Settings › Actions › "Require approval for all external contributors" before workflows run on their PRs.
+    - **Task 0b**: enable secret scanning **with push protection**, Dependabot alerts and private vulnerability reporting.
+    - **Task 0c**: add `SECURITY.md`: report to `support@pingduck.app` or through GitHub private reporting; the agent is in scope.
+    - **Task 0d**: CodeQL (`codeql.yml`, default setup is fine) for C/C++, Rust and GitHub Actions. Dart isn't supported.
+    - **Task 0e**: pin every third-party action to a full commit SHA, with the version in a comment; Dependabot updates SHA pins. Never use `pull_request_target` with a checkout of PR code.
+    - **Task 0f**: `CODEOWNERS` with `* @Solox312`.
+  - **Order of operations:**
+    1. Force-push the rewritten history. All hashes changed: `main` is `10763b4`, `dev` is `815aeca`.
+    2. Do Tasks 0a, 0b and 0f.
+    3. Flip the repo to public.
+    4. Continue with Phase 1.
+
+    The GitHub copy still holds the old commits until the force-push. Unreferenced objects on GitHub can stay reachable by direct SHA for a while. With no forks or PRs that risk is small; for certainty, ask GitHub Support to purge cached views after the push, or delete and recreate the repo before pushing.
