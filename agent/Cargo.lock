@@ -405,7 +405,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "pingduck-agent"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ctrlc",
  "pingduck-core-sys",
@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "pingduck-core-sys"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cc",
  "cmake",

@@ -82,6 +82,8 @@ Name: "startup"; Description: "Start PingDuck with Windows (in the tray)"; Group
 [Files]
 Source: "{#Repo}\pingduck_app\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Repo}\agent\target\release\pingduck-agent.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Vendor names for the agent's scans (it looks beside its exe).
+Source: "{#Repo}\core\data\oui.csv"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\PingDuck.exe"

@@ -12,18 +12,23 @@
 # Then in the app: Account > Add monitoring unit. If the phone can't reach the
 # box's LAN (VLAN, VPN), add -e PINGDUCK_PAIRING_CODE=<code from the app>.
 #
+# Once paired it scans every 5 minutes and syncs the devices (with MACs) to
+# the app. Optional: -e PINGDUCK_SCAN_INTERVAL=<seconds, 60 or more>, and
+# -e PINGDUCK_SCAN_CIDR=10.0.20.0/24 to watch another subnet.
+#
 # The core CLI stays in the image for debugging:
 #   docker run --rm --net=host --cap-add=NET_RAW --entrypoint pingduck pingduck-agent scan --arp
 
 FROM rust:1-bookworm AS build
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends cmake libpcap-dev curl \
+    && apt-get install -y --no-install-recommends cmake libpcap-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY core/CMakeLists.txt core/
 COPY core/include core/include
 COPY core/src core/src
 COPY core/cli core/cli
+COPY core/data core/data
 COPY agent/Cargo.toml agent/Cargo.lock agent/
 COPY agent/crates agent/crates
 RUN cd agent \
@@ -32,7 +37,6 @@ RUN cd agent \
 RUN cmake -S core -B build-cli -DCMAKE_BUILD_TYPE=Release -DPINGDUCK_PCAP=ON -DPINGDUCK_BUILD_SHARED=OFF \
        -DPINGDUCK_BUILD_TESTS=OFF \
     && cmake --build build-cli -j"$(nproc)" --target pingduck_cli
-RUN curl -fsSL -o /oui.csv https://standards-oui.ieee.org/oui/oui.csv
 
 FROM debian:bookworm-slim
 RUN apt-get update \
@@ -40,7 +44,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/agent/target/release/pingduck-agent /usr/local/bin/pingduck-agent
 COPY --from=build /src/build-cli/pingduck_cli /usr/local/bin/pingduck
-COPY --from=build /oui.csv /usr/share/pingduck/oui.csv
+COPY --from=build /src/core/data/oui.csv /usr/share/pingduck/oui.csv
 VOLUME /var/lib/pingduck
 EXPOSE 44480/tcp 1900/udp
+LABEL org.opencontainers.image.source="https://github.com/Big-Duck-Networks/pingduck"
+LABEL org.opencontainers.image.description="PingDuck homelab agent"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+HEALTHCHECK --interval=60s --timeout=5s --start-period=10s CMD ["pingduck-agent", "healthcheck"]
 ENTRYPOINT ["pingduck-agent"]

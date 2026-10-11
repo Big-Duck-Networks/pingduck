@@ -52,6 +52,32 @@ pub enum Heartbeat {
     Error,
 }
 
+/// What agent_sync made of a scan.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SyncOutcome {
+    Synced { devices: u64, new_devices: u64, went_offline: u64 },
+    Unpaired,
+    /// The owner's plan has no monitoring (Free); scans resume on upgrade.
+    SubscriptionRequired,
+    /// Token refused; the heartbeat confirms a revoke and unpairs.
+    Rejected,
+    Error,
+}
+
+/// One device for agent_sync. It keys devices by MAC, so the rest are skipped.
+pub fn sync_entry(d: &pingduck_core_sys::Device) -> Option<Value> {
+    if d.mac.is_empty() {
+        return None;
+    }
+    let mut e = json!({ "mac": d.mac, "ip": d.ip });
+    for (key, v) in [("hostname", &d.hostname), ("vendor", &d.vendor), ("model", &d.model), ("services", &d.services)] {
+        if !v.is_empty() {
+            e[key] = Value::from(v.as_str());
+        }
+    }
+    Some(e)
+}
+
 fn error(status: u16, code: &str) -> HttpReply {
     HttpReply::json(status, json!({ "error": code }).to_string())
 }
@@ -81,6 +107,10 @@ impl Agent {
 
     pub fn config(&self) -> &Config {
         &self.config
+    }
+
+    pub fn paired(&self) -> bool {
+        self.store.get().paired()
     }
 
     pub fn description_xml(&self) -> String {
@@ -243,20 +273,48 @@ impl Agent {
             _ => Heartbeat::Error,
         }
     }
+
+    /// Reports a scan. A device is marked offline once unseen for
+    /// `offline_after` (a couple of missed scans, not one).
+    pub fn sync(&self, devices: &[pingduck_core_sys::Device], offline_after: std::time::Duration) -> SyncOutcome {
+        let s = self.store.get();
+        if !s.paired() {
+            return SyncOutcome::Unpaired;
+        }
+        let entries: Vec<Value> = devices.iter().filter_map(sync_entry).take(4096).collect();
+        let args = json!({
+            "p_token": s.token,
+            "p_devices": entries,
+            "p_offline_after": format!("{} seconds", offline_after.as_secs()),
+        });
+        let r = self.supabase.call("agent_sync", &args.to_string());
+        if r.network_error {
+            return SyncOutcome::Error;
+        }
+        let j: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
+        let count = |k: &str| j.get(k).and_then(Value::as_u64).unwrap_or(0);
+        match r.http {
+            200 => SyncOutcome::Synced { devices: count("devices"), new_devices: count("new_devices"), went_offline: count("went_offline") },
+            _ if str_field(&j, "message") == "subscription_required" => SyncOutcome::SubscriptionRequired,
+            _ if str_field(&j, "code") == "28000" => SyncOutcome::Rejected,
+            _ => SyncOutcome::Error,
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::supabase::RpcResult;
     use std::sync::atomic::AtomicI64;
+    use std::time::Duration;
 
-    fn token() -> String {
+    pub(crate) fn token() -> String {
         "a".repeat(64)
     }
 
-    struct FakeSupabase {
-        calls: Mutex<Vec<(String, String)>>,
+    pub(crate) struct FakeSupabase {
+        pub(crate) calls: Mutex<Vec<(String, String)>>,
         next: Mutex<RpcResult>,
     }
 
@@ -266,13 +324,13 @@ mod tests {
             fake.answer(200, &json!({"agent_id": "agent-1", "network_id": "net-1", "token": token()}).to_string());
             fake
         }
-        fn answer(&self, http: u16, body: &str) {
+        pub(crate) fn answer(&self, http: u16, body: &str) {
             *self.next.lock().unwrap() = RpcResult { http, body: body.into(), network_error: false };
         }
-        fn down(&self) {
+        pub(crate) fn down(&self) {
             *self.next.lock().unwrap() = RpcResult { network_error: true, ..RpcResult::default() };
         }
-        fn calls(&self) -> Vec<(String, String)> {
+        pub(crate) fn calls(&self) -> Vec<(String, String)> {
             self.calls.lock().unwrap().clone()
         }
     }
@@ -284,15 +342,15 @@ mod tests {
         }
     }
 
-    struct Fixture {
-        _dir: tempfile::TempDir,
-        store: Arc<StateStore>,
-        supabase: Arc<FakeSupabase>,
+    pub(crate) struct Fixture {
+        pub(crate) _dir: tempfile::TempDir,
+        pub(crate) store: Arc<StateStore>,
+        pub(crate) supabase: Arc<FakeSupabase>,
         now: Arc<AtomicI64>,
-        agent: Agent,
+        pub(crate) agent: Agent,
     }
 
-    fn fixture() -> Fixture {
+    pub(crate) fn fixture() -> Fixture {
         let dir = tempfile::tempdir().unwrap();
         let store = Arc::new(StateStore::open(dir.path()));
         let supabase = FakeSupabase::new();
@@ -304,7 +362,7 @@ mod tests {
         Fixture { _dir: dir, store, supabase, now, agent }
     }
 
-    fn post_pair(f: &Fixture, body: &str, ip: &str) -> HttpReply {
+    pub(crate) fn post_pair(f: &Fixture, body: &str, ip: &str) -> HttpReply {
         let mut r = HttpRequest { method: "POST".into(), path: "/pingduck/v1/pair".into(), body: body.into(), ..Default::default() };
         r.headers.insert("content-type".into(), "application/json".into());
         f.agent.handle(&r, ip)
@@ -314,7 +372,7 @@ mod tests {
         serde_json::from_str(&r.body).unwrap()
     }
 
-    const IP: &str = "10.42.0.17";
+    pub(crate) const IP: &str = "10.42.0.17";
 
     #[test]
     fn a_good_code_is_redeemed_and_the_token_stays_private() {
@@ -459,6 +517,59 @@ mod tests {
         assert_eq!(d.model, "PingDuck Agent");
         assert_eq!(d.hostname, "homelab <lab>"); // escaped in XML, intact after parsing
         assert!(d.services.contains("upnp:PingDuckAgent"), "{}", d.services);
+    }
+
+    pub(crate) fn dev(ip: &str, mac: &str) -> pingduck_core_sys::Device {
+        pingduck_core_sys::Device { ip: ip.into(), mac: mac.into(), rtt_ms: -1, ..Default::default() }
+    }
+
+    #[test]
+    fn sync_sends_the_devices_with_a_mac() {
+        let f = fixture();
+        assert_eq!(f.agent.sync(&[], Duration::from_secs(600)), SyncOutcome::Unpaired);
+        assert!(f.supabase.calls().is_empty(), "nothing is sent while unpaired");
+
+        post_pair(&f, r#"{"code":"ABCD2345"}"#, IP);
+        f.supabase.answer(200, r#"{"devices":2,"new_devices":1,"went_offline":0}"#);
+        let mut router = dev("10.42.0.1", "b8:fb:b3:00:00:01");
+        router.vendor = "TP-Link".into();
+        router.services = "upnp:InternetGatewayDevice".into();
+        let phone = dev("10.42.0.50", ""); // ICMP only, no MAC: agent_sync can't key it
+        let tv = pingduck_core_sys::Device { hostname: "living-room".into(), ..dev("10.42.0.60", "34:13:43:00:00:02") };
+        assert_eq!(
+            f.agent.sync(&[router, phone, tv], Duration::from_secs(750)),
+            SyncOutcome::Synced { devices: 2, new_devices: 1, went_offline: 0 }
+        );
+
+        let (function, body) = f.supabase.calls().last().cloned().unwrap();
+        assert_eq!(function, "agent_sync");
+        let body: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(body["p_token"], token());
+        assert_eq!(body["p_offline_after"], "750 seconds");
+        assert_eq!(
+            body["p_devices"],
+            json!([
+                {"mac": "b8:fb:b3:00:00:01", "ip": "10.42.0.1", "vendor": "TP-Link", "services": "upnp:InternetGatewayDevice"},
+                {"mac": "34:13:43:00:00:02", "ip": "10.42.0.60", "hostname": "living-room"},
+            ])
+        );
+    }
+
+    #[test]
+    fn sync_reads_the_server_refusals() {
+        let f = fixture();
+        post_pair(&f, r#"{"code":"ABCD2345"}"#, IP);
+        let every = Duration::from_secs(600);
+        // PostgREST's error bodies for agent_sync's raise statements.
+        f.supabase.answer(400, r#"{"code":"P0001","message":"subscription_required"}"#);
+        assert_eq!(f.agent.sync(&[], every), SyncOutcome::SubscriptionRequired);
+        f.supabase.answer(403, r#"{"code":"28000","message":"invalid agent token"}"#);
+        assert_eq!(f.agent.sync(&[], every), SyncOutcome::Rejected);
+        assert!(f.store.get().paired(), "only the heartbeat unpairs, after the server says revoked");
+        f.supabase.down();
+        assert_eq!(f.agent.sync(&[], every), SyncOutcome::Error);
+        f.supabase.answer(503, "");
+        assert_eq!(f.agent.sync(&[], every), SyncOutcome::Error);
     }
 
     #[test]
