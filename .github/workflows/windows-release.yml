@@ -1,0 +1,72 @@
+name: windows-release
+
+# Builds PingDuckSetup.exe (the desktop app + the PingDuck Agent service) and
+# publishes it as a GitHub release asset. Tag `desktop-v1.2.3` to release
+# 1.2.3; the stable download URL is
+#   https://github.com/Big-Duck-Networks/pingduck/releases/latest/download/PingDuckSetup.exe
+# which pingduck.app/agent links to at launch (docs/ROADMAP.md, Phase 8).
+# Run it by hand (workflow_dispatch) to get the installer as an artifact only.
+
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then
+            echo "value=${GITHUB_REF#refs/tags/desktop-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(grep '^version:' pingduck_app/pubspec.yaml | sed 's/version: //; s/+.*//')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.0
+          cache: true
+
+      - name: Agent tests and build
+        working-directory: agent
+        run: |
+          cargo test --workspace --locked
+          cargo build --release --locked -p pingduck-agent
+
+      - name: Desktop app
+        working-directory: pingduck_app
+        run: |
+          flutter pub get
+          flutter test
+          flutter build windows --release
+
+      - name: Installer
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" installer\windows\pingduck.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PingDuckSetup-${{ steps.version.outputs.value }}
+          path: installer/windows/Output/PingDuckSetup.exe
+
+      - if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PingDuck for Windows ${{ steps.version.outputs.value }}
+          files: installer/windows/Output/PingDuckSetup.exe
+          # Code signing is not set up yet (SmartScreen will warn): ROADMAP Phase 8.
+          body: |
+            PingDuck for Windows: the desktop app and the PingDuck Agent service.
+            Unsigned build; Windows SmartScreen may ask you to confirm.

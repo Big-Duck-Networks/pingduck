@@ -1,0 +1,12 @@
+[package]
+name = "pingduck-core-sys"
+description = "Builds pingduck-core (C++) and binds the parts of its C ABI the agent uses"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+links = "pingduck"
+
+[build-dependencies]
+cmake = "0.1"
+cc = "1"

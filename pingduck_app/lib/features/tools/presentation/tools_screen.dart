@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../agent/application/agent_status.dart';
 import '../../agent/presentation/agent_screen.dart';
 import '../../device_details/presentation/inspector_screen.dart';
 import '../../scanner/application/scan_controller.dart';
@@ -56,6 +57,7 @@ class _ToolsHub extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scan = ref.watch(scanControllerProvider);
+    final paired = ref.watch(myAgentsProvider).value?.length ?? 0;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -68,7 +70,7 @@ class _ToolsHub extends ConsumerWidget {
             tool: tool,
             status: switch (tool) {
               Tool.nodeInspect => '${scan.devices.length} devices',
-              Tool.agent => 'not paired',
+              Tool.agent => paired == 0 ? 'not paired' : '$paired paired',
             },
             onTap: () => ref.read(activeToolProvider.notifier).open(tool),
           ),

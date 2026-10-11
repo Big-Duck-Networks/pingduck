@@ -4,6 +4,10 @@ import 'package:drift/native.dart';
 import 'package:pingduck_app/core/ffi/scanner_bridge.dart';
 import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/network/network_context.dart';
+import 'package:pingduck_app/features/agent/data/agent_lan_client.dart';
+import 'package:pingduck_app/features/agent/data/agent_repository.dart';
+import 'package:pingduck_app/features/agent/domain/agent_platform.dart';
+import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/services/local_storage.dart';
@@ -157,6 +161,113 @@ class FakeBridge implements ScannerBridge {
 
   @override
   Future<void> wakeOnLan(String mac, {String? broadcast}) async => wokenMac = mac;
+
+  /// What [findAgents] reports; each search counts in [agentSearches].
+  List<DiscoveredDevice> agents = [];
+  int agentSearches = 0;
+
+  @override
+  Stream<DiscoveredDevice> findAgents({Duration timeout = const Duration(seconds: 4)}) {
+    agentSearches++;
+    return Stream.fromIterable(agents);
+  }
+}
+
+/// Agents on the fake LAN, by IP. [pair] redeems against [repo] like the
+/// real agent does with Supabase.
+class FakeAgentLan implements AgentLanClient {
+  FakeAgentLan(this.repo);
+  final FakeAgentRepository repo;
+  final agents = <String, FoundAgent>{};
+  final pairCalls = <(String, String)>[];
+  PairOutcome? forceOutcome;
+
+  @override
+  Future<FoundAgent?> info(String ip) async => agents[ip];
+
+  @override
+  Future<PairResult> pair(String ip, String code) async {
+    pairCalls.add((ip, code));
+    final a = agents[ip];
+    if (a == null) return (outcome: PairOutcome.unreachable, agentId: null);
+    if (forceOutcome != null) return (outcome: forceOutcome!, agentId: null);
+    if (a.paired) return (outcome: PairOutcome.alreadyPaired, agentId: null);
+    final paired = repo.redeem(code, a.name);
+    if (paired == null) return (outcome: PairOutcome.invalidCode, agentId: null);
+    agents[ip] = FoundAgent(ip: ip, instanceId: a.instanceId, name: a.name, version: a.version, paired: true, agentId: paired.id);
+    return (outcome: PairOutcome.paired, agentId: paired.id);
+  }
+}
+
+FoundAgent agentAt(String ip, {String name = 'homelab', bool paired = false, String? agentId}) =>
+    FoundAgent(ip: ip, instanceId: 'inst-$ip', name: name, version: '0.9.0', paired: paired, agentId: agentId);
+
+/// The server side of pairing, in memory.
+class FakeAgentRepository implements AgentRepository {
+  int slots = 2;
+  bool offline = false;
+  final agents = <PairedAgent>[];
+  final networks = <int, String>{};
+  final codes = <String, String>{}; // code -> network id
+  final emails = <AgentPlatform>[];
+  final revoked = <String>[];
+  int registrations = 0;
+  int _next = 0;
+
+  /// What the agent's claim_pairing_code does.
+  PairedAgent? redeem(String code, String name) {
+    final network = codes.remove(code);
+    if (network == null) return null;
+    final a = PairedAgent(id: 'agent-${++_next}', networkId: network, name: name, version: '0.9.0', lastSeenAt: DateTime.now(), createdAt: DateTime.now());
+    agents.insert(0, a);
+    return a;
+  }
+
+  void _check() {
+    if (offline) throw Exception('offline');
+  }
+
+  @override
+  Future<int> maxMonitoredNetworks() async {
+    _check();
+    return slots;
+  }
+
+  @override
+  Future<String> ensureRemoteNetwork(int localNetworkId, LanInfo lan) async {
+    _check();
+    registrations++;
+    return networks.putIfAbsent(localNetworkId, () => 'net-$localNetworkId');
+  }
+
+  @override
+  Future<PairingCode> createCode(String networkId) async {
+    _check();
+    if (slots == 0) throw const PlanLimitException();
+    final code = 'ABCD234${codes.length + 2}';
+    codes[code] = networkId;
+    return (code: code, expiresAt: DateTime.now().add(const Duration(minutes: 10)));
+  }
+
+  @override
+  Future<List<PairedAgent>> myAgents() async {
+    _check();
+    return List.of(agents);
+  }
+
+  @override
+  Future<void> revoke(String agentId) async {
+    _check();
+    revoked.add(agentId);
+    agents.removeWhere((a) => a.id == agentId);
+  }
+
+  @override
+  Future<String> emailInstructions(AgentPlatform platform) async {
+    _check();
+    emails.add(platform);
+    return 'me@example.com';
+  }
 }
 
 /// Connectivity the test switches by hand.

@@ -16,6 +16,10 @@ class Networks extends Table {
 
   /// Last Wi-Fi name seen on this network, so it shows before a scan.
   TextColumn get ssid => text().nullable()();
+
+  /// Supabase `networks.id`, set when the person adds a monitoring unit on
+  /// this network. Nothing about a network leaves the phone before that.
+  TextColumn get remoteId => text().nullable()();
 }
 
 /// Devices per network, keyed by IP: without MACs (Android) the IP is the
@@ -75,12 +79,13 @@ class LocalStore extends _$LocalStore {
   LocalStore([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'pingduck'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.addColumn(networks, networks.ssid);
+          if (from < 3) await m.addColumn(networks, networks.remoteId);
         },
         beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
       );
@@ -101,6 +106,13 @@ class LocalStore extends _$LocalStore {
 
   Future<String?> ssidOf(int networkId) async =>
       (await (select(networks)..where((n) => n.id.equals(networkId))).getSingleOrNull())?.ssid;
+
+  Future<String?> remoteIdOf(int networkId) async =>
+      (await (select(networks)..where((n) => n.id.equals(networkId))).getSingleOrNull())?.remoteId;
+
+  /// Links a local network to its Supabase row; null forgets the link.
+  Future<void> setRemoteId(int networkId, String? remoteId) =>
+      (update(networks)..where((n) => n.id.equals(networkId))).write(NetworksCompanion(remoteId: Value(remoteId)));
 
   /// Every cached device of a network, all marked offline until they answer.
   Future<List<DiscoveredDevice>> devicesOf(int networkId) async {

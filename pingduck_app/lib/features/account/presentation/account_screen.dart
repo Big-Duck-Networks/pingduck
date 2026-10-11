@@ -3,13 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pingduck_core/pingduck_core.dart';
 
 import '../../../core/constants/app_version.dart';
+import '../../../core/desktop/desktop.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../agent/application/agent_status.dart';
+import '../../agent/presentation/add_unit_intro_screen.dart';
+import '../../agent/presentation/this_pc_panel.dart';
 import '../../auth/account_auth.dart';
 import '../../auth/sign_in_screen.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../shell/app_shell.dart';
+import '../../tools/presentation/tools_screen.dart';
 
 /// Engine version, or null when the native library is not loaded (tests).
 final coreVersionProvider = Provider<String?>((ref) {
@@ -44,47 +50,37 @@ class AccountScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         const _IdentityPanel(),
         const SizedBox(height: 16),
+        if (isDesktop) ...[const ThisPcPanel(), const SizedBox(height: 16)],
+        PdPanel(
+          title: 'Monitoring',
+          icon: Icons.dns_outlined,
+          child: switch (ref.watch(myAgentsProvider).value?.length ?? 0) {
+            0 => _NavRow(
+              icon: Icons.add,
+              title: 'Add monitoring unit',
+              subtitle: 'Run the agent on an always-on box',
+              onTap: () => openAddMonitoringUnit(context),
+            ),
+            final n => _NavRow(
+              icon: Icons.dns_outlined,
+              title: 'Monitoring units',
+              subtitle: '$n agent${n == 1 ? '' : 's'} paired',
+              onTap: () {
+                ref.read(appTabProvider.notifier).go(AppTab.tools);
+                ref.read(activeToolProvider.notifier).open(Tool.agent);
+              },
+            ),
+          },
+        ),
+        const SizedBox(height: 16),
         PdPanel(
           title: 'Settings',
           icon: Icons.tune_outlined,
-          child: Semantics(
-            button: true,
-            label: 'App settings',
-            child: InkWell(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: PingDuckColors.canvas,
-                  border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: PingDuckColors.surface1,
-                        border: Border.all(color: PingDuckColors.partition),
-                      ),
-                      child: const Icon(Icons.tune_outlined, size: 20, color: PingDuckColors.ink),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('App settings', style: PdText.headlineSm),
-                          const SizedBox(height: 2),
-                          Text('Reply timeout, cloud sync and alerts', style: PdText.bodySm),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
-                  ],
-                ),
-              ),
-            ),
+          child: _NavRow(
+            icon: Icons.tune_outlined,
+            title: 'App settings',
+            subtitle: 'Reply timeout, auto-scan, cloud sync and alerts',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
           ),
         ),
         const SizedBox(height: 16),
@@ -359,6 +355,58 @@ class _AboutPanel extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A tappable row inside a panel: icon tile, title and subtitle, chevron.
+class _NavRow extends StatelessWidget {
+  const _NavRow({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: title,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: const BoxDecoration(
+            color: PingDuckColors.canvas,
+            border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: PingDuckColors.surface1,
+                  border: Border.all(color: PingDuckColors.partition),
+                ),
+                child: Icon(icon, size: 20, color: PingDuckColors.ink),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: PdText.headlineSm),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: PdText.bodySm),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
+            ],
+          ),
+        ),
       ),
     );
   }

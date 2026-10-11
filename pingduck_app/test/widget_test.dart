@@ -11,6 +11,7 @@ import 'package:pingduck_app/core/theme/pingduck_theme.dart';
 import 'package:pingduck_app/core/widgets/pd_widgets.dart';
 import 'package:pingduck_app/features/topology/presentation/topology_screen.dart';
 import 'package:pingduck_app/main.dart';
+import 'package:pingduck_app/services/local_storage.dart';
 
 import 'fakes.dart';
 
@@ -18,6 +19,8 @@ void main() {
   late FakeBridge bridge;
   late FakeLan lan;
   late FakeAuth auth;
+
+  late LocalStore currentStore;
 
   /// Seeds the cache like a previous session did, then restores from it the
   /// way main() does.
@@ -27,13 +30,20 @@ void main() {
     List<DiscoveredDevice> cached = const [],
     bool connected = true,
     Map<String, String> accounts = const {},
+    bool isPremium = true,
+    bool autoScanOnLaunch = true,
   }) async {
     bridge = FakeBridge();
     auth = FakeAuth(accounts: accounts);
     lan = FakeLan(connected);
     final store = memoryStore();
+    currentStore = store;
     addTearDown(store.close);
     final restored = await tester.runAsync(() async {
+      await store.setSetting('isPremium', isPremium ? '1' : '0');
+      if (!autoScanOnLaunch) {
+        await store.setSetting('autoScanOnLaunch', '0');
+      }
       if (cached.isNotEmpty) {
         final id = await store.networkFor(key: testLan.key, cidr: testLan.cidr, gateway: testLan.gateway);
         await store.saveDevices(id, cached);
@@ -147,6 +157,8 @@ void main() {
     await tester.tap(find.text('ACCOUNT'));
     await tester.pumpAndSettle();
     expect(find.text('Not signed in'), findsOneWidget);
+    expect(find.text('Add monitoring unit'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('1 device on 1 network'), 200);
     expect(find.text('1 device on 1 network'), findsOneWidget);
   });
 
@@ -436,5 +448,51 @@ void main() {
     expect(auth.deletions, 1);
     expect(find.text('Not signed in'), findsOneWidget);
     expect(find.text('Account deleted'), findsOneWidget);
+  });
+
+  testWidgets('returning users do not scan on launch if setting is disabled', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    final cached = dev('10.42.0.20', hostname: 'Living Room TV');
+    await tester.pumpWidget(await app(tester, onboarded: true, cached: [cached], autoScanOnLaunch: false));
+    await tester.pump();
+    expect(bridge.scans, 0);
+  });
+
+  testWidgets('returning users scan on launch when auto-scan setting is enabled', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    final cached = dev('10.42.0.20', hostname: 'Living Room TV');
+    await tester.pumpWidget(await app(tester, onboarded: true, cached: [cached], autoScanOnLaunch: true));
+    await tester.pump();
+    expect(bridge.scans, 1);
+  });
+
+  testWidgets('app settings allows toggling auto-scan on launch', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true, isPremium: true));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('App settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto-scan on launch'), findsOneWidget);
+    expect(find.text('PREMIUM'), findsOneWidget);
+
+    final switchFinder = find.byKey(const Key('auto_scan_switch'));
+    expect(tester.widget<Switch>(switchFinder).value, isTrue);
+
+    await tester.tap(switchFinder);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(switchFinder).value, isFalse);
+    expect(await currentStore.setting('autoScanOnLaunch'), '0');
+
+    await tester.tap(switchFinder);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(switchFinder).value, isTrue);
+    expect(await currentStore.setting('autoScanOnLaunch'), '1');
   });
 }

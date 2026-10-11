@@ -1,0 +1,13 @@
+# Keep the build context small: the image needs core/ sources and agent/.
+# (Explicit paths: a pattern like **/build* would also drop build.rs.)
+core/build*
+core/out
+core/fuzz/corpus
+agent/target
+pingduck_app
+packages
+store
+supabase
+docs
+.git
+.claude

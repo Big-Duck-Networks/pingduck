@@ -5,16 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/supabase_config.dart';
+import 'core/desktop/desktop.dart';
 import 'core/network/lan_connectivity.dart';
 import 'core/theme/pingduck_theme.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/scanner/application/scan_controller.dart';
+import 'features/settings/presentation/settings_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'services/local_storage.dart';
+import 'services/scan_quota.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerFontLicenses();
+  await initDesktop(args);
 
   // Cached devices load before the first frame so the radar is never empty
   // on launch; the scan then lights them up.
@@ -32,7 +36,7 @@ Future<void> main() async {
       restoredScanProvider.overrideWithValue(restored),
       onboardedProvider.overrideWith(() => Onboarded(onboarded)),
     ],
-    child: const PingDuckApp(),
+    child: const DesktopShell(child: PingDuckApp()),
   ));
 }
 
@@ -70,12 +74,20 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> {
   @override
   void initState() {
     super.initState();
-    // Returning users get a fresh scan on launch; new users start it from
-    // onboarding.
+    // Returning users get a fresh scan on launch if they are Premium and
+    // have not disabled it in Settings. New users start it from onboarding.
     // Offline, there is nothing to scan; the shell starts one when Wi-Fi returns.
     if (ref.read(onboardedProvider)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (await ref.read(lanConnectedProvider.future)) {
+        final store = ref.read(localStoreProvider);
+        final autoScanEnabled = await isAutoScanOnLaunchEnabled(store);
+        if (!autoScanEnabled) return;
+        if (await store.setting(autoScanOnLaunchKey) == null) {
+          await setAutoScanOnLaunch(store, true);
+        }
+        final connected = ref.read(lanConnectedProvider).isOnLan ||
+            await ref.read(lanConnectedProvider.future).catchError((_) => true);
+        if (connected) {
           ref.read(scanControllerProvider.notifier).scan(automatic: true);
         }
       });

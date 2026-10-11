@@ -72,7 +72,14 @@ abstract interface class ScannerBridge {
   Future<int?> ping(String ip, {Duration timeout});
   Future<Set<int>> openPorts(String ip, List<int> ports, {Duration timeout});
   Future<void> wakeOnLan(String mac, {String? broadcast});
+
+  /// PingDuck agents announcing themselves over SSDP. Only UPnP discovery
+  /// runs, so this is quick and is not a scan.
+  Stream<DiscoveredDevice> findAgents({Duration timeout});
 }
+
+/// How a PingDuck agent describes itself over UPnP (agent/src/agent.hpp).
+bool isPingDuckAgent(DiscoveredDevice d) => d.vendor == 'PingDuck' && d.services.contains('upnp:PingDuckAgent');
 
 /// [ScannerBridge] backed by pingduck-core over FFI.
 class FfiScannerBridge implements ScannerBridge {
@@ -131,6 +138,20 @@ class FfiScannerBridge implements ScannerBridge {
 
   @override
   Future<void> wakeOnLan(String mac, {String? broadcast}) => _guard(() => _core.wakeOnLan(mac, broadcast: broadcast));
+
+  @override
+  Stream<DiscoveredDevice> findAgents({Duration timeout = const Duration(seconds: 4)}) async* {
+    try {
+      final session = _core.ssdp(timeout: timeout);
+      await for (final d in session.devices) {
+        final device = _toDevice(d);
+        if (isPingDuckAgent(device)) yield device;
+      }
+      await session.done;
+    } on PingDuckException catch (e) {
+      throw ScanFailure(e.isPermission ? ScanFailureKind.permission : ScanFailureKind.other, e.message);
+    }
+  }
 
   Future<T> _guard<T>(Future<T> Function() op) async {
     try {

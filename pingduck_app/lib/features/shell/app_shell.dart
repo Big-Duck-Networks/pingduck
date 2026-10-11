@@ -16,6 +16,9 @@ import '../tools/presentation/tools_screen.dart';
 // its screen and destination below.
 enum AppTab { overview, tools, account }
 
+/// From this window width the shell switches to the desktop layout.
+const wideLayoutWidth = 900.0;
+
 final appTabProvider = NotifierProvider<AppTabController, AppTab>(AppTabController.new);
 
 class AppTabController extends Notifier<AppTab> {
@@ -39,16 +42,53 @@ class AppShell extends ConsumerWidget {
       final scanner = ref.read(scanControllerProvider.notifier);
       now ? scanner.scan(automatic: true) : scanner.cancel();
     });
+    final body = IndexedStack(index: tab.index, children: const [OverviewScreen(), ToolsScreen(), AccountScreen()]);
+    void go(int i) => ref.read(appTabProvider.notifier).go(AppTab.values[i]);
+
+    // Desktop-width windows get a side rail, like Fing Desktop; phones keep
+    // the bottom bar.
+    if (MediaQuery.sizeOf(context).width >= wideLayoutWidth) {
+      return Scaffold(
+        appBar: const _Header(),
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DecoratedBox(
+              decoration: const BoxDecoration(
+                border: Border(right: BorderSide(color: PingDuckColors.hairline)),
+              ),
+              child: NavigationRail(
+                selectedIndex: tab.index,
+                onDestinationSelected: go,
+                labelType: NavigationRailLabelType.all,
+                destinations: const [
+                  NavigationRailDestination(icon: Icon(Icons.radar), label: Text('OVERVIEW')),
+                  NavigationRailDestination(icon: Icon(Icons.handyman_outlined), label: Text('TOOLS')),
+                  NavigationRailDestination(icon: Icon(Icons.person_outline), label: Text('ACCOUNT')),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1100), child: body),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: const _Header(),
-      body: IndexedStack(index: tab.index, children: const [OverviewScreen(), ToolsScreen(), AccountScreen()]),
+      body: body,
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: PingDuckColors.hairline)),
         ),
         child: NavigationBar(
           selectedIndex: tab.index,
-          onDestinationSelected: (i) => ref.read(appTabProvider.notifier).go(AppTab.values[i]),
+          onDestinationSelected: go,
           destinations: const [
             NavigationDestination(icon: Icon(Icons.radar), label: 'OVERVIEW'),
             NavigationDestination(icon: Icon(Icons.handyman_outlined), label: 'TOOLS'),

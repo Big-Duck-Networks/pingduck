@@ -84,7 +84,20 @@ select pg_temp.check(agent_sync(pg_temp.v('token'), $$[
     {"mac":"34:13:43:00:00:02","ip":"10.42.0.107"}
 ]$$)->>'new_devices' = '0', 'second sync adds nothing new');
 select pg_temp.expect_error($$select agent_sync('deadbeef', '[]')$$, 'invalid agent token');
+
+-- ---- Agent heartbeat -------------------------------------------------------
+select pg_temp.check(agent_heartbeat(pg_temp.v('token'))->>'status' = 'active', 'heartbeat with a live token is active');
+select pg_temp.check(agent_heartbeat(pg_temp.v('token'))->>'network_id' = 'aaaaaaaa-0000-0000-0000-000000000001',
+                     'heartbeat names the paired network');
+select pg_temp.check(agent_heartbeat('deadbeef')->>'status' = 'revoked', 'heartbeat with an unknown token says revoked');
+select pg_temp.check(agent_heartbeat(null)->>'status' = 'revoked', 'heartbeat with no token says revoked');
 reset role;
+update agents set last_seen_at = now() - interval '1 hour';
+set role anon;
+select agent_heartbeat(pg_temp.v('token'));
+reset role;
+select pg_temp.check((select last_seen_at from agents where revoked_at is null) > now() - interval '1 minute',
+                     'heartbeat refreshes last_seen_at');
 
 -- The phone is unseen for 20 minutes, then misses a sync, then comes back.
 update devices set last_seen_at = now() - interval '20 minutes' where mac = '34:13:43:00:00:02';
@@ -155,6 +168,7 @@ select revoke_agent(id) from agents where network_id = 'aaaaaaaa-0000-0000-0000-
 reset role;
 set role anon;
 select pg_temp.expect_error(format($$select agent_sync(%L, '[]')$$, pg_temp.v('token')), 'invalid agent token');
+select pg_temp.check(agent_heartbeat(pg_temp.v('token'))->>'status' = 'revoked', 'heartbeat after revoke says revoked');
 select pg_temp.expect_error($$select prune_history()$$, 'permission denied');
 select pg_temp.expect_error($$select plan_for('11111111-1111-1111-1111-111111111111')$$, 'permission denied');
 reset role;
@@ -164,6 +178,30 @@ update plans set history_days = 7 where code = 'premium';
 update device_events set created_at = now() - interval '8 days' where kind = 'new_device';
 select prune_history();
 select pg_temp.check((select count(*) from device_events) = 3, 'prune drops events older than the plan keeps');
+
+-- ---- Agent install instructions by email -----------------------------------
+set role anon;
+select pg_temp.expect_error($$select email_agent_instructions('linux')$$, 'permission denied');
+reset role;
+-- User 1 has no email yet, like an anonymous install.
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select pg_temp.expect_error($$select email_agent_instructions('linux')$$, 'account_required');
+reset role;
+update auth.users set email = 'agent-test@example.invalid' where id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select pg_temp.expect_error($$select email_agent_instructions('macos')$$, 'unknown platform');
+select pg_temp.check(email_agent_instructions('linux')->>'sent_to' = 'agent-test@example.invalid', 'instructions go to the account address');
+select email_agent_instructions('raspberry_pi');
+select email_agent_instructions('nas');
+select pg_temp.expect_error($$select email_agent_instructions('linux')$$, 'rate_limited');
+select pg_temp.expect_error($$select * from email_sends$$, 'permission denied');
+reset role;
+select pg_temp.check((select count(*) from email_sends) = 3, 'refused sends are not logged');
+update email_sends set sent_at = now() - interval '8 days';
+select prune_history();
+select pg_temp.check((select count(*) from email_sends) = 0, 'prune drops week-old email sends');
 
 -- ---- Account deletion ------------------------------------------------------
 set role anon;

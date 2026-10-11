@@ -71,6 +71,17 @@ class $NetworksTable extends Networks with TableInfo<$NetworksTable, Network> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _remoteIdMeta = const VerificationMeta(
+    'remoteId',
+  );
+  @override
+  late final GeneratedColumn<String> remoteId = GeneratedColumn<String>(
+    'remote_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -79,6 +90,7 @@ class $NetworksTable extends Networks with TableInfo<$NetworksTable, Network> {
     gateway,
     lastScanAt,
     ssid,
+    remoteId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -132,6 +144,12 @@ class $NetworksTable extends Networks with TableInfo<$NetworksTable, Network> {
         ssid.isAcceptableOrUnknown(data['ssid']!, _ssidMeta),
       );
     }
+    if (data.containsKey('remote_id')) {
+      context.handle(
+        _remoteIdMeta,
+        remoteId.isAcceptableOrUnknown(data['remote_id']!, _remoteIdMeta),
+      );
+    }
     return context;
   }
 
@@ -165,6 +183,10 @@ class $NetworksTable extends Networks with TableInfo<$NetworksTable, Network> {
         DriftSqlType.string,
         data['${effectivePrefix}ssid'],
       ),
+      remoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_id'],
+      ),
     );
   }
 
@@ -183,6 +205,10 @@ class Network extends DataClass implements Insertable<Network> {
 
   /// Last Wi-Fi name seen on this network, so it shows before a scan.
   final String? ssid;
+
+  /// Supabase `networks.id`, set when the person adds a monitoring unit on
+  /// this network. Nothing about a network leaves the phone before that.
+  final String? remoteId;
   const Network({
     required this.id,
     required this.key,
@@ -190,6 +216,7 @@ class Network extends DataClass implements Insertable<Network> {
     this.gateway,
     this.lastScanAt,
     this.ssid,
+    this.remoteId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -206,6 +233,9 @@ class Network extends DataClass implements Insertable<Network> {
     if (!nullToAbsent || ssid != null) {
       map['ssid'] = Variable<String>(ssid);
     }
+    if (!nullToAbsent || remoteId != null) {
+      map['remote_id'] = Variable<String>(remoteId);
+    }
     return map;
   }
 
@@ -221,6 +251,9 @@ class Network extends DataClass implements Insertable<Network> {
           ? const Value.absent()
           : Value(lastScanAt),
       ssid: ssid == null && nullToAbsent ? const Value.absent() : Value(ssid),
+      remoteId: remoteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteId),
     );
   }
 
@@ -236,6 +269,7 @@ class Network extends DataClass implements Insertable<Network> {
       gateway: serializer.fromJson<String?>(json['gateway']),
       lastScanAt: serializer.fromJson<DateTime?>(json['lastScanAt']),
       ssid: serializer.fromJson<String?>(json['ssid']),
+      remoteId: serializer.fromJson<String?>(json['remoteId']),
     );
   }
   @override
@@ -248,6 +282,7 @@ class Network extends DataClass implements Insertable<Network> {
       'gateway': serializer.toJson<String?>(gateway),
       'lastScanAt': serializer.toJson<DateTime?>(lastScanAt),
       'ssid': serializer.toJson<String?>(ssid),
+      'remoteId': serializer.toJson<String?>(remoteId),
     };
   }
 
@@ -258,6 +293,7 @@ class Network extends DataClass implements Insertable<Network> {
     Value<String?> gateway = const Value.absent(),
     Value<DateTime?> lastScanAt = const Value.absent(),
     Value<String?> ssid = const Value.absent(),
+    Value<String?> remoteId = const Value.absent(),
   }) => Network(
     id: id ?? this.id,
     key: key ?? this.key,
@@ -265,6 +301,7 @@ class Network extends DataClass implements Insertable<Network> {
     gateway: gateway.present ? gateway.value : this.gateway,
     lastScanAt: lastScanAt.present ? lastScanAt.value : this.lastScanAt,
     ssid: ssid.present ? ssid.value : this.ssid,
+    remoteId: remoteId.present ? remoteId.value : this.remoteId,
   );
   Network copyWithCompanion(NetworksCompanion data) {
     return Network(
@@ -276,6 +313,7 @@ class Network extends DataClass implements Insertable<Network> {
           ? data.lastScanAt.value
           : this.lastScanAt,
       ssid: data.ssid.present ? data.ssid.value : this.ssid,
+      remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
     );
   }
 
@@ -287,13 +325,15 @@ class Network extends DataClass implements Insertable<Network> {
           ..write('cidr: $cidr, ')
           ..write('gateway: $gateway, ')
           ..write('lastScanAt: $lastScanAt, ')
-          ..write('ssid: $ssid')
+          ..write('ssid: $ssid, ')
+          ..write('remoteId: $remoteId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, key, cidr, gateway, lastScanAt, ssid);
+  int get hashCode =>
+      Object.hash(id, key, cidr, gateway, lastScanAt, ssid, remoteId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -303,7 +343,8 @@ class Network extends DataClass implements Insertable<Network> {
           other.cidr == this.cidr &&
           other.gateway == this.gateway &&
           other.lastScanAt == this.lastScanAt &&
-          other.ssid == this.ssid);
+          other.ssid == this.ssid &&
+          other.remoteId == this.remoteId);
 }
 
 class NetworksCompanion extends UpdateCompanion<Network> {
@@ -313,6 +354,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
   final Value<String?> gateway;
   final Value<DateTime?> lastScanAt;
   final Value<String?> ssid;
+  final Value<String?> remoteId;
   const NetworksCompanion({
     this.id = const Value.absent(),
     this.key = const Value.absent(),
@@ -320,6 +362,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
     this.gateway = const Value.absent(),
     this.lastScanAt = const Value.absent(),
     this.ssid = const Value.absent(),
+    this.remoteId = const Value.absent(),
   });
   NetworksCompanion.insert({
     this.id = const Value.absent(),
@@ -328,6 +371,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
     this.gateway = const Value.absent(),
     this.lastScanAt = const Value.absent(),
     this.ssid = const Value.absent(),
+    this.remoteId = const Value.absent(),
   }) : key = Value(key),
        cidr = Value(cidr);
   static Insertable<Network> custom({
@@ -337,6 +381,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
     Expression<String>? gateway,
     Expression<DateTime>? lastScanAt,
     Expression<String>? ssid,
+    Expression<String>? remoteId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -345,6 +390,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
       if (gateway != null) 'gateway': gateway,
       if (lastScanAt != null) 'last_scan_at': lastScanAt,
       if (ssid != null) 'ssid': ssid,
+      if (remoteId != null) 'remote_id': remoteId,
     });
   }
 
@@ -355,6 +401,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
     Value<String?>? gateway,
     Value<DateTime?>? lastScanAt,
     Value<String?>? ssid,
+    Value<String?>? remoteId,
   }) {
     return NetworksCompanion(
       id: id ?? this.id,
@@ -363,6 +410,7 @@ class NetworksCompanion extends UpdateCompanion<Network> {
       gateway: gateway ?? this.gateway,
       lastScanAt: lastScanAt ?? this.lastScanAt,
       ssid: ssid ?? this.ssid,
+      remoteId: remoteId ?? this.remoteId,
     );
   }
 
@@ -387,6 +435,9 @@ class NetworksCompanion extends UpdateCompanion<Network> {
     if (ssid.present) {
       map['ssid'] = Variable<String>(ssid.value);
     }
+    if (remoteId.present) {
+      map['remote_id'] = Variable<String>(remoteId.value);
+    }
     return map;
   }
 
@@ -398,7 +449,8 @@ class NetworksCompanion extends UpdateCompanion<Network> {
           ..write('cidr: $cidr, ')
           ..write('gateway: $gateway, ')
           ..write('lastScanAt: $lastScanAt, ')
-          ..write('ssid: $ssid')
+          ..write('ssid: $ssid, ')
+          ..write('remoteId: $remoteId')
           ..write(')'))
         .toString();
   }
@@ -1443,6 +1495,7 @@ typedef $$NetworksTableCreateCompanionBuilder =
       Value<String?> gateway,
       Value<DateTime?> lastScanAt,
       Value<String?> ssid,
+      Value<String?> remoteId,
     });
 typedef $$NetworksTableUpdateCompanionBuilder =
     NetworksCompanion Function({
@@ -1452,6 +1505,7 @@ typedef $$NetworksTableUpdateCompanionBuilder =
       Value<String?> gateway,
       Value<DateTime?> lastScanAt,
       Value<String?> ssid,
+      Value<String?> remoteId,
     });
 
 final class $$NetworksTableReferences
@@ -1514,6 +1568,11 @@ class $$NetworksTableFilterComposer
 
   ColumnFilters<String> get ssid => $composableBuilder(
     column: $table.ssid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1581,6 +1640,11 @@ class $$NetworksTableOrderingComposer
     column: $table.ssid,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$NetworksTableAnnotationComposer
@@ -1611,6 +1675,9 @@ class $$NetworksTableAnnotationComposer
 
   GeneratedColumn<String> get ssid =>
       $composableBuilder(column: $table.ssid, builder: (column) => column);
+
+  GeneratedColumn<String> get remoteId =>
+      $composableBuilder(column: $table.remoteId, builder: (column) => column);
 
   Expression<T> devicesRefs<T extends Object>(
     Expression<T> Function($$DevicesTableAnnotationComposer a) f,
@@ -1672,6 +1739,7 @@ class $$NetworksTableTableManager
                 Value<String?> gateway = const Value.absent(),
                 Value<DateTime?> lastScanAt = const Value.absent(),
                 Value<String?> ssid = const Value.absent(),
+                Value<String?> remoteId = const Value.absent(),
               }) => NetworksCompanion(
                 id: id,
                 key: key,
@@ -1679,6 +1747,7 @@ class $$NetworksTableTableManager
                 gateway: gateway,
                 lastScanAt: lastScanAt,
                 ssid: ssid,
+                remoteId: remoteId,
               ),
           createCompanionCallback:
               ({
@@ -1688,6 +1757,7 @@ class $$NetworksTableTableManager
                 Value<String?> gateway = const Value.absent(),
                 Value<DateTime?> lastScanAt = const Value.absent(),
                 Value<String?> ssid = const Value.absent(),
+                Value<String?> remoteId = const Value.absent(),
               }) => NetworksCompanion.insert(
                 id: id,
                 key: key,
@@ -1695,6 +1765,7 @@ class $$NetworksTableTableManager
                 gateway: gateway,
                 lastScanAt: lastScanAt,
                 ssid: ssid,
+                remoteId: remoteId,
               ),
           withReferenceMapper: (p0) => p0
               .map(

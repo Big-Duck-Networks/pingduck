@@ -85,4 +85,19 @@ void main() {
     expect(nextQuotaReset(DateTime.utc(2026, 10, 7, 23, 59)).toUtc(), DateTime.utc(2026, 10, 8));
     expect(nextQuotaReset(DateTime.utc(2026, 12, 31, 12)).toUtc(), DateTime.utc(2027, 1, 1));
   });
+
+  test('isPremiumUser defaults to false and updates when unlimited plan claimed', () async {
+    expect(await isPremiumUser(store), isFalse);
+    server = {'allowed': true, 'remaining': null, 'limit': null};
+    await quota().claim();
+    expect(await isPremiumUser(store), isTrue);
+  });
+
+  test('setIsPremiumUser sets and persists premium status', () async {
+    expect(await isPremiumUser(store), isFalse);
+    await setIsPremiumUser(store, true);
+    expect(await isPremiumUser(store), isTrue);
+    await setIsPremiumUser(store, false);
+    expect(await isPremiumUser(store), isFalse);
+  });
 }

@@ -1,0 +1,21 @@
+# PingDuck agent: the homelab / Windows monitoring daemon (docs/ROADMAP.md
+# Phase 4). Rust around pingduck-core (C++, built from ../core).
+#
+#   cargo test --workspace
+#   cargo build --release -p pingduck-agent
+#
+# Linux needs libpcap-dev; Windows needs the MSVC toolchain and CMake (set
+# CMAKE to cmake.exe if it isn't on PATH).
+[workspace]
+resolver = "2"
+members = ["crates/pingduck-core-sys", "crates/pingduck-agent"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+
+[profile.release]
+lto = "thin"
+strip = true

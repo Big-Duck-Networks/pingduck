@@ -1,0 +1,14 @@
+# PingDuck agent for Docker Compose, Synology Container Manager (Project) and
+# QNAP Container Station (Application). Host networking is required: the
+# agent sniffs the LAN and the app finds it over SSDP.
+# Keep in step with AgentPlatform.nas in the app and the email in
+# supabase/migrations/20261010120000_agent_pairing.sql.
+services:
+  pingduck-agent:
+    image: ghcr.io/big-duck-networks/pingduck-agent:latest
+    network_mode: host
+    cap_add: [NET_RAW, NET_ADMIN]
+    volumes: [pingduck:/var/lib/pingduck]
+    restart: unless-stopped
+volumes:
+  pingduck:

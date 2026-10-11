@@ -94,3 +94,19 @@ def splash(d, S):
 
 
 save('splash.png', render(960, splash))
+
+
+# Windows: the DuckLogo disc on transparency, as multi-size .ico files for the
+# exe/taskbar (windows/runner/resources) and the tray (an app asset).
+def windows_icon(d, S):
+    d.ellipse([0, 0, S, S], fill=INK)
+    duck(d, S * 0.08, S * 0.08, S * 0.84)
+
+
+disc = render(256, windows_icon)
+for path, sizes in [
+    (os.path.join(OUT, '..', '..', 'windows', 'runner', 'resources', 'app_icon.ico'), [16, 24, 32, 48, 64, 128, 256]),
+    (os.path.join(OUT, 'tray.ico'), [16, 20, 24, 32, 48]),
+]:
+    disc.save(path, sizes=[(s, s) for s in sizes])
+    print('wrote', os.path.normpath(path), sizes)

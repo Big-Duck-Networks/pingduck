@@ -115,5 +115,9 @@ if(PINGDUCK_BUILD_FUZZERS)
   add_subdirectory(fuzz)
 endif()
 
-install(TARGETS pingduck LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
-install(DIRECTORY include/ DESTINATION include)
+# Only when built on its own: the Flutter plugin bundles the library itself,
+# and the Windows app's install prefix isn't a real path for these rules.
+if(PINGDUCK_TOP_LEVEL)
+  install(TARGETS pingduck LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
+  install(DIRECTORY include/ DESTINATION include)
+endif()
