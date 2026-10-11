@@ -28,7 +28,7 @@ COPY core/CMakeLists.txt core/
 COPY core/include core/include
 COPY core/src core/src
 COPY core/cli core/cli
-COPY core/data core/data
+COPY pingduck_app/assets/oui_database/oui.csv pingduck_app/assets/oui_database/oui.csv
 COPY agent/Cargo.toml agent/Cargo.lock agent/
 COPY agent/crates agent/crates
 RUN cd agent \
@@ -44,7 +44,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/agent/target/release/pingduck-agent /usr/local/bin/pingduck-agent
 COPY --from=build /src/build-cli/pingduck_cli /usr/local/bin/pingduck
-COPY --from=build /src/core/data/oui.csv /usr/share/pingduck/oui.csv
+COPY --from=build /src/pingduck_app/assets/oui_database/oui.csv /usr/share/pingduck/oui.csv
 VOLUME /var/lib/pingduck
 EXPOSE 44480/tcp 1900/udp
 LABEL org.opencontainers.image.source="https://github.com/Big-Duck-Networks/pingduck"

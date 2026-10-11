@@ -290,7 +290,7 @@ mod live {
     #[test]
     #[ignore = "scans the real network"]
     fn live_scan() {
-        let oui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../core/data/oui.csv");
+        let oui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../pingduck_app/assets/oui_database/oui.csv");
         pingduck_core_sys::load_oui(&oui);
         let devices = CoreScanner { cidr: None, host_name: "this-host".into() }.scan().expect("scan");
         for d in &devices {
