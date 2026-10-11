@@ -9,8 +9,9 @@ on:
   push:
     branches: [main]
     paths: ["supabase/**", ".github/workflows/database.yml"]
+  # Every PR, so "database ci" always reports; the changes job skips the
+  # real work when none of the paths above changed.
   pull_request:
-    paths: ["supabase/**", ".github/workflows/database.yml"]
   workflow_dispatch:
 
 permissions:
@@ -21,8 +22,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: database changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ github.event_name != 'pull_request' || steps.filter.outputs.match == 'true' }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            match:
+              - 'supabase/**'
+              - '.github/workflows/database.yml'
+
   test:
     name: Database (migrations, schema tests)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,8 +56,8 @@ jobs:
 
   pending:
     name: Database (pending in production)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [changes, test]
+    if: needs.changes.outputs.run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Same Supabase secrets as production-database, but no reviewer: a dry
@@ -73,7 +95,7 @@ jobs:
   ci:
     name: database ci
     if: always()
-    needs: [test]
+    needs: [changes, test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

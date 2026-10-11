@@ -9,8 +9,9 @@ on:
   push:
     branches: [main]
     paths: ["pingduck_app/**", "packages/pingduck_core/**", "tools/**", ".github/workflows/app.yml"]
+  # Every PR, so "app ci" always reports; the changes job skips the
+  # real work when none of the paths above changed.
   pull_request:
-    paths: ["pingduck_app/**", "packages/pingduck_core/**", "tools/**", ".github/workflows/app.yml"]
   workflow_dispatch:
 
 permissions:
@@ -21,8 +22,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: app changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ github.event_name != 'pull_request' || steps.filter.outputs.match == 'true' }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            match:
+              - 'pingduck_app/**'
+              - 'packages/pingduck_core/**'
+              - 'tools/**'
+              - '.github/workflows/app.yml'
+
   test:
     name: App (analyze, test)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -42,7 +66,7 @@ jobs:
   ci:
     name: app ci
     if: always()
-    needs: [test]
+    needs: [changes, test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
