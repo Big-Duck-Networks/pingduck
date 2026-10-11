@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn loads_the_bundled_oui_registry() {
-        let csv = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../core/data/oui.csv");
+        let csv = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../pingduck_app/assets/oui_database/oui.csv");
         assert!(load_oui(&csv).is_some_and(|n| n > 10_000));
     }
 

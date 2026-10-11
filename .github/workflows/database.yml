@@ -1,0 +1,80 @@
+name: database
+
+# Supabase migrations and schema tests. Every run applies all migrations to a
+# throwaway Postgres (supabase/tests/run_tests.sh) and runs schema_test.sql.
+# On main it also reports which migrations production still lacks; applying
+# them is the "Deploy database" workflow's job (Phase 4 of the plan).
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/**", ".github/workflows/database.yml"]
+  pull_request:
+    paths: ["supabase/**", ".github/workflows/database.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Database (migrations, schema tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Apply migrations and run schema tests
+        run: |
+          sh supabase/tests/run_tests.sh 2>&1 | tee schema.log
+          grep -q "ALL SCHEMA TESTS PASSED" schema.log
+
+  pending:
+    name: Database (pending in production)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Same Supabase secrets as production-database, but no reviewer: a dry
+    # run only reads the migration history.
+    environment: database-check
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Skip without Supabase credentials
+        if: env.SUPABASE_ACCESS_TOKEN == ''
+        run: echo "No Supabase credentials yet (docs/RELEASING.md, one-time setup); skipped." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        with:
+          version: latest
+      - name: List migrations production lacks
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push --dry-run 2>&1 | tee pending.txt
+          {
+            echo '### Production database'
+            echo '```'
+            cat pending.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if ! grep -q "up to date" pending.txt; then
+            echo "::warning::Migrations are pending in production. Run Deploy database before releasing an app build that needs them; migrations must keep older app builds working."
+          fi
+
+  ci:
+    name: database ci
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")'

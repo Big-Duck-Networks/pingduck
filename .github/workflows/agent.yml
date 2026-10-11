@@ -1,0 +1,68 @@
+name: agent
+
+# The Rust agent (agent/), which builds pingduck-core over FFI, so core
+# changes run it too. Image publishing (:edge on main) arrives with Phase 2
+# of .claude/plans/ci-cd-overhaul.md; until then nothing is pushed to GHCR.
+
+on:
+  push:
+    branches: [main]
+    paths: ["agent/**", "core/**", ".dockerignore", ".github/workflows/agent.yml"]
+  pull_request:
+    paths: ["agent/**", "core/**", ".dockerignore", ".github/workflows/agent.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-windows:
+    name: Agent (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+
+  test-linux:
+    name: Agent (Linux, Docker image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The image build runs the tests too; running them here first gives
+      # quicker, readable failures.
+      - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        working-directory: agent
+      - run: cargo test --workspace --locked
+        working-directory: agent
+      - run: docker build -f agent/Dockerfile -t pingduck-agent .
+      - run: docker run --rm pingduck-agent --version
+      - run: docker run --rm --entrypoint pingduck pingduck-agent oui 50:c7:bf:00:00:01 --oui /usr/share/pingduck/oui.csv
+      - name: Health check answers in a running container
+        run: |
+          docker run -d --name agent pingduck-agent
+          for _ in $(seq 1 15); do
+            docker exec agent pingduck-agent healthcheck && exit 0
+            sleep 1
+          done
+          docker logs agent
+          exit 1
+
+  ci:
+    name: agent ci
+    if: always()
+    needs: [test-windows, test-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")'

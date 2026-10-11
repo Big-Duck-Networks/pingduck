@@ -4,7 +4,9 @@ core/build*
 core/out
 core/fuzz/corpus
 agent/target
+# The app is not in the image, except the vendor registry the agent ships.
 pingduck_app
+!pingduck_app/assets/oui_database/oui.csv
 packages
 store
 supabase

@@ -1,11 +1,18 @@
 name: core
 
+# pingduck-core (C++) on every platform it ships on. The agent has its own
+# workflow (agent.yml). Third-party actions are pinned to commit SHAs; the
+# comment names the release, and Dependabot keeps both current.
+
 on:
   push:
     branches: [main]
-    paths: ["core/**", "agent/**", ".github/workflows/core.yml"]
+    paths: ["core/**", "packages/pingduck_core/**", ".github/workflows/core.yml"]
   pull_request:
-    paths: ["core/**", "agent/**", ".github/workflows/core.yml"]
+    paths: ["core/**", "packages/pingduck_core/**", ".github/workflows/core.yml"]
+  # Weekly, so fuzzing and the Apple builds still run while core is quiet.
+  schedule:
+    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -21,7 +28,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cmake -S core -B build -A x64
       - run: cmake --build build --config Release
       # The "network" label needs a real LAN; runners do not have one.
@@ -32,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
       - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release -DPINGDUCK_PCAP=ON
       - run: cmake --build build -j
@@ -49,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
       - run: >
           cmake -S core -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++
@@ -62,11 +69,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DPINGDUCK_BUILD_FUZZERS=ON
       - run: cmake --build build -j
       # The corpus carries over between runs so coverage keeps growing.
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: corpus
           key: fuzz-corpus-${{ github.run_id }}
@@ -81,7 +88,7 @@ jobs:
             ./build/fuzz/fuzz_$t $dict -max_total_time=120 -max_len=9000 -timeout=5 \
               -artifact_prefix=crashes/$t- corpus/$t
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: fuzz-crashes
@@ -95,7 +102,7 @@ jobs:
       matrix:
         abi: [arm64-v8a, armeabi-v7a, x86_64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: >
           cmake -S core -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake
@@ -107,7 +114,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build -j
       - run: ctest --test-dir build -LE network --output-on-failure
@@ -117,66 +124,19 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash core/scripts/build-xcframework.sh build-ios
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PingDuckCore.xcframework
           path: build-ios/PingDuckCore.xcframework
 
-  agent-windows:
-    name: Agent (Windows)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-        working-directory: agent
-      - run: cargo test --workspace --locked
-        working-directory: agent
-
-  agent:
-    name: Agent (tests, Docker image)
+  # The one check a branch rule requires: fails if any job above failed.
+  ci:
+    name: core ci
+    if: always()
+    needs: [windows, linux, sanitizers, fuzz, android, macos, ios]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
-    env:
-      IMAGE: ghcr.io/big-duck-networks/pingduck-agent
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      # The image build runs the Rust tests too; cargo test + clippy here give
-      # quicker, readable failures.
-      - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-        working-directory: agent
-      - run: cargo test --workspace --locked
-        working-directory: agent
-      - run: docker build -f agent/Dockerfile -t pingduck-agent .
-      - run: docker run --rm pingduck-agent --version
-      - run: docker run --rm --entrypoint pingduck pingduck-agent oui 50:c7:bf:00:00:01 --oui /usr/share/pingduck/oui.csv
-      # Publish amd64 + arm64 (Raspberry Pi, ARM NAS) from main only. The
-      # GHCR package must be made public once in the org's package settings.
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/setup-qemu-action@v3
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/setup-buildx-action@v3
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: agent/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:sha-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - run: echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")'

@@ -2,7 +2,7 @@
 Scope: this licence covers everything in this repository EXCEPT agent/ and
 core/, which are licensed under the Apache License 2.0 (see agent/LICENSE
 and core/LICENSE). Third-party files keep their own licences (for example
-the IEEE OUI registry in core/data and pingduck_app/assets/oui_database,
+the IEEE OUI registry in pingduck_app/assets/oui_database,
 and the fonts in pingduck_app/assets/fonts).
 -->
 
