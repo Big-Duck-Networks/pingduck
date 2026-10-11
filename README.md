@@ -133,3 +133,12 @@ Text(AppVersion.display);     // "v1.0.0 (2)"
 Text(AppVersion.gitCommit);   // "5c826f2"
 ```
 
+
+## License
+
+PingDuck is source-available, with an open-source agent:
+
+- **`agent/` and `core/`** (the monitoring agent and the scanning engine): [Apache License 2.0](agent/LICENSE). Use, audit, modify and ship them freely.
+- **Everything else** (the app, backend, installer, branding and docs): [Functional Source License 1.1](LICENSE.md) (FSL-1.1-ALv2). You can read, run and modify it for any purpose except offering a competing product or service. Each version becomes Apache-2.0 two years after its release.
+
+"PingDuck" and the duck logo are trademarks of Big Duck Networks and aren't covered by either licence.
