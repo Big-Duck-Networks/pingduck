@@ -1,4 +1,6 @@
-# Weekly, one grouped PR per ecosystem, so updates stay reviewable.
+# Weekly. Minor and patch updates come grouped, one PR per ecosystem, and
+# should always build. Major updates (breaking API changes) come one PR each,
+# so a single breaking change never holds back the safe ones.
 version: 2
 updates:
   - package-ecosystem: cargo
@@ -6,27 +8,32 @@ updates:
     schedule:
       interval: weekly
     groups:
-      cargo:
-        patterns: ["*"]
-    open-pull-requests-limit: 3
+      cargo-minor:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
 
   - package-ecosystem: pub
     directory: /pingduck_app
     schedule:
       interval: weekly
     groups:
-      pub-app:
-        patterns: ["*"]
-    open-pull-requests-limit: 3
+      pub-app-minor:
+        update-types: [minor, patch]
+    ignore:
+      # build_runner 2.16+ needs a newer `meta` than the Flutter SDK pins
+      # (3.44 ships meta 1.18.0). Drop this after the next Flutter upgrade.
+      - dependency-name: build_runner
+        versions: [">=2.16.0"]
+    open-pull-requests-limit: 5
 
   - package-ecosystem: pub
     directory: /packages/pingduck_core
     schedule:
       interval: weekly
     groups:
-      pub-core:
-        patterns: ["*"]
-    open-pull-requests-limit: 3
+      pub-core-minor:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
 
   # Also updates the SHA pins in .github/workflows (keeps the version comment).
   - package-ecosystem: github-actions
@@ -34,6 +41,6 @@ updates:
     schedule:
       interval: weekly
     groups:
-      actions:
-        patterns: ["*"]
-    open-pull-requests-limit: 3
+      actions-minor:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
