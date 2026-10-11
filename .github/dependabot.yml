@@ -1,0 +1,39 @@
+# Weekly, one grouped PR per ecosystem, so updates stay reviewable.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /agent
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: pub
+    directory: /pingduck_app
+    schedule:
+      interval: weekly
+    groups:
+      pub-app:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: pub
+    directory: /packages/pingduck_core
+    schedule:
+      interval: weekly
+    groups:
+      pub-core:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  # Also updates the SHA pins in .github/workflows (keeps the version comment).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
