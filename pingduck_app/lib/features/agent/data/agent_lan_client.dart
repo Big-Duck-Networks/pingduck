@@ -90,8 +90,11 @@ class HttpAgentLanClient implements AgentLanClient {
         final req = await client.openUrl(method, Uri(scheme: 'http', host: ip, port: port, path: path));
         req.followRedirects = false;
         if (body != null) {
+          // With a length up front: the agent rejects chunked bodies.
+          final bytes = utf8.encode(body);
           req.headers.contentType = ContentType.json;
-          req.write(body);
+          req.contentLength = bytes.length;
+          req.add(bytes);
         }
         final res = await req.close();
         final bytes = <int>[];

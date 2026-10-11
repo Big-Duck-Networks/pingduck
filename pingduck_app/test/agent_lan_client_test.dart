@@ -47,8 +47,12 @@ void main() {
 
   test('sends the code as JSON and reads the agent id', () async {
     String? contentType, body;
+    int? contentLength;
+    List<String>? transferEncoding;
     final (_, client) = await fakeAgent((r) async {
       contentType = r.headers.contentType?.mimeType;
+      contentLength = r.headers.contentLength;
+      transferEncoding = r.headers[HttpHeaders.transferEncodingHeader];
       body = await utf8.decoder.bind(r).join();
       await reply(r, 200, {'agent_id': 'agent-1', 'network_id': 'net-1'});
     });
@@ -57,6 +61,9 @@ void main() {
     expect(result.agentId, 'agent-1');
     expect(contentType, 'application/json');
     expect(jsonDecode(body!), {'code': 'ABCD2345'});
+    // The agent rejects chunked bodies; it needs a Content-Length.
+    expect(contentLength, utf8.encode(body!).length);
+    expect(transferEncoding, isNull);
   });
 
   test('maps the agent errors', () async {

@@ -321,7 +321,7 @@ class _AboutPanel extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Scanning happens on your device and only contacts hosts on your local network. '
-                  'No data leaves your phone unless you enable cloud sync.',
+                  'No data leaves this device unless you enable cloud sync.',
                   style: PdText.bodySm,
                 ),
               ),
