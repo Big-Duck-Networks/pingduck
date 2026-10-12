@@ -9,6 +9,8 @@
 #   docker run -d --name pingduck-agent --restart unless-stopped --net=host \
 #     --cap-add=NET_RAW --cap-add=NET_ADMIN -v pingduck:/var/lib/pingduck \
 #     ghcr.io/big-duck-networks/pingduck-agent:latest
+# Tags: :latest is the latest release, :X.Y.Z (and :X.Y) pins one, :edge is
+# every main build, :sha-<commit> is one main build.
 # Then in the app: Account > Add monitoring unit. If the phone can't reach the
 # box's LAN (VLAN, VPN), add -e PINGDUCK_PAIRING_CODE=<code from the app>.
 #
@@ -39,6 +41,7 @@ RUN cmake -S core -B build-cli -DCMAKE_BUILD_TYPE=Release -DPINGDUCK_PCAP=ON -DP
     && cmake --build build-cli -j"$(nproc)" --target pingduck_cli
 
 FROM debian:bookworm-slim
+ARG VERSION=dev
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpcap0.8 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -50,5 +53,6 @@ EXPOSE 44480/tcp 1900/udp
 LABEL org.opencontainers.image.source="https://github.com/Big-Duck-Networks/pingduck"
 LABEL org.opencontainers.image.description="PingDuck homelab agent"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.version=$VERSION
 HEALTHCHECK --interval=60s --timeout=5s --start-period=10s CMD ["pingduck-agent", "healthcheck"]
 ENTRYPOINT ["pingduck-agent"]
