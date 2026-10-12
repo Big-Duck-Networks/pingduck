@@ -930,3 +930,12 @@ The first push of tonight's 4 unpushed commits runs the **old** `core.yml`, whic
     4. Continue with Phase 1.
 
     The GitHub copy still holds the old commits until the force-push. Unreferenced objects on GitHub can stay reachable by direct SHA for a while. With no forks or PRs that risk is small; for certainty, ask GitHub Support to purge cached views after the push, or delete and recreate the repo before pushing.
+
+- 2026-10-12: **Status.**
+  - **Public-repo hygiene done:** 0a (approval for all external contributors), 0b (secret scanning with push protection, Dependabot security updates, private vulnerability reporting), 0c (`SECURITY.md`), 0d (CodeQL default setup: Actions, C/C++, Python, Rust), 0e (third-party actions pinned to SHAs), 0f (`CODEOWNERS`).
+  - **Phase 1 done** (Tasks 4–10; PRs #2, #7, #18). Every workflow runs on every PR, and a `changes` job (dorny/paths-filter) decides whether its real jobs run, so each `<name> ci` check always reports. Pushes to `main` keep their path filters. Dependabot groups only minor and patch updates; majors arrive one per PR. Task 11 waits for Task 22, so `windows-release.yml` is still there.
+  - **Task 30 done, as classic branch protection** on `main` (not a ruleset): PRs required; `core ci`, `agent ci`, `app ci`, `database ci` and `CodeQL` required; force-pushes and deletion blocked; branches need not be up to date; admins are not enforced. Required approvals are **0**, not code-owner review, because the only maintainer can't approve their own PRs. Revisit when there is a second maintainer.
+  - **Part of Task 17 done early** (#19): `app.yml` gained `App (Android debug build)`, an unsigned debug APK that feeds `app ci`. It was added after `permission_handler` 13 (#17) merged green but broke `flutter build apk` (it needs `compileSdk` 37, AGP 9.4.1 and Gradle 9.6). The signed build and the internal-track upload are still Task 17.
+  - **First Dependabot round** (#8–#17) merged. `ureq` 3 (#11) and `rand` 0.10 (#12) needed agent code changes, pushed to Dependabot's branches.
+  - **Next:** Phase 2 (Tasks 12–15). Until then nothing publishes the agent image: the old `core.yml` job that pushed it was removed in the Phase 1 split.
+  - Acceptance criteria met so far: 11 and 12 (npm waits for the website, Task 28); 1 except the website.

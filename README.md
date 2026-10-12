@@ -17,12 +17,19 @@ pingduck/
 
 ## Status
 
-| Phase | Scope                                                        | State                                                                            |
-| ----- | ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| 1     | Core engine: ICMP, mDNS, SSDP/UPnP, ARP, port scan, WoL, OUI | Built and validated on Windows + Android 14; libpcap path untested (needs Linux) |
-| 2     | Dart FFI bridge, Riverpod state                              | Not started (app scaffolded, domain model in place)                              |
-| 3     | Radar UI, device details, local cache                        | Not started                                                                      |
-| 4     | Supabase sync, Docker daemon, intrusion alerts               | Dockerfile for one-shot scans only                                               |
+As of 2026-10-12. Details, the proposed timeline and what's next are in
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
+| Phase | Scope | State |
+| ----- | ----- | ----- |
+| 1 | Core engine: ICMP, mDNS, SSDP/UPnP, ARP, port scan, WoL, OUI | Done: tested, fuzzed, CI on all targets; libpcap ARP matches `arp-scan` |
+| 2 | Dart FFI bridge, Riverpod state, mobile setup | Done on Android; the app has not run on an iPhone yet |
+| 3 | Radar UI, device details, local cache | Done |
+| 4 | Accounts, Rust agent, cloud sync, intrusion alerts | In progress: accounts and agent pairing work, the agent scans and syncs; Realtime sync and alerts are next |
+| 5 | Subscriptions | Tiers decided; billing not started |
+| 6 | Network tools (traceroute, DNS, speed test) | Not started |
+| 7 | Device recognition and security checks | Not started |
+| 8 | Launch readiness | CI and branch protection done; audit, beta and store listings not started |
 
 ## pingduck-core
 

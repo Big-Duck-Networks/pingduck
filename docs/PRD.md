@@ -26,9 +26,9 @@ PingDuck is a hybrid network discovery and cybersecurity monitoring platform des
 ```
 Document Identifier: DOC-PRD-PINGDUCK-001
 Standard Compliance: IEC/IEEE 82079-1:2019 Edition 2.0
-Document Version:    1.1.0
+Document Version:    1.2.0
 Status:              Approved
-Date of Issue:       2026-10-06
+Date of Issue:       2026-10-12
 Product:             PingDuck Network Discovery & Reconnaissance Platform
 ```
 
@@ -97,4 +97,10 @@ pingduck_app/
 * **Phase 1 (Core Engine):** Develop `pingduck-core` in C++ and validate ICMP, mDNS, and libpcap ARP sniffing via terminal outputs.
 * **Phase 2 (FFI & Mobile Setup):** Implement the Dart FFI bridge, map the C++ structs to Dart objects, and configure Riverpod state management.
 * **Phase 3 (UI/UX Construction):** Build the Radar device list, device detail screens, and implement local caching for instant UI loading.
-* **Phase 4 (Agent & Cloud Sync):** Deploy the Supabase PostgreSQL database, build the headless Docker wrapper for the C++ engine, and implement real-time synchronization.
+* **Phase 4 (Agent & Cloud Sync):** Deploy the Supabase PostgreSQL database, build the headless agent around the C++ engine (in Rust, for Docker and as a Windows service), and implement real-time synchronization and intrusion alerts.
+* **Phase 5 (Subscriptions):** Sell Premium and Pro through App Store and Google Play billing, with entitlements enforced on the server.
+* **Phase 6 (Network Tools):** Traceroute, DNS lookup, network details and an internet speed test.
+* **Phase 7 (Recognition & Security):** Name devices by make, model and OS, and flag risky setups such as exposed admin ports.
+* **Phase 8 (Launch Readiness):** Security audit, beta, store listings, privacy policy and release pipelines.
+
+Status per phase and the proposed timeline are kept in [ROADMAP.md](ROADMAP.md).

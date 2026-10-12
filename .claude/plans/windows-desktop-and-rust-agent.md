@@ -154,3 +154,8 @@ No new server RPCs; the activate path in `AgentPairingController` is reused with
   - P5 done: Fing's grouping (PINGDUCK DESKTOP / PINGDUCK AGENT), Windows first with Fing's four steps; `20261011120000_agent_instructions_windows.sql`; website /agent copy.
   - Fixes found on the way: the FFI plugin's CMake couldn't find core/ through `.plugin_symlinks`; core install() rules broke the Flutter Windows install step (now top-level only).
   - Deferred: `pingduck://` protocol + forwarding a second instance's URL (app_links) — email confirmation links still open the browser page; code signing.
+- 2026-10-12 — Status update (see `docs/ROADMAP.md` Phase 4).
+  - P2: the service has since run. The Windows app paired with the installed `PingDuckAgent` service on 2026-10-10 (Account › This PC); that test found the app sending a chunked body, which the agent rejected, now fixed.
+  - The agent also gained its scan loop (`monitor.rs`, agent 0.3.0), reporting through `agent_sync`.
+  - Agent dependencies moved to `ureq` 3, `rand` 0.10, `socket2` 0.6 and `windows-service` 0.8 (2026-10-11). The Supabase client was ported and checked against the live project.
+  - Still open: the installer on a clean Windows VM, pairing from the phone, the uninstall check, `pingduck://` links and code signing. CI/CD plan Phases 5–6 replace `windows-release.yml`.
