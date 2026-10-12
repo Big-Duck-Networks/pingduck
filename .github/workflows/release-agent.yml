@@ -1,0 +1,85 @@
+name: release agent
+
+# Releases the agent version in agent/Cargo.toml by re-tagging the image that
+# agent.yml already built, tested and signed for this main commit (nothing is
+# rebuilt): :X.Y.Z, :X.Y and :latest. Then tags agent-vX.Y.Z and records a
+# GitHub release.
+#
+# Rollback: docker buildx imagetools create -t <image>:latest <image>:<previous version>
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-publish
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/big-duck-networks/pingduck-agent
+
+jobs:
+  release:
+    name: Release agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this from main, not $GITHUB_REF."
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: version
+        run: |
+          version=$(grep -m1 '^version' agent/Cargo.toml | cut -d'"' -f2)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
+      - name: Tag must be new
+        env:
+          TAG: agent-v${{ steps.version.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "::error::$TAG already exists. Bump the version in agent/Cargo.toml first."
+            exit 1
+          fi
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: The tested image must exist
+        run: |
+          if ! docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" > /dev/null; then
+            echo "::error::No tested image for this commit; push to main or re-run agent.yml."
+            exit 1
+          fi
+      - name: Re-tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MINOR: ${{ steps.version.outputs.minor }}
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:$MINOR" -t "$IMAGE:latest" \
+            "$IMAGE:sha-$GITHUB_SHA"
+      - id: digest
+        run: echo "digest=$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" --format '{{json .Manifest.Digest}}' | tr -d '"')" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - run: cosign sign --yes "$IMAGE@$DIGEST"
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "agent-v$VERSION" "$GITHUB_SHA"
+          git push origin "agent-v$VERSION"
+          gh release create "agent-v$VERSION" --generate-notes --title "PingDuck Agent $VERSION"

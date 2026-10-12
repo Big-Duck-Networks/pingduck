@@ -937,5 +937,6 @@ The first push of tonight's 4 unpushed commits runs the **old** `core.yml`, whic
   - **Task 30 done, as classic branch protection** on `main` (not a ruleset): PRs required; `core ci`, `agent ci`, `app ci`, `database ci` and `CodeQL` required; force-pushes and deletion blocked; branches need not be up to date; admins are not enforced. Required approvals are **0**, not code-owner review, because the only maintainer can't approve their own PRs. Revisit when there is a second maintainer.
   - **Part of Task 17 done early** (#19): `app.yml` gained `App (Android debug build)`, an unsigned debug APK that feeds `app ci`. It was added after `permission_handler` 13 (#17) merged green but broke `flutter build apk` (it needs `compileSdk` 37, AGP 9.4.1 and Gradle 9.6). The signed build and the internal-track upload are still Task 17.
   - **First Dependabot round** (#8–#17) merged. `ureq` 3 (#11) and `rand` 0.10 (#12) needed agent code changes, pushed to Dependabot's branches.
-  - **Next:** Phase 2 (Tasks 12–15). Until then nothing publishes the agent image: the old `core.yml` job that pushed it was removed in the Phase 1 split.
+  - **Phase 2 built** (2026-10-12, Tasks 12–15). Task 12's licence question was moot: the crate, `agent/LICENSE` and the image label all say Apache-2.0. `release-agent.yml` checks the tag and the `:sha-` image inline; swap those for the release guard in Task 25.
+  - **Next:** Phase 3 (Tasks 16–19).
   - Acceptance criteria met so far: 11 and 12 (npm waits for the website, Task 28); 1 except the website.
