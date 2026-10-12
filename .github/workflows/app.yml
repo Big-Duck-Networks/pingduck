@@ -1,9 +1,10 @@
 name: app
 
-# The Flutter app: analyzer and unit/widget tests. The unit tests use fakes
-# (test/fakes.dart), so no native core build is needed here. The signed
-# Android build for Play internal testing arrives with Phase 3 of
-# .claude/plans/ci-cd-overhaul.md.
+# The Flutter app: analyzer and unit/widget tests, plus an unsigned debug
+# APK so plugin or Gradle bumps that break the Android build fail here. The
+# unit tests use fakes (test/fakes.dart); the APK build compiles the native
+# core through the NDK. The signed Android build for Play internal testing
+# arrives with Phase 3 of .claude/plans/ci-cd-overhaul.md.
 
 on:
   push:
@@ -63,10 +64,34 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+  android:
+    name: App (Android debug build)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pingduck_app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.44.0
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --debug
+
   ci:
     name: app ci
     if: always()
-    needs: [changes, test]
+    needs: [changes, test, android]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
