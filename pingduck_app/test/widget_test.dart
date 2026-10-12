@@ -267,8 +267,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('APP SETTINGS'), findsOneWidget);
+    expect(find.text('APP'), findsOneWidget);
+    expect(find.text('USER SETTINGS'), findsOneWidget);
     expect(find.text('SCANNING'), findsOneWidget);
     expect(find.text('CLOUD & ALERTS'), findsOneWidget);
+
+    await tester.tap(find.text('USER SETTINGS'));
+    await tester.pumpAndSettle();
+    expect(find.text('ACCOUNT DELETION'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
@@ -451,6 +457,11 @@ void main() {
     await openSignIn(tester);
     await fill(tester, email: 'duck@example.com', password: 'quackquack');
     await tapText(tester, 'SIGN IN');
+
+    await tester.tap(find.text('App settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USER SETTINGS'));
+    await tester.pumpAndSettle();
 
     await tapText(tester, 'DELETE ACCOUNT');
     await tapText(tester, 'CANCEL');

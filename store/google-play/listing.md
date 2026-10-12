@@ -93,7 +93,7 @@ the agent, analytics (PostHog) or billing ship.
 - **Does your app collect or share any of the required user data types?** Yes.
 - **Is all of the user data collected by your app encrypted in transit?** Yes.
 - **Do you provide a way for users to request that their data is deleted?**
-  Yes: in the app (Account → Delete account) and at
+  Yes: in the app (Account → App settings → User settings → Delete account) and at
   `https://pingduck.app/delete-account`.
 
 Data types (all **collected, not shared**; service providers acting for you,
