@@ -9,7 +9,7 @@ Pay special attention to naming of existing workflows, secrets, paths and tools.
 Replace PingDuck's two ad-hoc workflows and its hand-run releases with one system on GitHub Actions:
 
 - **Every PR and push** runs the checks for the parts it touches (core, agent, app, database, website).
-- **Every push to `main`** also ships *test* builds automatically: Android to Play internal testing, the agent image as `:edge`, a Windows installer artifact, and the website to production.
+- **Every push to `main`** also ships *test* builds automatically: a signed Android AAB as a workflow artifact (uploading it to Play internal testing is manual; see Task 17), the agent image as `:edge`, a Windows installer artifact, and the website to production.
 - **Releasing to users** is a deliberate step: a "Release …" workflow per component (Run workflow button). It checks that the version isn't already released, that the database is migrated, and that `main` is green. Then it **promotes the already-tested build**: Play staged rollout, re-tagging the same agent image, and a signed Windows installer on a public download.
 - **The database** is migrated by the pipeline (`supabase db push`), never pasted by hand. Every PR tests the migrations, and every `main` push reports what is pending.
 - **Version numbers:** CI stamps build numbers. People only change version names, when they mean to release.
@@ -49,7 +49,7 @@ Split CI into one workflow per component with tight path filters. Add the missin
 
 ```
 PR / push ──► check (required to stay green)
-main push ──► check ──► test build, shipped automatically (internal track, :edge, artifact, website)
+main push ──► check ──► test build, shipped automatically (signed AAB artifact, :edge, artifact, website)
 Release ──► guard (version not released, DB migrated, main green) ──► promote the tested build
 ```
 
@@ -135,7 +135,7 @@ The plan stays correct after an upgrade to **GitHub Team** ($4/user/month): you'
 | File | Purpose |
 |---|---|
 | `.github/workflows/agent.yml` | Agent clippy and tests on Windows and Linux; on `main`, native amd64 and arm64 images by digest, merged into `:edge` and `:sha-<sha>`, signed with cosign, with SBOM and provenance. |
-| `.github/workflows/app.yml` | `flutter analyze` and `flutter test` on PR and push; on `main`, a signed AAB to Play internal testing. |
+| `.github/workflows/app.yml` | `flutter analyze` and `flutter test` on PR and push; on `main`, a signed AAB as a workflow artifact (no automatic Play upload). |
 | `.github/workflows/database.yml` | `run_tests.sh` on PR and push; on `main`, `supabase db push --dry-run` against production, listing pending migrations in the job summary. |
 | `.github/workflows/windows.yml` | Replaces `windows-release.yml`. On `main` and by hand: build `PingDuckSetup.exe` as a 7-day artifact. |
 | `.github/workflows/ios.yml` | Weekly and by hand: `flutter build ios --no-codesign`, so iOS keeps compiling. |
@@ -226,7 +226,7 @@ Native multi-arch images, `:edge` on `main`, signing and SBOM/provenance, and th
 
 **Depends on:** Task 1's Android/Play secrets for the publishing jobs; the build itself doesn't need them.
 
-Real signing, internal track on `main`, staged production release. Tasks 16-19.
+Real signing, a signed AAB artifact on `main` (uploaded to internal testing by hand), staged production release. Tasks 16-19.
 
 ### Phase 4: Database pipeline
 
@@ -524,13 +524,13 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
     5. Decode the keystore: `echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"` and export `ANDROID_KEYSTORE_PATH`.
     6. `flutter build appbundle --release`.
     7. Verify it isn't debug-signed: `keytool -printcert -jarfile app-release.aab | grep -q "CN=Android Debug" && exit 1`.
-    8. `r0adkll/upload-google-play@v1` with `serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}`, `packageName: app.webcap.pingduck`, `releaseFiles: pingduck_app/build/app/outputs/bundle/release/app-release.aab`, `track: internal`, `status: completed`.
-    9. Upload the AAB as an artifact (7 days).
-  - Skip with a summary note when `ANDROID_KEYSTORE_BASE64` or `PLAY_SERVICE_ACCOUNT_JSON` is missing.
+    8. Upload the AAB as an artifact (30 days), named `pingduck-<versionName>+<versionCode>`, and write the version to the job summary.
+  - **No automatic Play upload** (decided 2026-10-12): the user downloads the artifact and uploads it to Internal testing in Play Console. Do not add `r0adkll/upload-google-play` or any other upload step; `PLAY_SERVICE_ACCOUNT_JSON` is only used by Tasks 18-19.
+  - Skip with a summary note when `ANDROID_KEYSTORE_BASE64` is missing.
 - **GOTCHA**:
   - The build compiles `core/` for 3 ABIs through the NDK on the runner. `ANDROID_NDK_LATEST_HOME` exists there, and Flutter picks its own `ndkVersion`, installing it via sdkmanager on demand. Allow 40 min the first time.
   - Never commit the stamped `pubspec.yaml`. It only changes in the workspace.
-- **VALIDATE**: `actionlint`. After a push: a new build with versionCode = commit count appears in Play Console › Internal testing.
+- **VALIDATE**: `actionlint`. After a push: the run has a signed AAB artifact with versionCode = commit count, and Play Console shows nothing new until it is uploaded by hand.
 - **SATISFIES**: AC 2, AC 4, AC 5.
 
 ### Task 18: CREATE `.github/workflows/release-android.yml`
@@ -548,7 +548,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
     3. Tag `app-v<name>` at `github.sha` and push it.
     4. `gh release create app-v<name> --generate-notes` (private record).
 - **GOTCHA**:
-  - **"The tested build":** promotion moves whatever is *latest* on internal testing. That's the build from the most recent `main` push, which is `github.sha` only if nothing landed since. The guard must check that the internal track's top versionCode equals `git rev-list --count ${{ github.sha }}`; fail with "main moved on; release the newer commit or wait". Read it with `fastlane run google_play_track_version_codes track:internal …`.
+  - **"The tested build":** promotion moves whatever is *latest* on internal testing. That's the build from the most recent `main` push, which is `github.sha` only if nothing landed since. Since internal uploads are manual, it is whatever was uploaded last. The guard must check that the internal track's top versionCode equals `git rev-list --count ${{ github.sha }}`; fail with "main moved on; release the newer commit or wait". Read it with `fastlane run google_play_track_version_codes track:internal …`.
   - The first production release also needs the store listing, content rating and data-safety forms done in Play Console. Fastlane fails with a clear API error otherwise; `RELEASING.md` says so.
 - **VALIDATE**: `actionlint`. A real run shows the production track at 10% in Play Console.
 - **SATISFIES**: AC 3.
@@ -653,7 +653,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   1. **How it works**: the three stages diagram.
   2. **Releasing each component**:
      - Agent: bump the `Cargo.toml` version in a PR or commit, merge, wait for green, press Release agent.
-     - Android: bump the pubspec name, merge, wait for internal testing, smoke-test from the Play internal link, press Release Android (10%), then Android rollout to 50% and 100% over a few days, watching Play vitals.
+     - Android: bump the pubspec name, merge, download the `main` run's AAB and upload it to Internal testing, smoke-test from the Play internal link, press Release Android (10%), then Android rollout to 50% and 100% over a few days, watching Play vitals.
      - Windows: bump, merge, press Release Windows.
      - Database: Deploy database before any app release that needs it.
   3. **Rollback**:
@@ -671,7 +671,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Task 27: UPDATE `docs/ROADMAP.md`
 
 - **IMPLEMENT**:
-  - Phase 8 **Beta** row: the agent image publishes `:edge` per `main` push and `:latest` per release; Android internal testing per `main` push.
+  - Phase 8 **Beta** row: the agent image publishes `:edge` per `main` push and `:latest` per release; a signed Android AAB artifact per `main` push (uploaded to internal testing by hand).
   - **TODO at launch** row: the Windows URL is `pingduck-releases`; make the GHCR package public.
   - Add a row **CI/CD** ✅ that links this plan and `docs/RELEASING.md`.
   - Phase 1's CI row: `core.yml` now covers core only, with `agent.yml` beside it.
@@ -727,7 +727,7 @@ CI configuration is tested in three layers:
    3. `agent.yml`, on a PR (checks only)
    4. `agent.yml` on `main` (publishes `:edge`)
    5. `release-agent.yml`
-   6. `app.yml` on `main` with secrets (internal track)
+   6. `app.yml` on `main` with secrets (signed AAB artifact)
    7. `release-android.yml` at 10%
    8. `windows.yml`
    9. `release-windows.yml`
