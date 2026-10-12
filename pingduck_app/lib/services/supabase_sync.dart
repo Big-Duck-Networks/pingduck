@@ -169,6 +169,26 @@ class SupabaseSync extends Notifier<SyncStatus> {
     }
   }
 
+  /// Marks the device with [mac] known (no alerts) or not, on the server
+  /// first, so a failure leaves the cache untouched. Throws when the network
+  /// isn't linked to Supabase or the server refuses.
+  Future<void> setKnown(int networkId, String mac, bool known) async {
+    final remoteId = await _store.remoteIdOf(networkId);
+    if (remoteId == null) throw StateError('network $networkId has no monitoring unit');
+    await _repo.setKnown(remoteId, mac, known);
+    await _store.setKnown(networkId, mac, known);
+    if (ref.mounted) await ref.read(scanControllerProvider.notifier).reloadFromCache(networkId);
+  }
+
+  /// Marks every device the agents have reported as known, e.g. right after
+  /// pairing, so only devices that join later raise alerts.
+  Future<void> markAllKnown() async {
+    for (final n in await _store.linkedNetworks()) {
+      await _repo.markAllKnown(n.remoteId);
+      await _pull(n.id, n.remoteId);
+    }
+  }
+
   void _schedulePull(int networkId, String remoteId) {
     _timers[remoteId]?.cancel();
     _timers[remoteId] = Timer(debounce, () async {
@@ -205,6 +225,12 @@ class SupabaseSync extends Notifier<SyncStatus> {
     }
   }
 }
+
+/// The Supabase network id of a local network, or null when it has no
+/// monitoring unit (so nothing about it is on the server).
+final linkedRemoteIdProvider = FutureProvider.family<String?, int>(
+  (ref, networkId) => ref.read(localStoreProvider).remoteIdOf(networkId),
+);
 
 final syncRepositoryProvider = Provider<SyncRepository>((ref) => SupabaseSyncRepository());
 
