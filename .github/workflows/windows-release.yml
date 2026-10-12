@@ -62,7 +62,7 @@ jobs:
           path: installer/windows/Output/PingDuckSetup.exe
 
       - if: startsWith(github.ref, 'refs/tags/desktop-v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: PingDuck for Windows ${{ steps.version.outputs.value }}
           files: installer/windows/Output/PingDuckSetup.exe
