@@ -237,6 +237,21 @@ class ScanController extends Notifier<ScanState> {
     }
   }
 
+  /// Picks up what cloud sync merged into the cache for [networkId], if
+  /// that's the network on screen. Live fields (online, RTT) are kept, so a
+  /// running scan isn't reset; the cache decides MACs and the known flag.
+  Future<void> reloadFromCache(int networkId) async {
+    if (state.networkId != networkId) return;
+    final cached = await _store.devicesOf(networkId);
+    if (!ref.mounted || state.networkId != networkId) return;
+    final devices = {...state.devices};
+    for (final c in cached) {
+      final live = devices[c.ip];
+      devices[c.ip] = live == null ? c : live.merge(c).copyWith(isKnown: c.isKnown);
+    }
+    state = state.copyWith(devices: devices);
+  }
+
   Future<void> clearInventory() async {
     if (state.isScanning) return;
     await _store.clearInventory();

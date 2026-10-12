@@ -191,5 +191,6 @@ class DeviceCard extends StatelessWidget {
         DiscoverySource.ssdp => PdTone.pending,
         DiscoverySource.arp => PdTone.live,
         DiscoverySource.dns => PdTone.neutral,
+        DiscoverySource.agent => PdTone.ink,
       };
 }

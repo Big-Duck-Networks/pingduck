@@ -5,7 +5,11 @@ enum DiscoverySource {
   mdns(1 << 1),
   ssdp(1 << 2),
   arp(1 << 3),
-  dns(1 << 4);
+  dns(1 << 4),
+
+  /// App-only: reported by the homelab agent through Supabase. The core never
+  /// sets it; bits 5-7 are left free for the core to grow into.
+  agent(1 << 8);
 
   const DiscoverySource(this.bit);
   final int bit;
@@ -34,6 +38,7 @@ class DiscoveredDevice {
     this.customName,
     this.notes,
     this.rttHistory = const [],
+    this.isKnown = false,
   });
 
   /// RTT samples kept per device (one per scan) for the ledger sparkline.
@@ -60,6 +65,9 @@ class DiscoveredDevice {
 
   /// Oldest first, at most [historyLength].
   final List<int> rttHistory;
+
+  /// Marked known by the user (Supabase `devices.is_known`): no alerts for it.
+  final bool isKnown;
 
   /// Stable identity: MAC when known (survives DHCP changes), else IP.
   String get id => mac ?? ip;
@@ -95,6 +103,8 @@ class DiscoveredDevice {
         customName: customName ?? other.customName,
         notes: notes ?? other.notes,
         rttHistory: rttHistory.isNotEmpty ? rttHistory : other.rttHistory,
+        // Scans never report it, so a scan must not clear it.
+        isKnown: isKnown || other.isKnown,
       );
 
   /// A randomized-MAC placeholder loses to any real vendor name.
@@ -114,6 +124,7 @@ class DiscoveredDevice {
     String? notes,
     bool clearNotes = false,
     List<int>? rttHistory,
+    bool? isKnown,
   }) =>
       DiscoveredDevice(
         ip: ip,
@@ -130,6 +141,7 @@ class DiscoveredDevice {
         customName: clearCustomName ? null : customName ?? this.customName,
         notes: clearNotes ? null : notes ?? this.notes,
         rttHistory: rttHistory ?? this.rttHistory,
+        isKnown: isKnown ?? this.isKnown,
       );
 
   /// Appends one RTT sample, dropping the oldest beyond [historyLength].
