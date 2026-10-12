@@ -10,6 +10,8 @@ import 'package:pingduck_app/core/constants/app_version.dart';
 import 'package:pingduck_app/core/network/lan_connectivity.dart';
 import 'package:pingduck_app/core/theme/pingduck_theme.dart';
 import 'package:pingduck_app/core/widgets/pd_widgets.dart';
+import 'package:pingduck_app/features/agent/application/agent_status.dart';
+import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/topology/presentation/topology_screen.dart';
 import 'package:pingduck_app/main.dart';
 import 'package:pingduck_app/services/local_storage.dart';
@@ -33,6 +35,7 @@ void main() {
     Map<String, String> accounts = const {},
     bool isPremium = true,
     bool autoScanOnLaunch = true,
+    List<PairedAgent>? agents,
   }) async {
     bridge = FakeBridge();
     auth = FakeAuth(accounts: accounts);
@@ -63,6 +66,7 @@ void main() {
         onboardedProvider.overrideWith(() => Onboarded(onboarded)),
         lanConnectivityProvider.overrideWithValue(lan),
         accountAuthProvider.overrideWithValue(auth),
+        if (agents != null) myAgentsProvider.overrideWith((ref) async => agents),
       ],
       child: const PingDuckApp(),
     );
@@ -295,6 +299,21 @@ void main() {
 
     await tester.scrollUntilVisible(find.text(AppVersion.display), 200);
     expect(find.text('${AppVersion.gitCommit} · ${AppVersion.buildDate}'), findsOneWidget);
+    expect(find.text('AGENT VERSION'), findsOneWidget);
+    expect(find.text('—'), findsWidgets, reason: 'no agent paired');
+  });
+
+  testWidgets("about shows the paired agent's version", (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    final agent = PairedAgent(id: 'a1', networkId: 'n1', name: 'homelab', version: '0.3.1', createdAt: DateTime(2026));
+    await tester.pumpWidget(await app(tester, onboarded: true, agents: [agent]));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('AGENT VERSION'), 200);
+    expect(find.text('0.3.1'), findsOneWidget);
   });
 
   Future<void> openSignIn(WidgetTester tester) async {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pingduck_core/pingduck_core.dart';
 
 import '../../../core/constants/app_version.dart';
 import '../../../core/desktop/desktop.dart';
@@ -8,6 +7,7 @@ import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../agent/application/agent_status.dart';
+import '../../agent/domain/agent_unit.dart';
 import '../../agent/presentation/add_unit_intro_screen.dart';
 import '../../agent/presentation/this_pc_panel.dart';
 import '../../auth/account_auth.dart';
@@ -17,10 +17,16 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../shell/app_shell.dart';
 import '../../tools/presentation/tools_screen.dart';
 
-/// Engine version, or null when the native library is not loaded (tests).
-final coreVersionProvider = Provider<String?>((ref) {
+/// The homelab agent's version: the account's paired agent, as its last
+/// heartbeat reported it, else (desktop) the agent service on this PC.
+/// Null when there is neither.
+final agentVersionProvider = FutureProvider.autoDispose<String?>((ref) async {
+  final agents = ref.watch(myAgentsProvider).value ?? const <PairedAgent>[];
+  final paired = agents.map((a) => a.version).nonNulls.firstOrNull;
+  if (paired != null) return paired;
+  if (!isDesktop) return null;
   try {
-    return PingDuckCore.instance.version;
+    return (await ref.watch(localAgentProvider.future))?.version;
   } catch (_) {
     return null;
   }
@@ -222,7 +228,7 @@ class _AboutPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final core = ref.watch(coreVersionProvider);
+    final agent = ref.watch(agentVersionProvider).value;
     return PdPanel(
       background: PingDuckColors.canvas,
       child: Column(
@@ -259,7 +265,7 @@ class _AboutPanel extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: PdField(label: 'Discovery engine', value: core ?? '—'),
+                  child: PdField(label: 'Agent version', value: agent ?? '—'),
                 ),
               ],
             ),
