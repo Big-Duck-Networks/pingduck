@@ -1,6 +1,6 @@
 name: database
 
-# Supabase migrations and schema tests. Every run applies all migrations to a
+# Supabase migrations, schema tests and Edge Function tests. Every run applies all migrations to a
 # throwaway Postgres (supabase/tests/run_tests.sh) and runs schema_test.sql.
 # On main it also reports which migrations production still lacks; applying
 # them is the "Deploy database" workflow's job (Phase 4 of the plan).
@@ -53,6 +53,14 @@ jobs:
         run: |
           sh supabase/tests/run_tests.sh 2>&1 | tee schema.log
           grep -q "ALL SCHEMA TESTS PASSED" schema.log
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.x
+      - name: Edge Functions (type check, unit tests)
+        working-directory: supabase/functions
+        run: |
+          deno check */index.ts
+          deno test
 
   pending:
     name: Database (pending in production)

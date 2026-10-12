@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/push_alerts.dart';
 import '../../../services/scan_quota.dart';
 import '../../../services/supabase_sync.dart';
 import '../../agent/application/agent_status.dart';
@@ -340,13 +340,15 @@ class _CloudPanel extends ConsumerWidget {
     final sync = ref.watch(supabaseSyncProvider);
     final isPremium = ref.watch(isPremiumProvider).value ?? false;
 
+    final alertsOn = ref.watch(alertsEnabledProvider).value ?? false;
+
     final alertsBlocker = !hasAgent
         ? 'Needs a monitoring unit'
         : !isPremium
         ? 'Premium plan required'
-        : defaultTargetPlatform != TargetPlatform.android
+        : !alertsSupported
         ? 'Android only for now'
-        : 'Coming soon';
+        : null;
 
     return PdPanel(
       title: 'Cloud & alerts',
@@ -389,8 +391,12 @@ class _CloudPanel extends ConsumerWidget {
           _CloudRow(
             icon: Icons.notifications_outlined,
             title: 'New-device alerts',
-            sub: alertsBlocker,
-            trailing: const Switch(key: Key('alerts_switch'), value: false, onChanged: null),
+            sub: alertsBlocker ?? (alertsOn ? 'On · A notification when a device joins' : 'Off'),
+            trailing: Switch(
+              key: const Key('alerts_switch'),
+              value: alertsBlocker == null && alertsOn,
+              onChanged: alertsBlocker == null ? (on) => _setAlerts(context, ref, on) : null,
+            ),
           ),
           if (hasAgent)
             Align(
@@ -417,6 +423,21 @@ class _CloudPanel extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  static Future<void> _setAlerts(BuildContext context, WidgetRef ref, bool on) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final alerts = ref.read(pushAlertsProvider);
+    try {
+      await (on ? alerts.enable() : alerts.disable());
+    } on NotificationsDeniedException {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Notifications are off for PingDuck. Turn them on in Android settings.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')));
+    }
+    ref.invalidate(alertsEnabledProvider);
   }
 
   /// "homelab · Online · v0.3.1", plus how many more agents there are.

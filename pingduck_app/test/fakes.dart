@@ -12,6 +12,7 @@ import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/features/scanner/domain/remote_device.dart';
 import 'package:pingduck_app/services/local_storage.dart';
+import 'package:pingduck_app/services/push_alerts.dart';
 import 'package:pingduck_app/services/scan_quota.dart';
 import 'package:pingduck_app/services/supabase_sync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
@@ -351,4 +352,29 @@ class FakeSyncRepository implements SyncRepository {
       known[(remoteNetworkId, d.mac)] = true;
     }
   }
+}
+
+class FakePushAlerts implements PushAlerts {
+  bool enabled = false;
+  bool deny = false;
+  final calls = <String>[];
+
+  @override
+  Future<bool> isEnabled() async => enabled;
+
+  @override
+  Future<void> enable() async {
+    calls.add('enable');
+    if (deny) throw const NotificationsDeniedException();
+    enabled = true;
+  }
+
+  @override
+  Future<void> disable() async {
+    calls.add('disable');
+    enabled = false;
+  }
+
+  @override
+  void listen(Future<void> Function() onAlert) => calls.add('listen');
 }

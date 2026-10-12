@@ -458,4 +458,5 @@ cd pingduck_app && flutter build apk --debug && flutter build windows --debug
 
 ## AMENDMENTS
 
-- (none yet)
+
+- 2026-10-12 — Phase E built. Background alerts hand off to the app's main isolate (IsolateNameServer port, 3 s ack) when it is alive, because a second isolate refreshing the Supabase token would rotate the refresh token under the main isolate and could trip reuse detection; only when no main isolate answers does the background isolate restore and re-save the session. The notification's small icon reuses `ic_launcher_monochrome` instead of a new `ic_stat_duck`. Sign-out unregisters the phone's token, and an alert for a network the signed-in account can't see shows nothing. Deno check and tests run in `database.yml`.
