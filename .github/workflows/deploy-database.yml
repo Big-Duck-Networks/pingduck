@@ -1,0 +1,67 @@
+name: Deploy database
+
+# Applies pending Supabase migrations to production (Run workflow button,
+# main only). The production-database environment holds the SUPABASE_*
+# secrets and asks for a reviewer's approval before the job starts.
+# db push runs each migration in its own transaction: if one fails, the
+# earlier ones stay applied, so fix forward with a new migration.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-database
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy database
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-database
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Check credentials
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD and SUPABASE_PROJECT_REF must be set on the production-database environment"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: latest
+      - name: Dry run
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push --dry-run 2>&1 | tee pending.txt
+          {
+            echo '### Pending migrations'
+            echo '```'
+            cat pending.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # An empty remote history would make db push re-run every
+          # migration, starting with the initial schema.
+          if grep -q "20261006120000" pending.txt; then
+            echo "::error::Migration history not repaired: the initial schema shows as pending. Repair it with supabase migration repair before deploying."
+            exit 1
+          fi
+      - name: Push
+        run: supabase db push
+      - name: Migration history
+        if: always()
+        run: |
+          {
+            echo '### Migration history after the run'
+            echo '```'
+            supabase migration list 2>&1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
