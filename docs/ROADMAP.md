@@ -27,8 +27,8 @@ the [Timeline](#timeline-proposed) turns them into a proposed schedule.
 | 3. UI/UX | ✅ | The "Precision Editorial Recon" design is built across 3 tabs (Overview, Tools, Account) plus onboarding. Topology is built but parked off the tab bar. Tools holds Node Inspect and the Homelab Agent screen; the device list is titled with the Wi-Fi name. Drift cache, real diagnostics, icons and splash are in. On a Pixel 8 Pro: cached devices on the first frame in about 100 ms, and ~1% of frames over 16.7 ms during a scan. |
 | 4. Agent & cloud sync | 🟡 ~60% | Schema, RLS, email accounts and the Rust agent are done. The agent pairs (live from Windows on 2026-10-10) and runs its scan loop into `agent_sync`. Still open: pairing from the phone, Realtime sync into the app, intrusion alerts, and the agent rows in Settings. |
 | 5. Subscriptions | 🟡 ~10% | Tiers are decided and live in the `plans` table, and Premium now comes only from the server's `claim_scan` answer (PR #20). No billing, paywall or store products yet. |
-| 6. Network tools (Fing parity) | ⬜ | Traceroute, DNS lookup, network details and a speed test. |
-| 7. Recognition & security (Fing parity) | ⬜ | Device fingerprinting and router/security checks. |
+| 6. Network tools | ⬜ | Traceroute, DNS lookup, network details and a speed test. |
+| 7. Recognition & security | ⬜ | Device fingerprinting and router/security checks. |
 | 8. Launch readiness | 🟡 ~15% | CI checks every PR and `main` is protected (CI/CD plan Phase 1). The security audit, beta, store listings and the rest are not started. |
 
 **Since 2026-10-06:** the agent was rewritten in Rust and gained its scan loop and a Windows
@@ -152,7 +152,7 @@ and cancelling or refunding revokes access on the server.
 
 ---
 
-## Phase 6: Network tools (Fing parity)
+## Phase 6: Network tools 
 
 **Goal:** the everyday tools users expect from a network app like Fing, so PingDuck can replace it for
 casual use. Each one is cheap and fits into Node Inspect or the Tools tab.
@@ -169,7 +169,7 @@ the desktop tools (`tracert`/`traceroute`, `nslookup`, a reference speed test) t
 
 ---
 
-## Phase 7: Device recognition and security (Fing parity)
+## Phase 7: Device recognition and security
 
 **Goal:** close Fing's biggest advantage, which is naming what each device is (make, model, OS), and flag risky setups.
 
