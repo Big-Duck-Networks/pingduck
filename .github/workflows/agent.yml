@@ -8,8 +8,9 @@ on:
   push:
     branches: [main]
     paths: ["agent/**", "core/**", ".dockerignore", ".github/workflows/agent.yml"]
+  # Every PR, so "agent ci" always reports; the changes job skips the
+  # real work when none of the paths above changed.
   pull_request:
-    paths: ["agent/**", "core/**", ".dockerignore", ".github/workflows/agent.yml"]
   workflow_dispatch:
 
 permissions:
@@ -20,8 +21,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: agent changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ github.event_name != 'pull_request' || steps.filter.outputs.match == 'true' }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            match:
+              - 'agent/**'
+              - 'core/**'
+              - '.dockerignore'
+              - '.github/workflows/agent.yml'
+
   test-windows:
     name: Agent (Windows)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -34,6 +58,8 @@ jobs:
 
   test-linux:
     name: Agent (Linux, Docker image)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -61,7 +87,7 @@ jobs:
   ci:
     name: agent ci
     if: always()
-    needs: [test-windows, test-linux]
+    needs: [changes, test-windows, test-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

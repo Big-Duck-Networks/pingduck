@@ -8,8 +8,9 @@ on:
   push:
     branches: [main]
     paths: ["core/**", "packages/pingduck_core/**", ".github/workflows/core.yml"]
+  # Every PR, so "core ci" always reports; the changes job skips the
+  # real work when none of the paths above changed.
   pull_request:
-    paths: ["core/**", "packages/pingduck_core/**", ".github/workflows/core.yml"]
   # Weekly, so fuzzing and the Apple builds still run while core is quiet.
   schedule:
     - cron: "0 6 * * 1"
@@ -23,8 +24,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: core changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ github.event_name != 'pull_request' || steps.filter.outputs.match == 'true' }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            match:
+              - 'core/**'
+              - 'packages/pingduck_core/**'
+              - '.github/workflows/core.yml'
+
   windows:
     name: Windows (MSVC)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -36,6 +59,8 @@ jobs:
 
   linux:
     name: Linux (GCC, libpcap)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -53,6 +78,8 @@ jobs:
 
   sanitizers:
     name: Linux (Clang, ASan + UBSan)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -66,6 +93,8 @@ jobs:
 
   fuzz:
     name: Fuzz (libFuzzer, 2 min per target)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -96,6 +125,8 @@ jobs:
 
   android:
     name: Android NDK (${{ matrix.abi }})
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -111,6 +142,8 @@ jobs:
 
   macos:
     name: macOS (Clang)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -121,6 +154,8 @@ jobs:
 
   ios:
     name: iOS xcframework
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -135,7 +170,7 @@ jobs:
   ci:
     name: core ci
     if: always()
-    needs: [windows, linux, sanitizers, fuzz, android, macos, ios]
+    needs: [changes, windows, linux, sanitizers, fuzz, android, macos, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
