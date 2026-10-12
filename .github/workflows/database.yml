@@ -65,7 +65,7 @@ jobs:
   pending:
     name: Database (pending in production)
     needs: [changes, test]
-    if: needs.changes.outputs.run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.run == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Same Supabase secrets as production-database, but no reviewer: a dry
