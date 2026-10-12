@@ -65,11 +65,7 @@ class ServerScanQuota implements ScanQuota {
 
   @override
   Future<bool> claimAutomatic() async {
-    if (await _store.setting('quotaLimit') == 'none' ||
-        await _store.setting(isPremiumKey) == '1' ||
-        await _store.setting(autoScanOnLaunchKey) == '1') {
-      return true;
-    }
+    if (await _store.setting('quotaLimit') == 'none') return true;
     final now = _clock();
     final last = DateTime.tryParse(await _store.setting('autoScanAt') ?? '');
     if (last != null && now.difference(last) < automaticInterval) return false;
@@ -121,18 +117,11 @@ Future<void> setAutoScanOnLaunch(LocalStore store, bool enabled) async {
   await store.setSetting(autoScanOnLaunchKey, enabled ? '1' : '0');
 }
 
-/// Checks whether this install is cached as a Premium user.
+/// Whether the server's last `claim_scan` answer was an unlimited plan. Only
+/// [ServerScanQuota] writes this; nothing on the device can grant it.
 Future<bool> isPremiumUser(LocalStore store) async {
   final saved = await store.setting(isPremiumKey);
-  if (saved != null) return saved == '1' || saved == 'true';
-  final quota = await store.setting('quotaLimit');
-  if (quota == 'none') return true;
-  final autoScan = await store.setting(autoScanOnLaunchKey);
-  return autoScan == '1';
-}
-
-/// Saves the Premium entitlement state to local settings.
-Future<void> setIsPremiumUser(LocalStore store, bool isPremium) async {
-  await store.setSetting(isPremiumKey, isPremium ? '1' : '0');
+  if (saved != null) return saved == '1';
+  return await store.setting('quotaLimit') == 'none';
 }
 

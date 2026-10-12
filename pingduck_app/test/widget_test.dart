@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pingduck_app/core/theme/pingduck_colors.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
@@ -266,8 +267,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('APP SETTINGS'), findsOneWidget);
+    expect(find.text('APP'), findsOneWidget);
+    expect(find.text('USER SETTINGS'), findsOneWidget);
     expect(find.text('SCANNING'), findsOneWidget);
     expect(find.text('CLOUD & ALERTS'), findsOneWidget);
+
+    await tester.tap(find.text('USER SETTINGS'));
+    await tester.pumpAndSettle();
+    expect(find.text('ACCOUNT DELETION'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
@@ -306,6 +313,9 @@ void main() {
     if (code != null) await tester.enterText(find.byKey(const Key('code')), code);
   }
 
+  /// A toast (SnackBar) whose text contains [text].
+  Finder toast(String text) => find.descendant(of: find.byType(SnackBar), matching: find.textContaining(text));
+
   Finder pdButton(String label) => find.byWidgetPredicate((w) => w is PdButton && w.label == label);
 
   /// Taps the button labelled [text], not a title that reads the same.
@@ -335,10 +345,14 @@ void main() {
     await fill(tester, password: 'quackquack');
     await tapText(tester, 'CREATE ACCOUNT');
     expect(find.textContaining('We sent a link to duck@example.com'), findsOneWidget);
+    expect(toast('Confirmation link sent to duck@example.com'), findsOneWidget);
     expect(auth.pending, {'duck@example.com'});
 
+    await tapText(tester, 'RESEND LINK');
+    expect(toast('Sent a new link to duck@example.com'), findsOneWidget);
+
     await tapText(tester, 'I’VE CONFIRMED');
-    expect(find.textContaining('Not confirmed yet'), findsOneWidget);
+    expect(toast('Not confirmed yet'), findsOneWidget);
 
     // Clicked on another device: the screen notices on its next check.
     auth.clickLink('duck@example.com');
@@ -346,6 +360,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('duck@example.com'), findsOneWidget);
     expect(find.text('SIGNED IN'), findsOneWidget);
+    expect(toast('Email confirmed. You’re signed in.'), findsOneWidget);
     expect(auth.accounts, {'duck@example.com': 'quackquack'});
 
     await tapText(tester, 'SIGN OUT');
@@ -375,7 +390,7 @@ void main() {
     await tapText(tester, 'CREATE ACCOUNT');
     await fill(tester, email: 'duck@example.com', password: 'otherpassword');
     await tapText(tester, 'CREATE ACCOUNT');
-    expect(find.textContaining('already has an account'), findsOneWidget);
+    expect(toast('already has an account'), findsOneWidget);
   });
 
   testWidgets('signing in checks the password', (tester) async {
@@ -385,11 +400,14 @@ void main() {
 
     await fill(tester, email: 'duck@example.com', password: 'wrong');
     await tapText(tester, 'SIGN IN');
-    expect(find.text('Wrong email or password.'), findsOneWidget);
+    expect(toast('Wrong email or password.'), findsOneWidget);
+    expect(tester.widget<SnackBar>(find.byType(SnackBar)).backgroundColor, PingDuckColors.critical);
 
     await fill(tester, password: 'quackquack');
     await tapText(tester, 'SIGN IN');
     expect(find.text('duck@example.com'), findsOneWidget);
+    expect(toast('Signed in'), findsOneWidget);
+    expect(tester.widget<SnackBar>(find.byType(SnackBar)).backgroundColor, isNull);
   });
 
   testWidgets('a forgotten password is reset with an emailed code', (tester) async {
@@ -401,10 +419,12 @@ void main() {
     await fill(tester, email: 'duck@example.com');
     await tapText(tester, 'EMAIL ME A CODE');
     expect(auth.resets, ['duck@example.com']);
+    expect(toast('Code sent to duck@example.com'), findsOneWidget);
 
     await fill(tester, code: FakeAuth.goodCode, password: 'newquackquack');
     await tapText(tester, 'SET PASSWORD');
     expect(find.text('duck@example.com'), findsOneWidget);
+    expect(toast('Password changed. You’re signed in.'), findsOneWidget);
     expect(auth.accounts['duck@example.com'], 'newquackquack');
   });
 
@@ -437,6 +457,11 @@ void main() {
     await openSignIn(tester);
     await fill(tester, email: 'duck@example.com', password: 'quackquack');
     await tapText(tester, 'SIGN IN');
+
+    await tester.tap(find.text('App settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USER SETTINGS'));
+    await tester.pumpAndSettle();
 
     await tapText(tester, 'DELETE ACCOUNT');
     await tapText(tester, 'CANCEL');
@@ -494,5 +519,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<Switch>(switchFinder).value, isTrue);
     expect(await currentStore.setting('autoScanOnLaunch'), '1');
+  });
+
+  testWidgets('on Free the auto-scan switch is locked and grants nothing', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true, isPremium: false));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('App settings'));
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byKey(const Key('auto_scan_switch'));
+    expect(tester.widget<Switch>(switchFinder).onChanged, isNull);
+    await tester.tap(switchFinder);
+    await tester.pumpAndSettle();
+    expect(await currentStore.setting('isPremium'), '0');
+    expect(await currentStore.setting('quotaLimit'), isNull);
   });
 }

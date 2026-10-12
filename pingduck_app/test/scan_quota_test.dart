@@ -93,11 +93,20 @@ void main() {
     expect(await isPremiumUser(store), isTrue);
   });
 
-  test('setIsPremiumUser sets and persists premium status', () async {
+  test('auto-scan on launch neither makes a user Premium nor lifts the automatic limit', () async {
+    await setAutoScanOnLaunch(store, true);
     expect(await isPremiumUser(store), isFalse);
-    await setIsPremiumUser(store, true);
+    final q = quota();
+    expect(await q.claimAutomatic(), isTrue);
+    expect(await q.claimAutomatic(), isFalse);
+  });
+
+  test('a limited plan from the server clears a cached Premium', () async {
+    server = {'allowed': true, 'remaining': null, 'limit': null};
+    await quota().claim();
     expect(await isPremiumUser(store), isTrue);
-    await setIsPremiumUser(store, false);
+    server = {'allowed': true, 'remaining': 2, 'limit': 3};
+    await quota().claim();
     expect(await isPremiumUser(store), isFalse);
   });
 }

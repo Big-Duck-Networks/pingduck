@@ -197,65 +197,17 @@ class _IdentityPanel extends ConsumerWidget {
                   label: 'Sign in or create account',
                   icon: Icons.login,
                   style: PdButtonStyle.primary,
-                  onPressed: () async {
-                    final ok = await Navigator.of(
-                      context,
-                    ).push<bool>(MaterialPageRoute(builder: (_) => const SignInScreen()));
-                    if (ok == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signed in')));
-                    }
-                  },
+                  // SignInScreen shows its own toast on success.
+                  onPressed: () =>
+                      Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const SignInScreen())),
                 )
               : PdButton(
                   label: 'Sign out',
                   icon: Icons.logout,
                   onPressed: () => ref.read(accountAuthProvider).signOut(),
                 ),
-          if (email != null) ...[
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => _confirmDelete(context, ref),
-                child: Text('DELETE ACCOUNT', style: PdText.labelLg.copyWith(color: PingDuckColors.critical)),
-              ),
-            ),
-          ],
         ],
       ),
-    );
-  }
-}
-
-/// Apple requires in-app deletion for any app that creates accounts.
-Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('DELETE ACCOUNT?', style: PdText.labelLg),
-      content: Text(
-        'Permanently deletes your account and the email, plan and scan history stored with it. This can’t be '
-        'undone. Devices and notes on this phone stay until you clear them. Subscriptions are billed by Apple or '
-        'Google, so cancel any in the store first.',
-        style: PdText.bodyMd,
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text('DELETE', style: PdText.labelLg.copyWith(color: PingDuckColors.critical)),
-        ),
-      ],
-    ),
-  );
-  if (ok != true || !context.mounted) return;
-  final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
-  try {
-    await ref.read(accountAuthProvider).deleteAccount();
-    messenger.showSnackBar(const SnackBar(content: Text('Account deleted')));
-  } catch (_) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Couldn’t delete the account. Check your connection and try again.')),
     );
   }
 }
