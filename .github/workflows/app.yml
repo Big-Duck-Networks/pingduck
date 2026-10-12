@@ -3,8 +3,8 @@ name: app
 # The Flutter app: analyzer and unit/widget tests, plus an unsigned debug
 # APK so plugin or Gradle bumps that break the Android build fail here. The
 # unit tests use fakes (test/fakes.dart); the APK build compiles the native
-# core through the NDK. The signed Android build for Play internal testing
-# arrives with Phase 3 of .claude/plans/ci-cd-overhaul.md.
+# core through the NDK. On main, a release AAB signed with the upload key is
+# kept as an artifact (versionCode = commit count) for manual Play uploads.
 
 on:
   push:
@@ -88,10 +88,95 @@ jobs:
       - run: flutter pub get
       - run: flutter build apk --debug
 
+  # Signed AAB on every main push, kept as an artifact. It is never uploaded
+  # to Play from here: internal testing uploads are done by hand.
+  release-aab:
+    name: App (signed AAB)
+    needs: [changes, test]
+    if: needs.changes.outputs.run == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - name: Skip without the signing key
+        if: env.HAS_KEY != 'true'
+        run: echo "ANDROID_KEYSTORE_BASE64 is not set; no signed AAB built." >> "$GITHUB_STEP_SUMMARY"
+      # Full history: the versionCode is the commit count.
+      - if: env.HAS_KEY == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - if: env.HAS_KEY == 'true'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - if: env.HAS_KEY == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.44.0
+          cache: true
+      # Stamps pubspec.yaml and app_version.dart in the workspace only.
+      - name: Version
+        id: version
+        if: env.HAS_KEY == 'true'
+        run: |
+          dart run tools/build_number_gen.dart --git --github-output
+          count=$(git rev-list --count HEAD)
+          build=$(grep -E '^build_number=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          if [ "$build" != "$count" ]; then
+            echo "::error::build number $build is not the commit count $count"
+            exit 1
+          fi
+      - name: Decode the upload key
+        if: env.HAS_KEY == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+      - name: Build
+        if: env.HAS_KEY == 'true'
+        working-directory: pingduck_app
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter pub get
+          flutter build appbundle --release
+      - name: Check it is not debug-signed
+        if: env.HAS_KEY == 'true'
+        run: |
+          aab=pingduck_app/build/app/outputs/bundle/release/app-release.aab
+          cert=$(keytool -printcert -jarfile "$aab")
+          if [ -z "$cert" ] || grep -q "CN=Android Debug" <<<"$cert"; then
+            echo "::error::$aab is unsigned or signed with the debug key"
+            exit 1
+          fi
+          grep -E "Owner|SHA256:" <<<"$cert"
+          {
+            echo "### Signed AAB ${{ steps.version.outputs.full_version }}"
+            echo "Commit \`${{ steps.version.outputs.git_commit }}\`. Download the artifact below and upload it to Play internal testing by hand."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - if: env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pingduck-${{ steps.version.outputs.full_version }}
+          path: pingduck_app/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+          if-no-files-found: error
+      - name: Remove the upload key
+        if: always() && env.HAS_KEY == 'true'
+        run: rm -f "$RUNNER_TEMP/upload.jks"
+
   ci:
     name: app ci
     if: always()
-    needs: [changes, test, android]
+    needs: [changes, test, android, release-aab]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
