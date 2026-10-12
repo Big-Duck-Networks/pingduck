@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "app.webcap.pingduck"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37 // permission_handler_android 14 needs 37; targetSdk stays on Flutter's default
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
