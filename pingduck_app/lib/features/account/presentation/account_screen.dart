@@ -197,14 +197,9 @@ class _IdentityPanel extends ConsumerWidget {
                   label: 'Sign in or create account',
                   icon: Icons.login,
                   style: PdButtonStyle.primary,
-                  onPressed: () async {
-                    final ok = await Navigator.of(
-                      context,
-                    ).push<bool>(MaterialPageRoute(builder: (_) => const SignInScreen()));
-                    if (ok == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signed in')));
-                    }
-                  },
+                  // SignInScreen shows its own toast on success.
+                  onPressed: () =>
+                      Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const SignInScreen())),
                 )
               : PdButton(
                   label: 'Sign out',

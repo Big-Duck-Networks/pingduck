@@ -30,6 +30,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
   final _code = TextEditingController();
   var _step = _Step.signIn;
   bool _busy = false, _showPassword = false;
+
+  /// Field problems, shown under the form. Server results are toasts.
   String? _error;
 
   /// While waiting on the confirmation link: checks every few seconds, since
@@ -76,8 +78,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     });
   }
 
-  void _done() {
-    if (mounted) Navigator.of(context).pop(true);
+  /// Toasts on the app-wide messenger, so ones shown just before [_done]
+  /// stay up on the screen we return to.
+  void _toast(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: error ? PingDuckColors.critical : null),
+      );
+  }
+
+  void _done(String message) {
+    if (!mounted) return;
+    _toast(message);
+    Navigator.of(context).pop(true);
   }
 
   /// Checks the fields [_step] needs; returns false after showing why not.
@@ -104,7 +119,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     try {
       await action();
     } on AuthException catch (e) {
-      _error = switch (e.code) {
+      _toast(error: true, switch (e.code) {
         'invalid_credentials' => 'Wrong email or password.',
         'email_exists' || 'user_already_exists' => 'That email already has an account. Sign in instead.',
         'otp_expired' => 'That code is wrong or has expired. Check it, or send a new one.',
@@ -112,9 +127,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
         'over_email_send_rate_limit' || 'over_request_rate_limit' => 'Too many attempts. Wait a minute and try again.',
         'email_address_invalid' => 'That email address can’t receive mail.',
         _ => e.message,
-      };
+      });
     } catch (_) {
-      _error = 'Couldn’t reach the server. Check your connection and try again.';
+      _toast('Couldn’t reach the server. Check your connection and try again.', error: true);
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -123,15 +138,18 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     if (!_valid(password: true)) return;
     await _run(() async {
       await _auth.signIn(_emailText, _password.text);
-      _done();
+      _done('Signed in');
     });
   }
 
   Future<void> _signUp() async {
     if (!_valid(newPassword: true)) return;
+    final resend = _step == _Step.confirm;
     await _run(() async {
       final needsLink = await _auth.startSignUp(_emailText, _password.text);
-      needsLink ? _go(_Step.confirm) : _done();
+      if (!needsLink) return _done('Account created. You’re signed in.');
+      _toast(resend ? 'Sent a new link to $_emailText' : 'Confirmation link sent to $_emailText');
+      if (!resend) _go(_Step.confirm);
     });
   }
 
@@ -140,24 +158,26 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     if (_busy) return;
     if (quiet) {
       try {
-        if (await _auth.completeSignUp(_emailText, _password.text)) _done();
+        if (await _auth.completeSignUp(_emailText, _password.text)) _done('Email confirmed. You’re signed in.');
       } catch (_) {}
       return;
     }
     await _run(() async {
       if (await _auth.completeSignUp(_emailText, _password.text)) {
-        _done();
+        _done('Email confirmed. You’re signed in.');
       } else {
-        _error = 'Not confirmed yet. Tap the link in the email we sent to $_emailText.';
+        _toast('Not confirmed yet. Tap the link in the email we sent to $_emailText.');
       }
     });
   }
 
   Future<void> _sendReset() async {
     if (!_valid()) return;
+    final resend = _step == _Step.reset;
     await _run(() async {
       await _auth.sendPasswordReset(_emailText);
-      _go(_Step.reset);
+      _toast(resend ? 'Sent a new code to $_emailText' : 'Code sent to $_emailText');
+      if (!resend) _go(_Step.reset);
     });
   }
 
@@ -165,7 +185,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     if (!_valid(code: true, newPassword: true)) return;
     await _run(() async {
       await _auth.finishPasswordReset(_emailText, _code.text.trim(), _password.text);
-      _done();
+      _done('Password changed. You’re signed in.');
     });
   }
 
