@@ -108,4 +108,26 @@ void main() {
     expect(d.rttMs, 4);
     expect(d.mac, 'aa:bb:cc:00:00:05');
   });
+
+  test('setKnown writes the server first, then the cache and the screen', () async {
+    await auth.signIn('me@example.invalid', 'pw');
+    await sync().start();
+
+    await sync().setKnown(net, 'aa:bb:cc:00:00:05', true);
+
+    expect(repo.known[('remote-1', 'aa:bb:cc:00:00:05')], isTrue);
+    expect(container.read(scanControllerProvider).devices['10.42.0.5']?.isKnown, isTrue);
+  });
+
+  test('setKnown on a network without a monitoring unit fails and changes nothing', () async {
+    final other = await store.networkFor(key: 'k2', cidr: '192.168.1.0/24');
+    await expectLater(sync().setKnown(other, 'aa:bb:cc:00:00:09', true), throwsStateError);
+    expect(repo.known, isEmpty);
+  });
+
+  test('markAllKnown flags every reported device', () async {
+    await auth.signIn('me@example.invalid', 'pw');
+    await sync().markAllKnown();
+    expect(repo.known, {('remote-1', 'aa:bb:cc:00:00:05'): true});
+  });
 }

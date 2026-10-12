@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,8 +6,14 @@ import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../../services/scan_quota.dart';
+import '../../../services/supabase_sync.dart';
+import '../../agent/application/agent_status.dart';
+import '../../agent/domain/agent_unit.dart';
+import '../../agent/presentation/add_unit_intro_screen.dart';
 import '../../auth/account_auth.dart';
 import '../../scanner/application/scan_controller.dart';
+import '../../shell/app_shell.dart';
+import '../../tools/presentation/tools_screen.dart';
 
 export '../../../services/scan_quota.dart'
     show autoScanOnLaunchKey, defaultAutoScanOnLaunch, isAutoScanOnLaunchEnabled, setAutoScanOnLaunch;
@@ -28,6 +35,10 @@ final isPremiumProvider = FutureProvider<bool>((ref) async {
   final store = ref.read(localStoreProvider);
   return isPremiumUser(store);
 });
+
+final cloudSyncEnabledProvider = FutureProvider<bool>(
+  (ref) async => await ref.read(localStoreProvider).setting(cloudSyncKey) != '0',
+);
 
 /// App settings. Organized into App settings (scanning timeout, auto-scan,
 /// cloud sync and alerts) and User settings (profile and account deletion).
@@ -169,22 +180,7 @@ class _AppSettingsTab extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const PdPanel(
-          title: 'Cloud & alerts',
-          icon: Icons.cloud_outlined,
-          trailing: PdChip('PHASE 4'),
-          child: Column(
-            children: [
-              _ComingRow(icon: Icons.memory, title: 'Homelab Agent', sub: 'Pair an agent for MACs and alerts'),
-              _ComingRow(icon: Icons.sync, title: 'Cloud sync', sub: 'Sync inventory across devices'),
-              _ComingRow(
-                icon: Icons.notifications_outlined,
-                title: 'Notifications',
-                sub: 'New-device intrusion alerts',
-              ),
-            ],
-          ),
-        ),
+        const _CloudPanel(),
       ],
     );
   }
@@ -332,19 +328,144 @@ Future<void> confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
   }
 }
 
-class _ComingRow extends StatelessWidget {
-  const _ComingRow({required this.icon, required this.title, required this.sub});
+/// Cloud & alerts: the account's agent, cloud sync and new-device alerts.
+class _CloudPanel extends ConsumerWidget {
+  const _CloudPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final agents = ref.watch(myAgentsProvider).value ?? const <PairedAgent>[];
+    final hasAgent = agents.isNotEmpty;
+    final syncOn = ref.watch(cloudSyncEnabledProvider).value ?? true;
+    final sync = ref.watch(supabaseSyncProvider);
+    final isPremium = ref.watch(isPremiumProvider).value ?? false;
+
+    final alertsBlocker = !hasAgent
+        ? 'Needs a monitoring unit'
+        : !isPremium
+        ? 'Premium plan required'
+        : defaultTargetPlatform != TargetPlatform.android
+        ? 'Android only for now'
+        : 'Coming soon';
+
+    return PdPanel(
+      title: 'Cloud & alerts',
+      icon: Icons.cloud_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CloudRow(
+            icon: Icons.memory,
+            title: 'Homelab Agent',
+            sub: hasAgent ? _agentLine(agents, DateTime.now()) : 'Not set up · Add a monitoring unit',
+            trailing: const Icon(Icons.chevron_right, color: PingDuckColors.inkMuted),
+            onTap: () {
+              if (!hasAgent) {
+                openAddMonitoringUnit(context);
+                return;
+              }
+              Navigator.of(context).popUntil((r) => r.isFirst);
+              ref.read(appTabProvider.notifier).go(AppTab.tools);
+              ref.read(activeToolProvider.notifier).open(Tool.agent);
+            },
+          ),
+          _CloudRow(
+            icon: Icons.sync,
+            title: 'Cloud sync',
+            sub: !hasAgent ? 'Needs a monitoring unit' : _syncLine(syncOn, sync, DateTime.now()),
+            trailing: Switch(
+              key: const Key('cloud_sync_switch'),
+              value: hasAgent && syncOn,
+              onChanged: hasAgent
+                  ? (on) async {
+                      await ref.read(localStoreProvider).setSetting(cloudSyncKey, on ? '1' : '0');
+                      ref.invalidate(cloudSyncEnabledProvider);
+                      final s = ref.read(supabaseSyncProvider.notifier);
+                      await (on ? s.start() : s.stop());
+                    }
+                  : null,
+            ),
+          ),
+          _CloudRow(
+            icon: Icons.notifications_outlined,
+            title: 'New-device alerts',
+            sub: alertsBlocker,
+            trailing: const Switch(key: Key('alerts_switch'), value: false, onChanged: null),
+          ),
+          if (hasAgent)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('mark_all_known'),
+                icon: const Icon(Icons.verified_outlined, size: 18),
+                label: const Text('Mark all current devices as known'),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await ref.read(supabaseSyncProvider.notifier).markAllKnown();
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Current devices marked as known. Only new ones will alert.')),
+                    );
+                  } catch (_) {
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')),
+                    );
+                  }
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// "homelab · Online · v0.3.1", plus how many more agents there are.
+  static String _agentLine(List<PairedAgent> agents, DateTime now) {
+    final a = agents.first;
+    final status = a.isOnline(now) ? 'Online' : 'Last seen ${_ago(a.lastSeenAt, now)}';
+    final more = agents.length > 1 ? ' · +${agents.length - 1} more' : '';
+    return [a.name, status, if (a.version != null) 'v${a.version}'].join(' · ') + more;
+  }
+
+  static String _syncLine(bool on, SyncStatus s, DateTime now) {
+    if (!on) return 'Off · Agent devices stay on the server';
+    return switch (s.phase) {
+      SyncPhase.syncing => 'Syncing…',
+      SyncPhase.failed => 'Couldn’t sync. Retries when the app reopens.',
+      SyncPhase.live when s.lastSyncedAt != null => 'Live · Synced ${_ago(s.lastSyncedAt, now)}',
+      _ => 'Agent devices with MACs and vendors',
+    };
+  }
+
+  static String _ago(DateTime? t, DateTime now) {
+    if (t == null) return 'never';
+    final d = now.difference(t);
+    if (d.inSeconds < 60) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return '${d.inHours} h ago';
+    return '${d.inDays} d ago';
+  }
+}
+
+class _CloudRow extends StatelessWidget {
+  const _CloudRow({required this.icon, required this.title, required this.sub, this.trailing, this.onTap});
   final IconData icon;
   final String title;
   final String sub;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
+  // PdPanel paints a background, so the tap ripple needs its own Material.
   @override
-  Widget build(BuildContext context) => ListTile(
-        enabled: false,
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: PingDuckColors.inkMuted),
-        title: Text(title, style: PdText.bodyMd.copyWith(color: PingDuckColors.inkMuted)),
-        subtitle: Text(sub, style: PdText.bodySm),
-        trailing: const Switch(value: false, onChanged: null),
+  Widget build(BuildContext context) => Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(icon, color: PingDuckColors.inkSecondary),
+          title: Text(title, style: PdText.bodyMd),
+          subtitle: Text(sub, style: PdText.bodySm),
+          trailing: trailing,
+          onTap: onTap,
+        ),
       );
 }

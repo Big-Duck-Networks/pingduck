@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/supabase_sync.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../scanner/domain/device_kind.dart';
 import '../../scanner/domain/discovered_device.dart';
@@ -586,6 +587,11 @@ class _ControlPanelState extends ConsumerState<_ControlPanel> {
   Widget build(BuildContext context) {
     final d = widget.device;
     final diag = widget.diag;
+    final networkId = ref.watch(scanControllerProvider.select((s) => s.networkId));
+    // Known is a server flag, so only for MACs on a network with an agent.
+    final canMarkKnown = d.mac != null &&
+        networkId != null &&
+        ref.watch(linkedRemoteIdProvider(networkId)).value != null;
     return PdPanel(
       title: 'Tactical node control',
       icon: Icons.bolt,
@@ -623,6 +629,36 @@ class _ControlPanelState extends ConsumerState<_ControlPanel> {
               ),
             ],
           ),
+          if (canMarkKnown) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Known device', style: PdText.labelLg),
+                      Text('Known devices never raise new-device alerts', style: PdText.bodySm),
+                    ],
+                  ),
+                ),
+                Switch(
+                  key: const Key('known_switch'),
+                  value: d.isKnown,
+                  onChanged: (known) async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await ref.read(supabaseSyncProvider.notifier).setKnown(networkId, d.mac!, known);
+                    } catch (_) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _notes,
