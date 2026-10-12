@@ -77,7 +77,7 @@ select pg_temp.check(agent_sync(pg_temp.v('token'), $$[
     {"mac":"34:13:43:00:00:02","ip":"10.42.0.106","hostname":"phone"},
     {"mac":"not-a-mac","ip":"10.42.0.9"},
     {"ip":"10.42.0.8"}
-]$$) = '{"devices": 2, "new_devices": 2, "went_offline": 0}', 'first sync adds 2 devices and skips malformed ones');
+]$$) = '{"devices": 2, "new_devices": 2, "went_offline": 0, "alerted": 0}', 'first sync adds 2 devices and skips malformed ones');
 
 select pg_temp.check(agent_sync(pg_temp.v('token'), $$[
     {"mac":"b8:fb:b3:00:00:01","ip":"10.42.0.1"},
@@ -91,6 +91,15 @@ select pg_temp.check(agent_heartbeat(pg_temp.v('token'))->>'network_id' = 'aaaaa
                      'heartbeat names the paired network');
 select pg_temp.check(agent_heartbeat('deadbeef')->>'status' = 'revoked', 'heartbeat with an unknown token says revoked');
 select pg_temp.check(agent_heartbeat(null)->>'status' = 'revoked', 'heartbeat with no token says revoked');
+select agent_heartbeat(pg_temp.v('token'), '0.3.1');
+reset role;
+select pg_temp.check((select version from agents where revoked_at is null) = '0.3.1', 'heartbeat records the agent version');
+set role anon;
+select agent_heartbeat(pg_temp.v('token'));
+select agent_heartbeat(pg_temp.v('token'), '');
+reset role;
+select pg_temp.check((select version from agents where revoked_at is null) = '0.3.1', 'heartbeat without a version keeps it');
+set role anon;
 reset role;
 update agents set last_seen_at = now() - interval '1 hour';
 set role anon;
@@ -137,6 +146,38 @@ select pg_temp.expect_error($$select create_pairing_code('aaaaaaaa-0000-0000-000
 select pg_temp.expect_error($$insert into networks (cidr, owner_id) values ('10.0.0.0/24', '11111111-1111-1111-1111-111111111111')$$, 'row-level security');
 reset role;
 select pg_temp.check((select custom_name from devices where mac = 'b8:fb:b3:00:00:01') = 'Router', 'other user could not relabel');
+
+-- ---- New-device alerts ------------------------------------------------------
+-- User 1 is Premium (notifications on). The router is known; the phone isn't.
+reset role;
+create function pg_temp.alert(p_macs text[]) returns int language sql as $$
+    select private.queue_new_device_alert('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+        array(select id from public.devices where mac::text = any(p_macs)))
+$$;
+select pg_temp.check(pg_temp.alert(array['34:13:43:00:00:02']) = 0, 'no alert without a registered phone');
+insert into push_tokens (user_id, token, platform) values ('11111111-1111-1111-1111-111111111111', 'test-token-1', 'android');
+select pg_temp.check(pg_temp.alert(array['34:13:43:00:00:02']) = 1, 'unknown device alerts');
+select pg_temp.check(pg_temp.alert(array['b8:fb:b3:00:00:01']) = 0, 'known device does not alert');
+-- A phone with a rotated private MAC and the hostname of a known device.
+update devices set is_known = true, hostname = 'Pixel-8' where mac = '34:13:43:00:00:02';
+insert into devices (network_id, mac, hostname) values
+    ('aaaaaaaa-0000-0000-0000-000000000001', '3a:00:00:00:00:03', 'pixel-8'),
+    ('aaaaaaaa-0000-0000-0000-000000000001', '3a:00:00:00:00:04', 'stranger'),
+    ('aaaaaaaa-0000-0000-0000-000000000001', '34:13:43:00:00:05', 'pixel-8');
+select pg_temp.check(pg_temp.alert(array['3a:00:00:00:00:03']) = 0, 'private MAC with a known hostname does not alert');
+select pg_temp.check(pg_temp.alert(array['3a:00:00:00:00:04']) = 1, 'private MAC with an unknown hostname alerts');
+select pg_temp.check(pg_temp.alert(array['34:13:43:00:00:05']) = 1, 'a real MAC alerts even with a known hostname');
+select pg_temp.check(pg_temp.alert(array['3a:00:00:00:00:03', '3a:00:00:00:00:04', '34:13:43:00:00:05']) = 2, 'alert counts only the unsuppressed devices');
+update entitlements set status = 'expired';
+select pg_temp.check(pg_temp.alert(array['3a:00:00:00:00:04']) = 0, 'no alerts without notifications in the plan');
+update entitlements set status = 'active';
+set role anon;
+select pg_temp.check((agent_sync(pg_temp.v('token'), '[{"mac":"b8:fb:b3:00:00:01","ip":"10.42.0.1"},{"mac":"00:11:22:00:00:06","ip":"10.42.0.60"}]')->>'alerted')::int = 1,
+                     'a sync with a new device on a known network alerts');
+reset role;
+delete from devices where mac in ('3a:00:00:00:00:03', '3a:00:00:00:00:04', '34:13:43:00:00:05', '00:11:22:00:00:06');
+update devices set is_known = false, hostname = 'phone' where mac = '34:13:43:00:00:02';
+delete from push_tokens where token = 'test-token-1';
 
 -- ---- Plan limits on monitored networks ------------------------------------
 set role authenticated;

@@ -255,7 +255,9 @@ impl Agent {
         if !s.paired() {
             return Heartbeat::Unpaired;
         }
-        let r = self.supabase.call("agent_heartbeat", &json!({ "p_token": s.token }).to_string());
+        // The version keeps agents.version current after an upgrade.
+        let body = json!({ "p_token": s.token, "p_version": env!("CARGO_PKG_VERSION") });
+        let r = self.supabase.call("agent_heartbeat", &body.to_string());
         if r.network_error || r.http != 200 {
             return Heartbeat::Error;
         }
@@ -480,6 +482,19 @@ pub(crate) mod tests {
         assert_eq!(f.store.get().instance_id, instance);
         f.supabase.answer(200, &json!({"agent_id": "agent-2", "network_id": "net-1", "token": token()}).to_string());
         assert_eq!(post_pair(&f, r#"{"code":"ABCD2345"}"#, IP).status, 200); // can be added again
+    }
+
+    #[test]
+    fn heartbeat_reports_the_version() {
+        let f = fixture();
+        post_pair(&f, r#"{"code":"ABCD2345"}"#, IP);
+        f.supabase.answer(200, r#"{"status":"active"}"#);
+        f.agent.heartbeat();
+        let (function, body) = f.supabase.calls().pop().unwrap();
+        assert_eq!(function, "agent_heartbeat");
+        let args: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(args["p_version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(args["p_token"], f.store.get().token);
     }
 
     #[test]
