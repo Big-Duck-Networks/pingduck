@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/features/scanner/domain/remote_device.dart';
@@ -105,5 +108,24 @@ void main() {
     expect(d.isKnown, isTrue);
     expect(d.lastSeenAt!.toUtc(), DateTime.utc(2026, 10, 12, 14, 40, 5));
     expect(RemoteDevice.fromRow({'mac': null}), isNull);
+  });
+
+  test('opening after an older build lowered the version does not add columns twice', () async {
+    final dir = await Directory.systemTemp.createTemp('pingduck_cache');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/pingduck.sqlite');
+
+    // A v4 database, then an older (v3) build opened it: the version drops,
+    // the is_known column stays.
+    final v4 = LocalStore(NativeDatabase(file));
+    await v4.setSetting('onboarded', '1');
+    await v4.customStatement('PRAGMA user_version = 3');
+    await v4.close();
+
+    final reopened = LocalStore(NativeDatabase(file));
+    addTearDown(reopened.close);
+    expect(await reopened.setting('onboarded'), '1');
+    final version = await reopened.customSelect('PRAGMA user_version').getSingle();
+    expect(version.read<int>('user_version'), 4);
   });
 }

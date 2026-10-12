@@ -88,12 +88,21 @@ class LocalStore extends _$LocalStore {
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
-          if (from < 2) await m.addColumn(networks, networks.ssid);
-          if (from < 3) await m.addColumn(networks, networks.remoteId);
-          if (from < 4) await m.addColumn(devices, devices.isKnown);
+          if (from < 2) await _addColumn(m, networks, networks.ssid);
+          if (from < 3) await _addColumn(m, networks, networks.remoteId);
+          if (from < 4) await _addColumn(m, devices, devices.isKnown);
         },
         beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
       );
+
+  /// Adds [column] unless it is already there. An older build opening a
+  /// newer database lowers the stored version but keeps the columns, so the
+  /// next upgrade must not add them twice (a crash at launch).
+  Future<void> _addColumn(Migrator m, TableInfo table, GeneratedColumn column) async {
+    final existing = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+    if (existing.any((r) => r.read<String>('name') == column.name)) return;
+    await m.addColumn(table, column);
+  }
 
   /// Returns the id of the network with [key], creating it if needed.
   Future<int> networkFor({required String key, required String cidr, String? gateway}) async {
