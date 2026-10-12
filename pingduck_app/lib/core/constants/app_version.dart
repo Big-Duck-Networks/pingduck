@@ -9,14 +9,14 @@ class AppVersion {
   /// Semantic version string (e.g. "1.0.0").
   static const String versionName = '1.0.0';
 
-  /// Monotonically increasing build number (e.g. 8).
-  static const int buildNumber = 8;
+  /// Monotonically increasing build number (e.g. 9).
+  static const int buildNumber = 9;
 
-  /// Combined Flutter version identifier (e.g. "1.0.0+8").
-  static const String fullVersion = '1.0.0+8';
+  /// Combined Flutter version identifier (e.g. "1.0.0+9").
+  static const String fullVersion = '1.0.0+9';
 
   /// Git commit short hash at build time.
-  static const String gitCommit = '3a70ed4';
+  static const String gitCommit = '9b593d3';
 
   /// Build generation date (UTC, YYYY-MM-DD).
   static const String buildDate = '2026-10-12';
