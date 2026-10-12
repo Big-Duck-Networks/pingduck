@@ -6,6 +6,7 @@ import '../../../core/desktop/desktop.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/push_alerts.dart';
 import '../../agent/application/agent_status.dart';
 import '../../agent/domain/agent_unit.dart';
 import '../../agent/presentation/add_unit_intro_screen.dart';
@@ -210,7 +211,13 @@ class _IdentityPanel extends ConsumerWidget {
               : PdButton(
                   label: 'Sign out',
                   icon: Icons.logout,
-                  onPressed: () => ref.read(accountAuthProvider).signOut(),
+                  onPressed: () async {
+                    // Alerts for this account must stop reaching this phone.
+                    final alerts = ref.read(pushAlertsProvider);
+                    if (await alerts.isEnabled()) await alerts.disable().catchError((_) {});
+                    await ref.read(accountAuthProvider).signOut();
+                    ref.invalidate(alertsEnabledProvider);
+                  },
                 ),
         ],
       ),

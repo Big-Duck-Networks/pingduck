@@ -14,6 +14,7 @@ import 'features/scanner/application/scan_controller.dart';
 import 'features/settings/presentation/settings_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'services/local_storage.dart';
+import 'services/push_alerts.dart';
 import 'services/scan_quota.dart';
 import 'services/supabase_sync.dart';
 
@@ -31,6 +32,7 @@ Future<void> main(List<String> args) async {
   // Reads the saved session from disk only; nothing here waits on the network,
   // so launch stays instant offline.
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
+  await initPushAlerts();
 
   runApp(ProviderScope(
     overrides: [
@@ -93,6 +95,7 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
     WidgetsBinding.instance.addObserver(this);
     // Cloud sync never blocks launch; it starts after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSync());
+    ref.read(pushAlertsProvider).listen(() => ref.read(supabaseSyncProvider.notifier).refresh());
     // Returning users get a fresh scan on launch if they are Premium and
     // have not disabled it in Settings. New users start it from onboarding.
     // Offline, there is nothing to scan; the shell starts one when Wi-Fi returns.

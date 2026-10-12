@@ -45,6 +45,11 @@
             <!-- The app reads links itself; don't let Flutter push them as routes. -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
+        <!-- New-device alerts arrive as data-only FCM messages; the app shows
+             them itself on this channel (services/push_alerts.dart). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="new_devices" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
