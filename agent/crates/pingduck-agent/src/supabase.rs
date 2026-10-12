@@ -26,19 +26,23 @@ const MAX_BODY: u64 = 64 * 1024;
 
 impl HttpSupabaseClient {
     pub fn new(url: &str, key: &str) -> Self {
-        let agent = ureq::AgentBuilder::new()
-            .timeout_connect(Duration::from_secs(5))
-            .timeout(Duration::from_secs(10))
+        let agent = ureq::Agent::config_builder()
+            .timeout_connect(Some(Duration::from_secs(5)))
+            .timeout_global(Some(Duration::from_secs(10)))
             .user_agent("pingduck-agent")
-            .redirects(0)
-            .build();
+            .max_redirects(0)
+            .max_redirects_will_error(false)
+            // Hand back 4xx/5xx as responses so we can read their bodies.
+            .http_status_as_error(false)
+            .build()
+            .into();
         HttpSupabaseClient { url: url.to_string(), key: key.to_string(), agent }
     }
 }
 
-fn read_body(resp: ureq::Response) -> String {
+fn read_body(resp: ureq::http::Response<ureq::Body>) -> String {
     let mut body = String::new();
-    let _ = resp.into_reader().take(MAX_BODY).read_to_string(&mut body);
+    let _ = resp.into_body().into_reader().take(MAX_BODY).read_to_string(&mut body);
     body
 }
 
@@ -47,13 +51,12 @@ impl SupabaseClient for HttpSupabaseClient {
         let req = self
             .agent
             .post(&format!("{}/rest/v1/rpc/{}", self.url, function))
-            .set("apikey", &self.key)
-            .set("Content-Type", "application/json")
-            .set("Accept", "application/json");
-        match req.send_string(json_body) {
-            Ok(resp) => RpcResult { http: resp.status(), body: read_body(resp), network_error: false },
-            Err(ureq::Error::Status(code, resp)) => RpcResult { http: code, body: read_body(resp), network_error: false },
-            Err(ureq::Error::Transport(_)) => RpcResult { network_error: true, ..RpcResult::default() },
+            .header("apikey", &self.key)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json");
+        match req.send(json_body) {
+            Ok(resp) => RpcResult { http: resp.status().as_u16(), body: read_body(resp), network_error: false },
+            Err(_) => RpcResult { network_error: true, ..RpcResult::default() },
         }
     }
 }
