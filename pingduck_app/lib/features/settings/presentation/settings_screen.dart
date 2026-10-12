@@ -155,16 +155,13 @@ class _AppSettingsTab extends ConsumerWidget {
                   Switch(
                     key: const Key('auto_scan_switch'),
                     value: autoScan,
-                    onChanged: (enabled) async {
-                      final store = ref.read(localStoreProvider);
-                      await setAutoScanOnLaunch(store, enabled);
-                      if (enabled) {
-                        await setIsPremiumUser(store, true);
-                        await store.setSetting('quotaLimit', 'none');
-                      }
-                      ref.invalidate(autoScanOnLaunchProvider);
-                      ref.invalidate(isPremiumProvider);
-                    },
+                    // Premium comes from the server's plan, never from this switch.
+                    onChanged: isPremium
+                        ? (enabled) async {
+                            await setAutoScanOnLaunch(ref.read(localStoreProvider), enabled);
+                            ref.invalidate(autoScanOnLaunchProvider);
+                          }
+                        : null,
                   ),
                 ],
               ),

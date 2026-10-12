@@ -520,4 +520,23 @@ void main() {
     expect(tester.widget<Switch>(switchFinder).value, isTrue);
     expect(await currentStore.setting('autoScanOnLaunch'), '1');
   });
+
+  testWidgets('on Free the auto-scan switch is locked and grants nothing', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true, isPremium: false));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('App settings'));
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byKey(const Key('auto_scan_switch'));
+    expect(tester.widget<Switch>(switchFinder).onChanged, isNull);
+    await tester.tap(switchFinder);
+    await tester.pumpAndSettle();
+    expect(await currentStore.setting('isPremium'), '0');
+    expect(await currentStore.setting('quotaLimit'), isNull);
+  });
 }
