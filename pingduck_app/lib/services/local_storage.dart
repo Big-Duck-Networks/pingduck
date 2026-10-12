@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import '../features/scanner/domain/discovered_device.dart';
+import '../features/scanner/domain/remote_device.dart';
 
 part 'local_storage.g.dart';
 
@@ -39,6 +40,9 @@ class Devices extends Table {
   TextColumn get rttHistory => text().withDefault(const Constant(''))();
   TextColumn get customName => text().nullable()();
   TextColumn get notes => text().nullable()();
+
+  /// Mirrors Supabase `devices.is_known` for agent-monitored networks.
+  BoolColumn get isKnown => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {networkId, ip};
@@ -79,13 +83,14 @@ class LocalStore extends _$LocalStore {
   LocalStore([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'pingduck'));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.addColumn(networks, networks.ssid);
           if (from < 3) await m.addColumn(networks, networks.remoteId);
+          if (from < 4) await m.addColumn(devices, devices.isKnown);
         },
         beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
       );
@@ -113,6 +118,70 @@ class LocalStore extends _$LocalStore {
   /// Links a local network to its Supabase row; null forgets the link.
   Future<void> setRemoteId(int networkId, String? remoteId) =>
       (update(networks)..where((n) => n.id.equals(networkId))).write(NetworksCompanion(remoteId: Value(remoteId)));
+
+  /// Local networks linked to a Supabase network, i.e. with a monitoring unit.
+  Future<List<({int id, String remoteId})>> linkedNetworks() async {
+    final rows = await (select(networks)..where((n) => n.remoteId.isNotNull())).get();
+    return [for (final r in rows) (id: r.id, remoteId: r.remoteId!)];
+  }
+
+  /// Folds the agent's view of a network into the cache, matching by IP (the
+  /// only identity the phone and the agent both see). Fills MACs and missing
+  /// names, never touches the user's names and notes, and adds devices only
+  /// the agent sees. A MAC already cached under another IP is left for the
+  /// next scan rather than duplicated. Returns the number of rows written.
+  Future<int> mergeRemoteDevices(int networkId, List<RemoteDevice> remote) => transaction(() async {
+        final local = await (select(devices)..where((d) => d.networkId.equals(networkId))).get();
+        final byIp = {for (final d in local) d.ip: d};
+        final macs = {for (final d in local) if (d.mac != null) d.mac!.toLowerCase(): d.ip};
+        var written = 0;
+        for (final r in remote) {
+          final ip = r.ip;
+          if (ip == null) continue;
+          final mac = r.mac.toLowerCase();
+          final row = byIp[ip];
+          if (row != null) {
+            final seen = r.lastSeenAt;
+            await (update(devices)..where((d) => d.networkId.equals(networkId) & d.ip.equals(ip))).write(
+              DevicesCompanion(
+                mac: Value(mac),
+                hostname: row.hostname == null ? Value(r.hostname) : const Value.absent(),
+                vendor: row.vendor == null || (row.vendor!.startsWith('Private') && r.vendor != null)
+                    ? Value(r.vendor)
+                    : const Value.absent(),
+                model: row.model == null ? Value(r.model) : const Value.absent(),
+                sources: Value(row.sources | DiscoverySource.agent.bit),
+                lastSeen: seen != null && (row.lastSeen == null || seen.isAfter(row.lastSeen!))
+                    ? Value(seen)
+                    : const Value.absent(),
+                isKnown: Value(r.isKnown),
+              ),
+            );
+            written++;
+          } else if (!macs.containsKey(mac)) {
+            await into(devices).insert(DevicesCompanion.insert(
+              networkId: networkId,
+              ip: ip,
+              mac: Value(mac),
+              hostname: Value(r.hostname),
+              vendor: Value(r.vendor),
+              model: Value(r.model),
+              sources: Value(DiscoverySource.agent.bit),
+              firstSeen: Value(r.firstSeenAt),
+              lastSeen: Value(r.lastSeenAt),
+              isKnown: Value(r.isKnown),
+            ));
+            macs[mac] = ip;
+            written++;
+          }
+        }
+        return written;
+      });
+
+  /// Sets the known flag of the cached device with [mac].
+  Future<void> setKnown(int networkId, String mac, bool known) =>
+      (update(devices)..where((d) => d.networkId.equals(networkId) & d.mac.lower().equals(mac.toLowerCase())))
+          .write(DevicesCompanion(isKnown: Value(known)));
 
   /// Every cached device of a network, all marked offline until they answer.
   Future<List<DiscoveredDevice>> devicesOf(int networkId) async {
@@ -196,6 +265,7 @@ class LocalStore extends _$LocalStore {
         customName: r.customName,
         notes: r.notes,
         rttHistory: r.rttHistory.isEmpty ? const [] : [for (final s in r.rttHistory.split(',')) int.tryParse(s) ?? 0],
+        isKnown: r.isKnown,
       );
 
   static DevicesCompanion _toRow(int networkId, DiscoveredDevice d) => DevicesCompanion.insert(
@@ -213,5 +283,6 @@ class LocalStore extends _$LocalStore {
         rttHistory: Value(d.rttHistory.join(',')),
         customName: Value(d.customName),
         notes: Value(d.notes),
+        isKnown: Value(d.isKnown),
       );
 }

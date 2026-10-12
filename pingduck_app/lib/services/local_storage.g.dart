@@ -611,6 +611,21 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isKnownMeta = const VerificationMeta(
+    'isKnown',
+  );
+  @override
+  late final GeneratedColumn<bool> isKnown = GeneratedColumn<bool>(
+    'is_known',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_known" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     networkId,
@@ -627,6 +642,7 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
     rttHistory,
     customName,
     notes,
+    isKnown,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -725,6 +741,12 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('is_known')) {
+      context.handle(
+        _isKnownMeta,
+        isKnown.isAcceptableOrUnknown(data['is_known']!, _isKnownMeta),
+      );
+    }
     return context;
   }
 
@@ -790,6 +812,10 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      isKnown: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_known'],
+      )!,
     );
   }
 
@@ -814,6 +840,9 @@ class Device extends DataClass implements Insertable<Device> {
   final String rttHistory;
   final String? customName;
   final String? notes;
+
+  /// Mirrors Supabase `devices.is_known` for agent-monitored networks.
+  final bool isKnown;
   const Device({
     required this.networkId,
     required this.ip,
@@ -829,6 +858,7 @@ class Device extends DataClass implements Insertable<Device> {
     required this.rttHistory,
     this.customName,
     this.notes,
+    required this.isKnown,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -865,6 +895,7 @@ class Device extends DataClass implements Insertable<Device> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    map['is_known'] = Variable<bool>(isKnown);
     return map;
   }
 
@@ -900,6 +931,7 @@ class Device extends DataClass implements Insertable<Device> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      isKnown: Value(isKnown),
     );
   }
 
@@ -923,6 +955,7 @@ class Device extends DataClass implements Insertable<Device> {
       rttHistory: serializer.fromJson<String>(json['rttHistory']),
       customName: serializer.fromJson<String?>(json['customName']),
       notes: serializer.fromJson<String?>(json['notes']),
+      isKnown: serializer.fromJson<bool>(json['isKnown']),
     );
   }
   @override
@@ -943,6 +976,7 @@ class Device extends DataClass implements Insertable<Device> {
       'rttHistory': serializer.toJson<String>(rttHistory),
       'customName': serializer.toJson<String?>(customName),
       'notes': serializer.toJson<String?>(notes),
+      'isKnown': serializer.toJson<bool>(isKnown),
     };
   }
 
@@ -961,6 +995,7 @@ class Device extends DataClass implements Insertable<Device> {
     String? rttHistory,
     Value<String?> customName = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    bool? isKnown,
   }) => Device(
     networkId: networkId ?? this.networkId,
     ip: ip ?? this.ip,
@@ -976,6 +1011,7 @@ class Device extends DataClass implements Insertable<Device> {
     rttHistory: rttHistory ?? this.rttHistory,
     customName: customName.present ? customName.value : this.customName,
     notes: notes.present ? notes.value : this.notes,
+    isKnown: isKnown ?? this.isKnown,
   );
   Device copyWithCompanion(DevicesCompanion data) {
     return Device(
@@ -997,6 +1033,7 @@ class Device extends DataClass implements Insertable<Device> {
           ? data.customName.value
           : this.customName,
       notes: data.notes.present ? data.notes.value : this.notes,
+      isKnown: data.isKnown.present ? data.isKnown.value : this.isKnown,
     );
   }
 
@@ -1016,7 +1053,8 @@ class Device extends DataClass implements Insertable<Device> {
           ..write('lastRttMs: $lastRttMs, ')
           ..write('rttHistory: $rttHistory, ')
           ..write('customName: $customName, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('isKnown: $isKnown')
           ..write(')'))
         .toString();
   }
@@ -1037,6 +1075,7 @@ class Device extends DataClass implements Insertable<Device> {
     rttHistory,
     customName,
     notes,
+    isKnown,
   );
   @override
   bool operator ==(Object other) =>
@@ -1055,7 +1094,8 @@ class Device extends DataClass implements Insertable<Device> {
           other.lastRttMs == this.lastRttMs &&
           other.rttHistory == this.rttHistory &&
           other.customName == this.customName &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.isKnown == this.isKnown);
 }
 
 class DevicesCompanion extends UpdateCompanion<Device> {
@@ -1073,6 +1113,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
   final Value<String> rttHistory;
   final Value<String?> customName;
   final Value<String?> notes;
+  final Value<bool> isKnown;
   final Value<int> rowid;
   const DevicesCompanion({
     this.networkId = const Value.absent(),
@@ -1089,6 +1130,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     this.rttHistory = const Value.absent(),
     this.customName = const Value.absent(),
     this.notes = const Value.absent(),
+    this.isKnown = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DevicesCompanion.insert({
@@ -1106,6 +1148,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     this.rttHistory = const Value.absent(),
     this.customName = const Value.absent(),
     this.notes = const Value.absent(),
+    this.isKnown = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : networkId = Value(networkId),
        ip = Value(ip);
@@ -1124,6 +1167,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     Expression<String>? rttHistory,
     Expression<String>? customName,
     Expression<String>? notes,
+    Expression<bool>? isKnown,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1141,6 +1185,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
       if (rttHistory != null) 'rtt_history': rttHistory,
       if (customName != null) 'custom_name': customName,
       if (notes != null) 'notes': notes,
+      if (isKnown != null) 'is_known': isKnown,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1160,6 +1205,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     Value<String>? rttHistory,
     Value<String?>? customName,
     Value<String?>? notes,
+    Value<bool>? isKnown,
     Value<int>? rowid,
   }) {
     return DevicesCompanion(
@@ -1177,6 +1223,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
       rttHistory: rttHistory ?? this.rttHistory,
       customName: customName ?? this.customName,
       notes: notes ?? this.notes,
+      isKnown: isKnown ?? this.isKnown,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1226,6 +1273,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (isKnown.present) {
+      map['is_known'] = Variable<bool>(isKnown.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1249,6 +1299,7 @@ class DevicesCompanion extends UpdateCompanion<Device> {
           ..write('rttHistory: $rttHistory, ')
           ..write('customName: $customName, ')
           ..write('notes: $notes, ')
+          ..write('isKnown: $isKnown, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1831,6 +1882,7 @@ typedef $$DevicesTableCreateCompanionBuilder =
       Value<String> rttHistory,
       Value<String?> customName,
       Value<String?> notes,
+      Value<bool> isKnown,
       Value<int> rowid,
     });
 typedef $$DevicesTableUpdateCompanionBuilder =
@@ -1849,6 +1901,7 @@ typedef $$DevicesTableUpdateCompanionBuilder =
       Value<String> rttHistory,
       Value<String?> customName,
       Value<String?> notes,
+      Value<bool> isKnown,
       Value<int> rowid,
     });
 
@@ -1945,6 +1998,11 @@ class $$DevicesTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isKnown => $composableBuilder(
+    column: $table.isKnown,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2046,6 +2104,11 @@ class $$DevicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isKnown => $composableBuilder(
+    column: $table.isKnown,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$NetworksTableOrderingComposer get networkId {
     final $$NetworksTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -2122,6 +2185,9 @@ class $$DevicesTableAnnotationComposer
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
+  GeneratedColumn<bool> get isKnown =>
+      $composableBuilder(column: $table.isKnown, builder: (column) => column);
+
   $$NetworksTableAnnotationComposer get networkId {
     final $$NetworksTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -2188,6 +2254,7 @@ class $$DevicesTableTableManager
                 Value<String> rttHistory = const Value.absent(),
                 Value<String?> customName = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<bool> isKnown = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DevicesCompanion(
                 networkId: networkId,
@@ -2204,6 +2271,7 @@ class $$DevicesTableTableManager
                 rttHistory: rttHistory,
                 customName: customName,
                 notes: notes,
+                isKnown: isKnown,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2222,6 +2290,7 @@ class $$DevicesTableTableManager
                 Value<String> rttHistory = const Value.absent(),
                 Value<String?> customName = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<bool> isKnown = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DevicesCompanion.insert(
                 networkId: networkId,
@@ -2238,6 +2307,7 @@ class $$DevicesTableTableManager
                 rttHistory: rttHistory,
                 customName: customName,
                 notes: notes,
+                isKnown: isKnown,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

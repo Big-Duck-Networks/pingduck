@@ -10,8 +10,10 @@ import 'package:pingduck_app/features/agent/domain/agent_platform.dart';
 import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
+import 'package:pingduck_app/features/scanner/domain/remote_device.dart';
 import 'package:pingduck_app/services/local_storage.dart';
 import 'package:pingduck_app/services/scan_quota.dart';
+import 'package:pingduck_app/services/supabase_sync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 const testLan = LanInfo(
@@ -315,3 +317,38 @@ DiscoveredDevice dev(
   firstSeen: DateTime(2026, 10, 5),
   lastSeen: DateTime(2026, 10, 5),
 );
+
+/// Supabase `devices` per remote network id, with a change stream the test
+/// drives through [change].
+class FakeSyncRepository implements SyncRepository {
+  final rows = <String, List<RemoteDevice>>{};
+  final fetches = <String>[];
+  final known = <(String, String), bool>{};
+  final _changes = <String, StreamController<void>>{};
+
+  /// Networks with an open change subscription.
+  Iterable<String> get listening => _changes.entries.where((e) => e.value.hasListener).map((e) => e.key);
+
+  void change(String remoteId) => _changes[remoteId]?.add(null);
+
+  @override
+  Future<List<RemoteDevice>> devicesOf(String remoteNetworkId) async {
+    fetches.add(remoteNetworkId);
+    return rows[remoteNetworkId] ?? const [];
+  }
+
+  @override
+  Stream<void> changesOf(String remoteNetworkId) =>
+      (_changes[remoteNetworkId] = StreamController<void>.broadcast()).stream;
+
+  @override
+  Future<void> setKnown(String remoteNetworkId, String mac, bool value) async =>
+      known[(remoteNetworkId, mac)] = value;
+
+  @override
+  Future<void> markAllKnown(String remoteNetworkId) async {
+    for (final d in rows[remoteNetworkId] ?? const <RemoteDevice>[]) {
+      known[(remoteNetworkId, d.mac)] = true;
+    }
+  }
+}
