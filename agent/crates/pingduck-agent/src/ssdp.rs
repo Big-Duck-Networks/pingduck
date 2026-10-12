@@ -6,7 +6,6 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use rand::Rng;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::agent::DEVICE_TYPE;
@@ -139,7 +138,6 @@ pub fn run(instance_id: &str, version: &str, http_port: u16, stop: &AtomicBool) 
     };
 
     let mut pending: Vec<(Instant, SocketAddr, String)> = Vec::new();
-    let mut rng = rand::thread_rng();
     let mut tokens = MAX_REPLIES_PER_SECOND;
     let mut last_refill = Instant::now();
     let mut next_notify = Instant::now();
@@ -188,7 +186,7 @@ pub fn run(instance_id: &str, version: &str, http_port: u16, stop: &AtomicBool) 
         ad.location = location(lan_ip(), http_port);
         // Spread replies over the searcher's MX window, but within 1 s: the
         // app only listens for a few seconds.
-        let delay = Duration::from_millis(rng.gen_range(0..(m.mx * 1000).min(1000)));
+        let delay = Duration::from_millis(rand::random_range(0..(m.mx * 1000).min(1000)));
         let due = Instant::now() + delay;
         pending.extend(m.targets.into_iter().map(|st| (due, from, st)));
     }
