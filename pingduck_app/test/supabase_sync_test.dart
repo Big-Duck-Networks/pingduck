@@ -130,4 +130,47 @@ void main() {
     await sync().markAllKnown();
     expect(repo.known, {('remote-1', 'aa:bb:cc:00:00:05'): true});
   });
+
+  group('auto-link', () {
+    RemoteNetwork remote(String id, {String gateway = '10.42.0.1', String? ssid}) =>
+        (id: id, cidr: '10.42.0.0/24', gateway: gateway, ssid: ssid);
+
+    setUp(() async {
+      await store.setRemoteId(net, null);
+      await auth.signIn('me@example.invalid', 'pw');
+    });
+
+    test('a network the account monitors from elsewhere is linked and synced', () async {
+      repo.networks.add(remote('remote-1'));
+      await sync().start();
+
+      expect(await store.remoteIdOf(net), 'remote-1');
+      expect(phase(), SyncPhase.live);
+      expect(container.read(scanControllerProvider).devices['10.42.0.5']?.vendor, 'Synology');
+    });
+
+    test('a network with another gateway is left alone', () async {
+      repo.networks.add(remote('remote-1', gateway: '10.42.0.254'));
+      await sync().start();
+
+      expect(await store.remoteIdOf(net), isNull);
+      expect(phase(), SyncPhase.off);
+    });
+
+    test('the Wi-Fi name settles a tie', () async {
+      await store.markScanned(net, DateTime.now(), ssid: 'Home');
+      repo.networks.addAll([remote('cabin', ssid: 'Cabin'), remote('remote-1', ssid: 'Home')]);
+      await sync().start();
+
+      expect(await store.remoteIdOf(net), 'remote-1');
+    });
+
+    test('a tie it cannot settle links nothing', () async {
+      repo.networks.addAll([remote('a'), remote('b')]);
+      await sync().start();
+
+      expect(await store.remoteIdOf(net), isNull);
+      expect(repo.fetches, isEmpty);
+    });
+  });
 }

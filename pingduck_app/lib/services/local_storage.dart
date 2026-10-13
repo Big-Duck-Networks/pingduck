@@ -134,6 +134,12 @@ class LocalStore extends _$LocalStore {
     return [for (final r in rows) (id: r.id, remoteId: r.remoteId!)];
   }
 
+  /// Local networks not yet linked to a Supabase network.
+  Future<List<({int id, String cidr, String? gateway, String? ssid})>> unlinkedNetworks() async {
+    final rows = await (select(networks)..where((n) => n.remoteId.isNull())).get();
+    return [for (final r in rows) (id: r.id, cidr: r.cidr, gateway: r.gateway, ssid: r.ssid)];
+  }
+
   /// Folds the agent's view of a network into the cache, matching by IP (the
   /// only identity the phone and the agent both see). Fills MACs and missing
   /// names, never touches the user's names and notes, and adds devices only
