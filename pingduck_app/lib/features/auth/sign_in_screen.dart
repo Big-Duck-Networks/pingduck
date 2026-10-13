@@ -35,7 +35,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
   final _password = TextEditingController();
   final _code = TextEditingController();
   late var _step = widget.startWithSignUp ? _Step.signUp : _Step.signIn;
-  bool _busy = false, _showPassword = false;
+  bool _busy = false, _showPassword = false, _checking = false, _finished = false;
 
   /// Field problems, shown under the form. Server results are toasts.
   String? _error;
@@ -95,8 +95,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
       );
   }
 
+  /// Once only: the timer and app resume can both see the link clicked, and
+  /// the screen stays mounted while it pops, so a second pop would close the
+  /// app's home screen and leave it black.
   void _done(String message) {
-    if (!mounted) return;
+    if (!mounted || _finished) return;
+    _finished = true;
+    _watch?.cancel();
     _toast(message);
     Navigator.of(context).pop(true);
   }
@@ -161,11 +166,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
 
   /// [quiet] checks (timer, app resume) say nothing until the link is clicked.
   Future<void> _checkConfirmed({bool quiet = false}) async {
-    if (_busy) return;
+    if (_busy || _checking) return;
     if (quiet) {
+      _checking = true;
       try {
         if (await _auth.completeSignUp(_emailText, _password.text)) _done('Email confirmed. You’re signed in.');
       } catch (_) {}
+      _checking = false;
       return;
     }
     await _run(() async {
