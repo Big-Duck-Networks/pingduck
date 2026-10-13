@@ -14,6 +14,7 @@ import 'package:pingduck_app/features/agent/application/agent_status.dart';
 import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/topology/presentation/topology_screen.dart';
 import 'package:pingduck_app/main.dart';
+import 'package:pingduck_app/services/billing.dart';
 import 'package:pingduck_app/services/local_storage.dart';
 
 import 'fakes.dart';
@@ -66,6 +67,8 @@ void main() {
         onboardedProvider.overrideWith(() => Onboarded(onboarded)),
         lanConnectivityProvider.overrideWithValue(lan),
         accountAuthProvider.overrideWithValue(auth),
+        // The real RevenueCat SDK has no platform side in tests.
+        billingProvider.overrideWithValue(FakeBilling()),
         if (agents != null) myAgentsProvider.overrideWith((ref) async => agents),
       ],
       child: const PingDuckApp(),
