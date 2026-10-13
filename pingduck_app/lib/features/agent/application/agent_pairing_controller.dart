@@ -11,7 +11,7 @@ import 'agent_status.dart';
 enum PairingFailure {
   notOnLan('Connect to the Wi-Fi the agent is on, then search again.'),
   planRequired('Monitoring needs Premium. Your plan has no free monitored networks.'),
-  takenByOther('That agent is paired to another account. Revoke it there, or wipe the agent\'s volume.'),
+  takenByOther('Someone else activated this agent first, so it reports to their account. Reset it on the box, then search again.'),
   agentUnreachable('The agent stopped answering. Check it is still running, then try again.'),
   agentOffline('The agent couldn\'t reach PingDuck\'s servers. Check the box has internet access.'),
   serverUnreachable('Couldn\'t reach PingDuck\'s servers. Check your connection and try again.'),

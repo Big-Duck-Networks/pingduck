@@ -159,6 +159,10 @@ void main() {
     expect(find.textContaining('ACTIVATE'), findsNothing);
 
     await tapText(tester, 'neighbour');
+    expect(find.text('Paired to another account'), findsOneWidget, reason: 'a taken agent explains how to reset it');
+    expect(find.text('docker rm -f pingduck-agent && docker volume rm pingduck'), findsOneWidget);
+    await tapText(tester, 'GOT IT');
+    expect(find.text('Paired to another account'), findsNothing);
     expect(find.textContaining('ACTIVATE'), findsNothing, reason: 'a taken agent cannot be chosen');
 
     await tapText(tester, 'pingduck-vm');

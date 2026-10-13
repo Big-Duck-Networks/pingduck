@@ -37,11 +37,16 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pingduck/system")
             .setMethodCallHandler { call, result ->
-                if (call.method == "openWifiSettings") {
-                    openWifiSettings()
-                    result.success(null)
-                } else {
-                    result.notImplemented()
+                when (call.method) {
+                    "openWifiSettings" -> {
+                        openWifiSettings()
+                        result.success(null)
+                    }
+                    // Per app signing key and device; survives a reinstall. The
+                    // server counts Free scans by its hash (claim_scan).
+                    "deviceId" -> result.success(
+                        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                    else -> result.notImplemented()
                 }
             }
     }

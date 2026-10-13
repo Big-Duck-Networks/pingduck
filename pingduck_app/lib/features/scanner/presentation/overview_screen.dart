@@ -388,6 +388,8 @@ class _FailureBanner extends ConsumerWidget {
       ScanFailureKind.quotaExceeded => "You've used today's free scans. More at "
           '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(nextQuotaReset()))}, '
           'or go Premium for unlimited scans.',
+      ScanFailureKind.quotaUnverified =>
+        "Couldn't reach PingDuck to check your free scans. Connect to the internet and rescan.",
       _ => 'Scan failed: ${failure?.message ?? 'unknown error'}',
     };
     return PdPanel(

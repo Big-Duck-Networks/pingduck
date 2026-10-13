@@ -50,6 +50,26 @@ select pg_temp.expect_error($$select create_pairing_code('aaaaaaaa-0000-0000-000
 select pg_temp.expect_error($$insert into entitlements values (auth.uid(), 'premium', 'active', null, 'manual')$$, 'permission denied');
 reset role;
 
+-- ---- Free scans are also counted per device ----------------------------------
+-- A reinstall makes a new anonymous account on the same phone.
+insert into auth.users (id, is_anonymous) values
+    ('33333333-3333-3333-3333-333333333333', true),
+    ('44444444-4444-4444-4444-444444444444', true);
+set role authenticated;
+set request.jwt.claim.sub = '33333333-3333-3333-3333-333333333333';
+select pg_temp.check((claim_scan('phone-a')->>'remaining')::int = 2, 'device scan 1 leaves 2');
+select pg_temp.check((claim_scan('phone-a')->>'remaining')::int = 1, 'device scan 2 leaves 1');
+select pg_temp.check((claim_scan('phone-a', true)->>'allowed')::bool, 'first automatic scan is allowed');
+select pg_temp.check((claim_scan('phone-a', true)->>'allowed')::bool = false, 'second automatic scan within 30 minutes is refused');
+select pg_temp.check((claim_scan('phone-a')->>'remaining')::int = 0, 'automatic scans do not use the allowance');
+set request.jwt.claim.sub = '44444444-4444-4444-4444-444444444444';
+select pg_temp.check((claim_scan('phone-a')->>'allowed')::bool = false, 'a new account on the same phone gets no fresh scans');
+select pg_temp.check((claim_scan('phone-a', true)->>'allowed')::bool = false, 'nor a fresh automatic scan');
+select pg_temp.check((claim_scan('phone-b')->>'remaining')::int = 2, 'another phone has its own allowance');
+select pg_temp.expect_error($$select * from device_scans$$, 'permission denied');
+reset role;
+select pg_temp.check(not exists (select 1 from device_scans where device like 'phone%'), 'device ids are stored hashed');
+
 -- ---- Upgrade to Premium (what the billing webhook will do) ----------------
 insert into entitlements values ('11111111-1111-1111-1111-111111111111', 'premium', 'active', now() + interval '30 days', 'revenuecat');
 
