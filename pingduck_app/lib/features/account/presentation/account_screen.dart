@@ -16,6 +16,7 @@ import '../../auth/sign_in_screen.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../shell/app_shell.dart';
+import '../../subscription/presentation/plan_panel.dart';
 import '../../tools/presentation/tools_screen.dart';
 
 /// The homelab agent's version: the account's paired agent, as its last
@@ -56,6 +57,8 @@ class AccountScreen extends ConsumerWidget {
         const PdSectionHeader(title: 'Account', icon: Icons.person_outline),
         const SizedBox(height: 16),
         const _IdentityPanel(),
+        const SizedBox(height: 16),
+        const PlanPanel(),
         const SizedBox(height: 16),
         if (isDesktop) ...[const ThisPcPanel(), const SizedBox(height: 16)],
         PdPanel(

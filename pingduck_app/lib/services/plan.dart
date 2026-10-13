@@ -82,16 +82,17 @@ class CurrentPlan extends AsyncNotifier<Plan> {
     Duration timeout = const Duration(seconds: 30),
     Duration every = const Duration(seconds: 2),
   }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (true) {
+    // Counted polls rather than a wall-clock deadline, so tests can fake time.
+    final polls = timeout.inMicroseconds ~/ every.inMicroseconds;
+    for (var i = 0; ; i++) {
       try {
         final plan = await ref.read(planRepositoryProvider).myPlan();
         state = AsyncData(plan);
         if (plan.isPaid) return true;
       } catch (_) {
-        // Keep polling until the deadline.
+        // Keep polling until the last try.
       }
-      if (DateTime.now().add(every).isAfter(deadline)) return false;
+      if (i >= polls) return false;
       await Future<void>.delayed(every);
     }
   }

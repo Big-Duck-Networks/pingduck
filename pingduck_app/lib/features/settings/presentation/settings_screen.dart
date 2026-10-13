@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
+import '../../../core/constants/revenuecat_config.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/billing.dart';
+import '../../../services/external_links.dart';
 import '../../../services/plan.dart';
 import '../../../services/push_alerts.dart';
 import '../../../services/scan_quota.dart';
@@ -14,6 +17,7 @@ import '../../agent/presentation/add_unit_intro_screen.dart';
 import '../../auth/account_auth.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../shell/app_shell.dart';
+import '../../subscription/presentation/paywall_screen.dart';
 import '../../tools/presentation/tools_screen.dart';
 
 export '../../../services/scan_quota.dart'
@@ -142,20 +146,13 @@ class _AppSettingsTab extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            Text('Auto-scan on launch', style: PdText.headlineSm),
-                            const PdChip('PREMIUM', tone: PdTone.route),
-                          ],
-                        ),
+                        Text('Auto-scan on launch', style: PdText.headlineSm),
                         const SizedBox(height: 2),
                         Text(
                           isPremium
                               ? 'Automatically start a network scan when the app opens.'
-                              : 'Automatically start a network scan when the app opens (Premium plan required).',
+                              : 'Automatically start a network scan when the app opens. On Free, at most once '
+                                    'every 30 minutes.',
                           style: PdText.bodySm,
                         ),
                       ],
@@ -165,13 +162,12 @@ class _AppSettingsTab extends ConsumerWidget {
                   Switch(
                     key: const Key('auto_scan_switch'),
                     value: autoScan,
-                    // Premium comes from the server's plan, never from this switch.
-                    onChanged: isPremium
-                        ? (enabled) async {
-                            await setAutoScanOnLaunch(ref.read(localStoreProvider), enabled);
-                            ref.invalidate(autoScanOnLaunchProvider);
-                          }
-                        : null,
+                    // Free may switch it too; the server still limits Free
+                    // automatic scans (ServerScanQuota.automaticInterval).
+                    onChanged: (enabled) async {
+                      await setAutoScanOnLaunch(ref.read(localStoreProvider), enabled);
+                      ref.invalidate(autoScanOnLaunchProvider);
+                    },
                   ),
                 ],
               ),
@@ -292,18 +288,49 @@ class _UserSettingsTab extends ConsumerWidget {
 }
 
 /// Apple requires in-app deletion for any app that creates accounts.
+/// Deleting doesn't cancel store billing, so a renewing subscription gets a
+/// warning and a way to Google Play's subscription page.
 Future<void> confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+  SubscriptionDetails? sub;
+  try {
+    sub = await ref.read(billingProvider).details();
+  } catch (_) {}
+  if (!context.mounted) return;
+  final billing = sub != null && sub.active && sub.willRenew;
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text('DELETE ACCOUNT?', style: PdText.labelLg),
-      content: Text(
-        'Permanently deletes your account and the email, plan and scan history stored with it. This can’t be '
-        'undone. Devices and notes on this phone stay until you clear them. Subscriptions are billed by Apple or '
-        'Google, so cancel any in the store first.',
-        style: PdText.bodyMd,
+      // Scrolls on small phones, where the warning makes it taller.
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Permanently deletes your account and the email, plan and scan history stored with it. This can’t '
+              'be undone. Devices and notes on this phone stay until you clear them. Subscriptions are billed by '
+              'Apple or Google, so cancel any in the store first.',
+              style: PdText.bodyMd,
+            ),
+            if (billing) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Your Premium subscription keeps billing until you cancel it in Google Play. Deleting your account '
+                'doesn’t cancel it.',
+                key: const Key('delete_subscription_warning'),
+                style: PdText.bodyMd.copyWith(color: PingDuckColors.critical),
+              ),
+            ],
+          ],
+        ),
       ),
       actions: [
+        if (billing)
+          TextButton(
+            onPressed: () => openExternalUrl(sub?.manageUrl ?? playSubscriptionsUrl),
+            child: const Text('OPEN GOOGLE PLAY'),
+          ),
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
@@ -391,6 +418,7 @@ class _CloudPanel extends ConsumerWidget {
             icon: Icons.notifications_outlined,
             title: 'New-device alerts',
             sub: alertsBlocker ?? (alertsOn ? 'On · A notification when a device joins' : 'Off'),
+            onTap: hasAgent && !isPremium ? () => openPaywall(context, ref) : null,
             trailing: Switch(
               key: const Key('alerts_switch'),
               value: alertsBlocker == null && alertsOn,

@@ -79,6 +79,19 @@ void main() {
     scrollable: find.descendant(of: find.byType(CustomScrollView), matching: find.byType(Scrollable)).first,
   );
 
+  /// The Account tab's App settings row sits below the Plan panel, so these
+  /// tests use a taller screen instead of scrolling.
+  Future<void> showAppSettingsRow(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 3600);
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openAppSettings(WidgetTester tester) async {
+    await showAppSettingsRow(tester);
+    await tester.tap(find.text('App settings'));
+  }
+
   Future<void> settleScan(WidgetTester tester) async {
     await tester.pump();
     if (bridge.devices != null && !bridge.done!.isCompleted) await bridge.finish();
@@ -264,10 +277,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Settings'), findsNothing);
+    await showAppSettingsRow(tester);
     expect(find.text('SETTINGS'), findsOneWidget);
     expect(find.text('App settings'), findsOneWidget);
 
-    await tester.tap(find.text('App settings'));
+    await openAppSettings(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('APP SETTINGS'), findsOneWidget);
@@ -477,7 +491,7 @@ void main() {
     await fill(tester, email: 'duck@example.com', password: 'quackquack');
     await tapText(tester, 'SIGN IN');
 
-    await tester.tap(find.text('App settings'));
+    await openAppSettings(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('USER SETTINGS'));
     await tester.pumpAndSettle();
@@ -520,11 +534,10 @@ void main() {
 
     await tester.tap(find.text('ACCOUNT'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('App settings'));
+    await openAppSettings(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('Auto-scan on launch'), findsOneWidget);
-    expect(find.text('PREMIUM'), findsOneWidget);
 
     final switchFinder = find.byKey(const Key('auto_scan_switch'));
     expect(tester.widget<Switch>(switchFinder).value, isTrue);
@@ -540,7 +553,7 @@ void main() {
     expect(await currentStore.setting('autoScanOnLaunch'), '1');
   });
 
-  testWidgets('on Free the auto-scan switch is locked and grants nothing', (tester) async {
+  testWidgets('on Free the auto-scan switch works and grants nothing', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(await app(tester, onboarded: true, isPremium: false));
@@ -548,13 +561,16 @@ void main() {
 
     await tester.tap(find.text('ACCOUNT'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('App settings'));
+    await openAppSettings(tester);
     await tester.pumpAndSettle();
 
+    expect(find.textContaining('at most once every 30 minutes'), findsOneWidget);
     final switchFinder = find.byKey(const Key('auto_scan_switch'));
-    expect(tester.widget<Switch>(switchFinder).onChanged, isNull);
+    expect(tester.widget<Switch>(switchFinder).value, isTrue);
     await tester.tap(switchFinder);
     await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(switchFinder).value, isFalse);
+    expect(await currentStore.setting('autoScanOnLaunch'), '0');
     expect(await currentStore.setting('isPremium'), '0');
     expect(await currentStore.setting('quotaLimit'), isNull);
   });

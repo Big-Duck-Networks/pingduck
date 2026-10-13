@@ -16,7 +16,13 @@ enum _Step { signIn, signUp, confirm, forgot, reset }
 /// emailed link) and password reset (by emailed code). Google, and Apple on iOS, are shown but not wired
 /// up yet. Pops with true once signed in.
 class SignInScreen extends ConsumerStatefulWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({super.key, this.startWithSignUp = false, this.lead});
+
+  /// Opens on Create account instead of Sign in.
+  final bool startWithSignUp;
+
+  /// Why an account is being asked for, shown above the form.
+  final String? lead;
 
   static const minPassword = 8;
 
@@ -28,7 +34,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _code = TextEditingController();
-  var _step = _Step.signIn;
+  late var _step = widget.startWithSignUp ? _Step.signUp : _Step.signIn;
   bool _busy = false, _showPassword = false;
 
   /// Field problems, shown under the form. Server results are toasts.
@@ -210,6 +216,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (widget.lead != null) ...[
+              Text(widget.lead!, style: PdText.bodyMd),
+              const SizedBox(height: 16),
+            ],
             PdPanel(
               title: panel,
               icon: icon,

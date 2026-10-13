@@ -116,8 +116,9 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
     // Cloud sync never blocks launch; it starts after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSync());
     ref.read(pushAlertsProvider).listen(() => ref.read(supabaseSyncProvider.notifier).refresh());
-    // Returning users get a fresh scan on launch if they are Premium and
-    // have not disabled it in Settings. New users start it from onboarding.
+    // Returning users get a fresh scan on launch unless they turned it off in
+    // Settings; the server limits how often Free ones run. New users start it
+    // from onboarding.
     // Offline, there is nothing to scan; the shell starts one when Wi-Fi returns.
     if (ref.read(onboardedProvider)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
