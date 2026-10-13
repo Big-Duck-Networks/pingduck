@@ -104,6 +104,7 @@ pd_device make_device(const std::string& ip) {
     std::memset(&d, 0, sizeof(d));
     copy_str(d.ip, sizeof(d.ip), ip);
     d.rtt_ms = -1;
+    d.ttl = -1;
     return d;
 }
 

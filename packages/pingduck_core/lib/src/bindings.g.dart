@@ -501,6 +501,14 @@ final class pd_device extends ffi.Struct {
   /// PD_SRC_* bitmask
   @ffi.Uint32()
   external int sources;
+
+  /// SSDP SERVER header, e.g. "Linux/4.9 UPnP/1.0", or ""
+  @ffi.Array.multi([96])
+  external ffi.Array<ffi.Char> server;
+
+  /// TTL of the ICMP echo reply, -1 if unknown
+  @ffi.Int32()
+  external int ttl;
 }
 
 final class pd_interface extends ffi.Struct {
@@ -595,6 +603,8 @@ const int PD_VENDOR_LEN = 128;
 const int PD_MODEL_LEN = 128;
 
 const int PD_SERVICES_LEN = 512;
+
+const int PD_SERVER_LEN = 96;
 
 const int PD_SCAN_ICMP = 1;
 

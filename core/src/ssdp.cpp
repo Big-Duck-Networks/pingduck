@@ -169,7 +169,8 @@ void apply_description(const std::string& xml, const Responder& r, pd_device& d)
     if (!number.empty() && model.find(number) == std::string::npos) model += model.empty() ? number : " " + number;
     copy_str(d.hostname, sizeof(d.hostname), xml_tag(xml, "friendlyName"));
     copy_str(d.vendor, sizeof(d.vendor), xml_tag(xml, "manufacturer"));
-    copy_str(d.model, sizeof(d.model), model.empty() ? r.server : model);
+    copy_str(d.model, sizeof(d.model), model);
+    copy_str(d.server, sizeof(d.server), r.server);
     append_csv(d.services, sizeof(d.services), short_type(xml_tag(xml, "deviceType")));
 }
 
