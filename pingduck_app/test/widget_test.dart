@@ -418,6 +418,23 @@ void main() {
     expect(find.text('duck@example.com'), findsOneWidget);
   });
 
+  testWidgets('a timer check landing while the screen closes does not pop the app', (tester) async {
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+    await openSignIn(tester);
+    await tapText(tester, 'CREATE ACCOUNT');
+    await fill(tester, email: 'duck@example.com', password: 'quackquack');
+    await tapText(tester, 'CREATE ACCOUNT');
+
+    // Resume finishes sign-up, then the 5s check fires before the pop animates.
+    auth.clickLink('duck@example.com');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('duck@example.com'), findsOneWidget);
+  });
+
   testWidgets('an email that has an account is told to sign in', (tester) async {
     await tester.pumpWidget(await app(tester, onboarded: true, accounts: {'duck@example.com': 'quackquack'}));
     await settleScan(tester);

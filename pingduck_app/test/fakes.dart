@@ -95,7 +95,8 @@ class FakeAuth implements AccountAuth {
 
   @override
   Future<bool> completeSignUp(String email, String password) async {
-    if (!pending.contains(email) || !_clicked.contains(email)) return false;
+    // Like the real one, keeps answering true once the link is clicked.
+    if (!_clicked.contains(email)) return false;
     pending.remove(email);
     accounts[email] = password;
     _signedIn(email);
