@@ -3,9 +3,9 @@
 ```
 Document Identifier: DOC-RDMP-PINGDUCK-001
 Standard Compliance: IEC/IEEE 82079-1:2019 Edition 2.0
-Document Version:    1.3.0
+Document Version:    1.4.0
 Status:              Approved
-Date of Issue:       2026-10-12
+Date of Issue:       2026-10-13
 Product:             PingDuck Network Discovery & Reconnaissance Platform
 ```
 
@@ -18,7 +18,7 @@ the [Timeline](#timeline-proposed) turns them into a proposed schedule.
 
 ---
 
-## Where we are (2026-10-12)
+## Where we are (2026-10-13)
 
 | Phase | State | Summary |
 | --- | --- | --- |
@@ -26,8 +26,8 @@ the [Timeline](#timeline-proposed) turns them into a proposed schedule.
 | 2. FFI & mobile setup | 🟡 ~85% | Scan works end to end on Android: 24 devices in ~5s on a Chromecast (Android 14), and 21 devices on a Pixel 8 Pro (Android 17, 2026-10-11) including the location prompt. The iOS core compiles in CI, but the app has never run on an iPhone. |
 | 3. UI/UX | ✅ | The "Precision Editorial Recon" design is built across 3 tabs (Overview, Tools, Account) plus onboarding. Topology is built but parked off the tab bar. Tools holds Node Inspect and the Homelab Agent screen; the device list is titled with the Wi-Fi name. Drift cache, real diagnostics, icons and splash are in. On a Pixel 8 Pro: cached devices on the first frame in about 100 ms, and ~1% of frames over 16.7 ms during a scan. |
 | 4. Agent & cloud sync | 🟡 ~85% | Everything is built and merged: schema, accounts, the Rust agent, Realtime sync into the app, new-device alerts (the `notify-new-devices` function is deployed) and the Cloud & alerts rows in Settings. The Windows agent reports to Supabase (27 devices, all with MACs and vendors). Still open are live tests: a push on the Pixel (the exit criterion), Realtime sync on the Pixel, and pairing from the phone. |
-| 5. Subscriptions | 🟡 ~10% | Tiers are decided and live in the `plans` table, and Premium now comes only from the server's `claim_scan` answer (PR #20). No billing, paywall or store products yet. |
-| 6. Network tools | ⬜ | Traceroute, DNS lookup, network details and a speed test. |
+| 5. Subscriptions | 🟡 ~60% | RevenueCat, Android first. Built and merged: the `revenuecat-webhook` function that writes `entitlements` (#36, not deployed yet), the app reading its plan from `my_plan()` and the RevenueCat billing service (#37), and the paywall, Plan panel, upgrade points and delete-account warning (#38, #40). Left: the Play subscription and RevenueCat setup, deploying the webhook, the RevenueCat key in the app, Play data safety, and a license-tester purchase. iOS follows with the iPhone. |
+| 6. Network tools | ⬜ | Traceroute, DNS lookup, network details and a speed test. Ships after launch, as the first update. |
 | 7. Recognition & security | ⬜ | Device fingerprinting and router/security checks. |
 | 8. Launch readiness | 🟡 ~15% | CI checks every PR and `main` is protected (CI/CD plan Phase 1). The security audit, beta, store listings and the rest are not started. |
 
@@ -131,6 +131,9 @@ layer (it was 11.9 ms), but the emulator renders in software, so its 23% over-bu
 **Goal:** a paid tier sold through the App Store and Google Play, unlocked across the user's devices and
 enforced by the backend, not just the app.
 
+Plan: `.claude/plans/phase-5-subscriptions.md`. Android first; the Play Console account exists, and the Apple Developer
+account waits until there is an iPhone to test with.
+
 Store rules shape this phase. On iOS and Android, digital features must be sold through Apple and Google
 in-app purchase; Stripe (or any web checkout) cannot unlock them inside the app. A web checkout only makes
 sense for a later desktop or web product.
@@ -139,20 +142,22 @@ sense for a later desktop or web product.
 | --- | --- | --- | --- |
 | ✅ | Tier definition | S | Free, Premium and Pro, mirroring Fing (see Decisions). Encoded in the `plans` table, which gates the scan quota, agent pairing and sync. |
 | ✅ | App reads the plan from the server only | S | Done in #20 (2026-10-12). The Auto-scan switch used to write `isPremium` and `quotaLimit=none` on the device, which unlocked Premium for any free user; the auto-scan setting also counted as Premium and lifted the 30-minute limit on automatic scans. Now only `ServerScanQuota` caches the plan, from `claim_scan`, and nothing on the device can grant it. Store entitlements (below) will feed the same server answer. |
-| ⬜ | Billing integration | M | RevenueCat (recommended) or native StoreKit 2 + Play Billing. Monthly and annual products, intro trial, family sharing on iOS. |
-| ⬜ | Server-side entitlements | M | Store webhooks (RevenueCat, or App Store Server Notifications and Play RTDN) write the entitlement to Supabase. RLS and the RPCs check it, so agent pairing and sync are enforced on the server. |
-| ⬜ | Paywall and upgrade points | M | One paywall in the design system, reached from the gated features (pair agent, enable sync, alerts, deep scan) and from the Account tab. No dark patterns: clear price, period and trial terms. |
-| ⬜ | Account tab: subscription state | S | Current plan, renewal date, Manage subscription (opens the store's own page), Restore purchases. Apple requires Restore. |
-| ⬜ | Legal | S | Privacy Policy and Terms of Use (EULA) URLs, linked from the paywall and the About footer. Apple rejects subscription apps without them. Confirm the legal entity name (the app currently says "Big Duck Networks"). |
-| ⬜ | Store setup | M | App Store Connect and Play Console products, subscription groups, tax and banking, sandbox testers. |
-| ⬜ | Tests | M | Sandbox purchases, renewals, cancellation, grace period, billing retry, refunds, restore on a new device. |
+| 🟡 | Billing integration | M | Android built (#37): `purchases_flutter` with RevenueCat, identified by the Supabase user id. Buying needs an email account, so Premium follows the user to a new phone. Premium only at launch, monthly and annual, 7-day trial on both. Billing stays off until the RevenueCat Android key is in the build. iOS later. |
+| 🟡 | Server-side entitlements | M | Built (#36): the `revenuecat-webhook` Edge Function re-reads the subscriber from RevenueCat on every event and writes `entitlements` (`source = revenuecat`); manual grants are never overwritten. `plan_for()` already reads that table, so the scan quota, agent pairing, sync and alerts follow. The app reads `my_plan()` and polls it after a purchase. Not deployed yet: needs the RevenueCat secrets in Supabase. |
+| 🟡 | Paywall and upgrade points | M | Built (#38, #40): one paywall (yearly first, trial terms and renewal price before purchase, Restore, Terms, Privacy), opened from Add monitoring unit, the out-of-scans banner, the alerts row and the Account tab. Not yet tried with real products. |
+| 🟡 | Account tab: subscription state | S | Built (#38): the Plan panel shows Free or Premium, trial, renewal, cancelled or a payment problem, with Manage subscription (Google Play's page) and Restore purchases. Delete account warns while a subscription renews. |
+| 🟡 | Legal | S | `/privacy` and `/terms` exist on pingduck.app and the paywall links to both. Updated for RevenueCat and Premium in the website repo (Pingduck.app #1). Still to confirm: the legal entity name (the app says "Big Duck Networks"). |
+| 🟡 | Store setup | M | Play: the `premium` subscription (base plans `monthly` $4.99 and `annual` $34.99, a 7-day trial on each), license testers, and RevenueCat's service account and notifications. In progress, following the Phase 0 handoff doc. App Store Connect waits for the iPhone. |
+| 🟡 | Tests | M | Unit and widget tests for the webhook, plan, paywall and Plan panel are in. Left: a license-tester purchase on the Pixel (trial, renewal, cancel, restore, refund). |
 
-**Exit:** a sandbox user subscribes on Android and iOS, Pro features unlock on both platforms within a minute,
-and cancelling or refunding revokes access on the server.
+**Exit:** a license tester subscribes on Android, Premium unlocks on the server within a minute, and cancelling or
+refunding revokes it. iOS repeats this once it has billing.
 
 ---
 
 ## Phase 6: Network tools 
+
+After launch: the first update.
 
 **Goal:** the everyday tools users expect from a network app like Fing, so PingDuck can replace it for
 casual use. Each one is cheap and fits into Node Inspect or the Tools tab.
@@ -193,7 +198,7 @@ summary flags a deliberately opened test port.
 
 | | Item | Notes |
 | --- | --- | --- |
-| 🟡 | CI/CD | Plan: `.claude/plans/ci-cd-overhaul.md`. **Phase 1 done** (2026-10-11): one workflow per component (core, agent, app, database, iOS weekly or on PRs labelled `apple`), each with a `<name> ci` job that reports on every PR; CodeQL; Dependabot; actions pinned to SHAs. `main` requires a PR and `core ci`, `agent ci`, `app ci`, `database ci` and `CodeQL` (no approvals, since the only maintainer can't approve their own PRs). `app ci` also builds a debug APK (added in #19, after an Android build break got through). **Phase 2 built** (2026-10-12): `agent.yml` pushes amd64 + arm64 images to GHCR on `main` as `:edge` and `:sha-<commit>`, signed with cosign (keyless) and carrying an SBOM and provenance; `release-agent.yml` (run by hand from `main`) re-tags that image as `:X.Y.Z`, `:X.Y` and `:latest` and tags `agent-vX.Y.Z`. Its tag and image checks are inline until the shared release guard (Phase 6). **Next:** Phase 3 (signed Android builds on every `main` push, kept as a workflow artifact and uploaded to Play internal testing by hand; CI never uploads to Play by itself), then the database, Windows and release-guard phases, and `docs/RELEASING.md`. |
+| 🟡 | CI/CD | Plan: `.claude/plans/ci-cd-overhaul.md`. **Phase 1 done** (2026-10-11): one workflow per component (core, agent, app, database, iOS weekly or on PRs labelled `apple`), each with a `<name> ci` job that reports on every PR; CodeQL; Dependabot; actions pinned to SHAs. `main` requires a PR and `core ci`, `agent ci`, `app ci`, `database ci` and `CodeQL` (no approvals, since the only maintainer can't approve their own PRs). `app ci` also builds a debug APK (added in #19, after an Android build break got through). **Phase 2 built** (2026-10-12): `agent.yml` pushes amd64 + arm64 images to GHCR on `main` as `:edge` and `:sha-<commit>`, signed with cosign (keyless) and carrying an SBOM and provenance; `release-agent.yml` (run by hand from `main`) re-tags that image as `:X.Y.Z`, `:X.Y` and `:latest` and tags `agent-vX.Y.Z`. Its tag and image checks are inline until the shared release guard (Phase 6). **Phase 3 done** (2026-10-12): release signing with an upload key (#32), and every `main` push builds a signed AAB kept as a workflow artifact for 30 days (#33). Uploads to Play stay manual; CI never uploads by itself. **Phase 4 done** (2026-10-12): a Deploy database workflow, run by hand from `main` behind a required approval, shows a dry run of pending migrations before `supabase db push` (#34). **Next:** the Windows and release-guard phases, and `docs/RELEASING.md`. |
 | ⬜ | Security audit | Run the `vibe-security` skill (`.claude/skills/vibe-security`) over the app, the `supabase/` migrations (RLS, the security-definer RPCs including `delete_account`, the `claim_scan` quota) and the website. Do it before the beta, and again once billing (Phase 5) and the agent (Phase 4) land. A manual review on 2026-10-12 already found one hole, a Premium unlock in Settings (fixed in PR #20), so look hard at anything else the app decides on its own. |
 | ⬜ | Beta | TestFlight and Play internal testing. The agent image is at `ghcr.io/big-duck-networks/pingduck-agent` (amd64 + arm64): `:edge` follows `main`, and `:latest` moves only when `release-agent.yml` runs. The package is private until launch. |
 | ⬜ | Crash reporting and analytics | PostHog (`posthog_flutter` in the app; optionally the website too). Opt-in. Product events only (scan started/finished, sign-up, paywall views); never IPs, MACs, hostnames, SSIDs or device lists. Before it ships, update the privacy policy, FAQ and homepage, which all say "no analytics", and add PostHog to the providers list. |
@@ -231,18 +236,18 @@ summary flags a deliberately opened test port.
 | Auth providers | Email password · Apple/Google sign-in | **Email and password shipped** (confirmed by an emailed link, reset by code), not the magic link first proposed. Still to decide: whether Google and Apple ship before launch. Apple sign-in is required on iOS if any social login ships. | Phase 4 |
 | Device identity | MAC · IP · MAC with hostname fallback | **IP for now** (the app sees no MACs on Android). Switch to MAC with a hostname fallback when the agent supplies MACs. | Phase 4 |
 | ~~Free vs Pro~~ | **Decided: mirror Fing's plans.** **Free:** 3 scans a day, the network tools, basic device recognition, no monitoring. **Premium** (Fing: $7.99/mo, $69.99/yr): unlimited scans, the Homelab Agent on up to 2 networks, full event history, push alerts, security checks, scheduled speed tests. **Pro** (Fing: $16.99/mo, $149.99/yr): 3 monitored networks; shared workspaces and multiple users come later. Limits live in the `plans` table. | | ✅ |
-| Billing provider | RevenueCat · native StoreKit 2 + Play Billing | **RevenueCat**: one SDK for both stores, receipt validation, and webhooks into Supabase. It costs a share of revenue above a threshold. Native avoids that cost but means building receipt validation for two stores. | Phase 5 |
-| Pricing | Monthly · annual · lifetime | Monthly + annual (annual about 40% cheaper) with a 7-day trial. Skip lifetime: it does not pay for a hosted backend. Set prices from comparable network tools. | Phase 5 |
+| ~~Billing provider~~ | **Decided: RevenueCat** (2026-10-12). One SDK for both stores, purchase validation, and a webhook into Supabase. It takes a share of revenue above a threshold. | | ✅ |
+| ~~Pricing~~ | **Decided** (2026-10-12): Premium only at launch, **$4.99/month or $34.99/year** (about 42% less), with a **7-day free trial** on both. No lifetime option; Pro stays in `plans` but isn't sold yet. | | ✅ |
 | ~~Monorepo package layout~~ | **Decided: FFI plugin package** (`packages/pingduck_core`). | | ✅ |
-| Launch scope | Launch after Phase 6 · launch after Phase 7 · launch Android first | **After Phase 6, Android first.** The network tools are small and are what reviewers compare with Fing; recognition (Phase 7) can follow as an update. iOS follows once there is a Mac for the first iPhone run and Apple has granted the multicast entitlement. | Before the beta |
-| Free launch scan | Rate-limited launch scan on Free · Premium only | Free users get a launch scan at most every 30 minutes and can't switch it off, since the setting is Premium. Either let Free turn it off, or make the launch scan Premium only. | Phase 5 |
+| ~~Launch scope~~ | **Decided** (2026-10-12): **Android first, after Phase 5 and Phase 8.** The network tools (Phase 6) ship after launch as the first update, and recognition (Phase 7) after that. iOS follows once there is an iPhone and a Mac for the first run, and Apple has granted the multicast entitlement. | | ✅ |
+| ~~Free launch scan~~ | **Decided** (2026-10-12): Free users can switch Auto-scan on launch off and on; the server still runs Free automatic scans at most once every 30 minutes. | | ✅ |
 
 ---
 
 ## Timeline (proposed)
 
 A plan, not a commitment: one developer, built from the size estimates above, assuming the
-recommended launch scope (Android first, after Phase 6). Weeks start on Mondays. There is no
+decided launch scope (Android first, after Phase 5 and Phase 8). Weeks start on Mondays. There is no
 buffer beyond the holiday weeks, so any slip moves the launch.
 
 | Weeks | Dates | Work | Done when |
@@ -250,17 +255,16 @@ buffer beyond the holiday weeks, so any slip moves the launch.
 | 1–2 | Oct 12 – Oct 25 | Pair from the phone (fix or replace the test VM's network filter first), try password reset live. Done early: agent rows land in `devices`, CI/CD Phase 2 (agent image). **Start the long-lead items:** Apple Developer account and the multicast entitlement request, Play Console and App Store Connect, the billing decision. | A phone-paired agent reports devices to Supabase |
 | 3–4 | Oct 26 – Nov 8 | Built early (2026-10-12): Realtime sync into the app, intrusion alerts, the agent rows in Settings, the Proxmox guide. Left: the live tests on the Pixel. Spare time here can pull week 5 forward. | **Phase 4 exit:** a new device triggers a push within 2 minutes |
 | 5 | Nov 9 – Nov 15 | Windows: installer on a clean VM, `pingduck://` links, code signing set up. CI/CD Phase 3 (signed Android builds as CI artifacts; Play uploads stay manual). | Every `main` push produces a signed AAB ready to upload |
-| 6–9 | Nov 16 – Dec 13 | Phase 5: RevenueCat, server-side entitlements, paywall, subscription state, legal pages, store products, sandbox tests. | **Phase 5 exit:** a sandbox subscription unlocks Premium on the server |
-| 10–11 | Dec 14 – Dec 27 | Phase 6: traceroute, DNS lookup, network details, speed test. | **Phase 6 exit** on Android |
-| 12–13 | Dec 28 – Jan 10, 2027 | Phase 8: security audit, copy pass, privacy policy and store listings, analytics. CI/CD release guard and `docs/RELEASING.md`. | Ready for a closed beta |
-| 14–17 | Jan 11 – Feb 7, 2027 | Android closed beta, fixes, performance and battery pass; dark mode if time allows. | Beta feedback handled |
-| 18 | Week of Feb 8, 2027 | **Android launch** (target). Publish `/agent` (Phase 8 TODO). | Live on Google Play |
-| After | From Feb 2027 | Phase 7 (recognition and security, about 4–5 weeks); Google and Apple sign-in; **iOS**, about 4 weeks after the first iPhone run, which needs a Mac and Apple's multicast approval. | |
+| 6–9 | Nov 16 – Dec 13 | Phase 5, built early (2026-10-12): RevenueCat webhook, billing service, paywall, Plan panel, legal pages. Left: Play and RevenueCat setup, webhook deploy, data safety, license-tester purchase. Spare time can pull Phase 8 forward. | **Phase 5 exit:** a test subscription unlocks Premium on the server |
+| 10–11 | Dec 14 – Dec 27 | Phase 8: security audit, copy pass, store listing and data safety, analytics. CI/CD release guard and `docs/RELEASING.md`. | Ready for a closed beta |
+| 12–15 | Dec 28 – Jan 24, 2027 | Android closed beta, fixes, performance and battery pass; dark mode if time allows. | Beta feedback handled |
+| 16 | Week of Jan 25, 2027 | **Android launch** (target). Publish `/agent` (Phase 8 TODO). | Live on Google Play |
+| After | From Feb 2027 | Phase 6 (network tools, about 2 weeks) as the first update; then Phase 7 (recognition and security, about 4–5 weeks); Google and Apple sign-in; **iOS**, about 4 weeks after the first iPhone run, which needs a Mac and Apple's multicast approval. | |
 
 ## Suggested next steps
 
 1. Run the live push test (Phase 4 exit): with the Windows agent paired and the Pixel registered, have a new device join the LAN. Check Realtime sync on the Pixel at the same time.
 2. Make the phone-to-agent pairing test possible: find what keeps attaching the hypervisor's MAC filter to `pingduck-vm`, or run the agent on another host.
-3. Start the long-lead items now: the Apple Developer account and multicast entitlement, Play Console and App Store Connect, and the billing provider and prices.
-4. Decide the launch scope (see Decisions); the timeline assumes Android first, after Phase 6.
+3. Finish Phase 5 on Android: the Play subscription and RevenueCat setup (Phase 0 handoff doc), the RevenueCat key in the app, deploy `revenuecat-webhook`, then a license-tester purchase on the Pixel.
+4. Merge the legal page update (Pingduck.app #1) and fill in Play's data safety form (purchase history shared with RevenueCat).
 5. First iPhone run once a Mac is available: app scan, `SOCK_DGRAM` ICMP check, and mDNS without the multicast entitlement.
