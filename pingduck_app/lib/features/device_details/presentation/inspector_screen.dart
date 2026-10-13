@@ -12,9 +12,11 @@ import '../../../services/supabase_sync.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../scanner/domain/device_kind.dart';
 import '../../scanner/domain/discovered_device.dart';
+import '../../recognition/recognition.dart';
 import '../../scanner/presentation/overview_screen.dart' show renameDevice;
 import '../../tools/presentation/tools_screen.dart';
 import '../application/diagnostics_controller.dart';
+import 'recognition_panels.dart';
 
 /// Node Inspect tool: pick a device, then everything known about it plus
 /// live diagnostics.
@@ -87,6 +89,7 @@ class _Inspector extends ConsumerWidget {
     final diag = ref.watch(diagnosticsProvider(d.ip));
     final ctrl = ref.read(diagnosticsProvider(d.ip).notifier);
     final liveRtt = diag.pings.isNotEmpty ? diag.pings.last : (d.isOnline ? d.rttMs : null);
+    final recognition = Recognizer.of(d, kind);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -115,7 +118,11 @@ class _Inspector extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _IdentityPanel(device: d, kind: kind),
+        _IdentityPanel(device: d, kind: kind, recognition: recognition),
+        if (recognition.hasDevice || recognition.os != null) ...[
+          const SizedBox(height: 16),
+          RecognitionPanels(recognition),
+        ],
         const SizedBox(height: 16),
         _RttPanel(device: d, diag: diag, onToggle: ctrl.togglePing, subnet: scan.lan?.cidr),
         const SizedBox(height: 16),
@@ -134,14 +141,15 @@ class _Inspector extends ConsumerWidget {
 }
 
 class _IdentityPanel extends ConsumerWidget {
-  const _IdentityPanel({required this.device, required this.kind});
+  const _IdentityPanel({required this.device, required this.kind, required this.recognition});
   final DiscoveredDevice device;
   final DeviceKind kind;
+  final Recognition recognition;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final d = device;
-    final subtitle = [d.vendor, d.model].whereType<String>().toSet().join(' · ');
+    final subtitle = [recognition.brand?.value, recognition.model?.value].whereType<String>().toSet().join(' · ');
     return PdPanel(
       background: PingDuckColors.canvas,
       child: Column(

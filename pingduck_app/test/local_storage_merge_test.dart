@@ -126,6 +126,6 @@ void main() {
     addTearDown(reopened.close);
     expect(await reopened.setting('onboarded'), '1');
     final version = await reopened.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 4);
+    expect(version.read<int>('user_version'), reopened.schemaVersion);
   });
 }

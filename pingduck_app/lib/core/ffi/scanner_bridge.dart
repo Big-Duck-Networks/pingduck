@@ -203,6 +203,8 @@ class FfiScannerBridge implements ScannerBridge {
       services: d.services,
       rttMs: d.rttMs,
       sources: DiscoverySource.fromMask(d.sources),
+      ttl: d.ttl,
+      server: d.server,
       isOnline: true,
       firstSeen: now,
       lastSeen: now,

@@ -626,6 +626,24 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _ttlMeta = const VerificationMeta('ttl');
+  @override
+  late final GeneratedColumn<int> ttl = GeneratedColumn<int>(
+    'ttl',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverMeta = const VerificationMeta('server');
+  @override
+  late final GeneratedColumn<String> server = GeneratedColumn<String>(
+    'server',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     networkId,
@@ -643,6 +661,8 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
     customName,
     notes,
     isKnown,
+    ttl,
+    server,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -747,6 +767,18 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
         isKnown.isAcceptableOrUnknown(data['is_known']!, _isKnownMeta),
       );
     }
+    if (data.containsKey('ttl')) {
+      context.handle(
+        _ttlMeta,
+        ttl.isAcceptableOrUnknown(data['ttl']!, _ttlMeta),
+      );
+    }
+    if (data.containsKey('server')) {
+      context.handle(
+        _serverMeta,
+        server.isAcceptableOrUnknown(data['server']!, _serverMeta),
+      );
+    }
     return context;
   }
 
@@ -816,6 +848,14 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_known'],
       )!,
+      ttl: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ttl'],
+      ),
+      server: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server'],
+      ),
     );
   }
 
@@ -843,6 +883,10 @@ class Device extends DataClass implements Insertable<Device> {
 
   /// Mirrors Supabase `devices.is_known` for agent-monitored networks.
   final bool isKnown;
+
+  /// Recognition signals: ping reply TTL and SSDP SERVER header.
+  final int? ttl;
+  final String? server;
   const Device({
     required this.networkId,
     required this.ip,
@@ -859,6 +903,8 @@ class Device extends DataClass implements Insertable<Device> {
     this.customName,
     this.notes,
     required this.isKnown,
+    this.ttl,
+    this.server,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -896,6 +942,12 @@ class Device extends DataClass implements Insertable<Device> {
       map['notes'] = Variable<String>(notes);
     }
     map['is_known'] = Variable<bool>(isKnown);
+    if (!nullToAbsent || ttl != null) {
+      map['ttl'] = Variable<int>(ttl);
+    }
+    if (!nullToAbsent || server != null) {
+      map['server'] = Variable<String>(server);
+    }
     return map;
   }
 
@@ -932,6 +984,10 @@ class Device extends DataClass implements Insertable<Device> {
           ? const Value.absent()
           : Value(notes),
       isKnown: Value(isKnown),
+      ttl: ttl == null && nullToAbsent ? const Value.absent() : Value(ttl),
+      server: server == null && nullToAbsent
+          ? const Value.absent()
+          : Value(server),
     );
   }
 
@@ -956,6 +1012,8 @@ class Device extends DataClass implements Insertable<Device> {
       customName: serializer.fromJson<String?>(json['customName']),
       notes: serializer.fromJson<String?>(json['notes']),
       isKnown: serializer.fromJson<bool>(json['isKnown']),
+      ttl: serializer.fromJson<int?>(json['ttl']),
+      server: serializer.fromJson<String?>(json['server']),
     );
   }
   @override
@@ -977,6 +1035,8 @@ class Device extends DataClass implements Insertable<Device> {
       'customName': serializer.toJson<String?>(customName),
       'notes': serializer.toJson<String?>(notes),
       'isKnown': serializer.toJson<bool>(isKnown),
+      'ttl': serializer.toJson<int?>(ttl),
+      'server': serializer.toJson<String?>(server),
     };
   }
 
@@ -996,6 +1056,8 @@ class Device extends DataClass implements Insertable<Device> {
     Value<String?> customName = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     bool? isKnown,
+    Value<int?> ttl = const Value.absent(),
+    Value<String?> server = const Value.absent(),
   }) => Device(
     networkId: networkId ?? this.networkId,
     ip: ip ?? this.ip,
@@ -1012,6 +1074,8 @@ class Device extends DataClass implements Insertable<Device> {
     customName: customName.present ? customName.value : this.customName,
     notes: notes.present ? notes.value : this.notes,
     isKnown: isKnown ?? this.isKnown,
+    ttl: ttl.present ? ttl.value : this.ttl,
+    server: server.present ? server.value : this.server,
   );
   Device copyWithCompanion(DevicesCompanion data) {
     return Device(
@@ -1034,6 +1098,8 @@ class Device extends DataClass implements Insertable<Device> {
           : this.customName,
       notes: data.notes.present ? data.notes.value : this.notes,
       isKnown: data.isKnown.present ? data.isKnown.value : this.isKnown,
+      ttl: data.ttl.present ? data.ttl.value : this.ttl,
+      server: data.server.present ? data.server.value : this.server,
     );
   }
 
@@ -1054,7 +1120,9 @@ class Device extends DataClass implements Insertable<Device> {
           ..write('rttHistory: $rttHistory, ')
           ..write('customName: $customName, ')
           ..write('notes: $notes, ')
-          ..write('isKnown: $isKnown')
+          ..write('isKnown: $isKnown, ')
+          ..write('ttl: $ttl, ')
+          ..write('server: $server')
           ..write(')'))
         .toString();
   }
@@ -1076,6 +1144,8 @@ class Device extends DataClass implements Insertable<Device> {
     customName,
     notes,
     isKnown,
+    ttl,
+    server,
   );
   @override
   bool operator ==(Object other) =>
@@ -1095,7 +1165,9 @@ class Device extends DataClass implements Insertable<Device> {
           other.rttHistory == this.rttHistory &&
           other.customName == this.customName &&
           other.notes == this.notes &&
-          other.isKnown == this.isKnown);
+          other.isKnown == this.isKnown &&
+          other.ttl == this.ttl &&
+          other.server == this.server);
 }
 
 class DevicesCompanion extends UpdateCompanion<Device> {
@@ -1114,6 +1186,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
   final Value<String?> customName;
   final Value<String?> notes;
   final Value<bool> isKnown;
+  final Value<int?> ttl;
+  final Value<String?> server;
   final Value<int> rowid;
   const DevicesCompanion({
     this.networkId = const Value.absent(),
@@ -1131,6 +1205,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     this.customName = const Value.absent(),
     this.notes = const Value.absent(),
     this.isKnown = const Value.absent(),
+    this.ttl = const Value.absent(),
+    this.server = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DevicesCompanion.insert({
@@ -1149,6 +1225,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     this.customName = const Value.absent(),
     this.notes = const Value.absent(),
     this.isKnown = const Value.absent(),
+    this.ttl = const Value.absent(),
+    this.server = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : networkId = Value(networkId),
        ip = Value(ip);
@@ -1168,6 +1246,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     Expression<String>? customName,
     Expression<String>? notes,
     Expression<bool>? isKnown,
+    Expression<int>? ttl,
+    Expression<String>? server,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1186,6 +1266,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
       if (customName != null) 'custom_name': customName,
       if (notes != null) 'notes': notes,
       if (isKnown != null) 'is_known': isKnown,
+      if (ttl != null) 'ttl': ttl,
+      if (server != null) 'server': server,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1206,6 +1288,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     Value<String?>? customName,
     Value<String?>? notes,
     Value<bool>? isKnown,
+    Value<int?>? ttl,
+    Value<String?>? server,
     Value<int>? rowid,
   }) {
     return DevicesCompanion(
@@ -1224,6 +1308,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
       customName: customName ?? this.customName,
       notes: notes ?? this.notes,
       isKnown: isKnown ?? this.isKnown,
+      ttl: ttl ?? this.ttl,
+      server: server ?? this.server,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1276,6 +1362,12 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     if (isKnown.present) {
       map['is_known'] = Variable<bool>(isKnown.value);
     }
+    if (ttl.present) {
+      map['ttl'] = Variable<int>(ttl.value);
+    }
+    if (server.present) {
+      map['server'] = Variable<String>(server.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1300,6 +1392,8 @@ class DevicesCompanion extends UpdateCompanion<Device> {
           ..write('customName: $customName, ')
           ..write('notes: $notes, ')
           ..write('isKnown: $isKnown, ')
+          ..write('ttl: $ttl, ')
+          ..write('server: $server, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1883,6 +1977,8 @@ typedef $$DevicesTableCreateCompanionBuilder =
       Value<String?> customName,
       Value<String?> notes,
       Value<bool> isKnown,
+      Value<int?> ttl,
+      Value<String?> server,
       Value<int> rowid,
     });
 typedef $$DevicesTableUpdateCompanionBuilder =
@@ -1902,6 +1998,8 @@ typedef $$DevicesTableUpdateCompanionBuilder =
       Value<String?> customName,
       Value<String?> notes,
       Value<bool> isKnown,
+      Value<int?> ttl,
+      Value<String?> server,
       Value<int> rowid,
     });
 
@@ -2003,6 +2101,16 @@ class $$DevicesTableFilterComposer
 
   ColumnFilters<bool> get isKnown => $composableBuilder(
     column: $table.isKnown,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ttl => $composableBuilder(
+    column: $table.ttl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get server => $composableBuilder(
+    column: $table.server,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2109,6 +2217,16 @@ class $$DevicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get ttl => $composableBuilder(
+    column: $table.ttl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get server => $composableBuilder(
+    column: $table.server,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$NetworksTableOrderingComposer get networkId {
     final $$NetworksTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -2188,6 +2306,12 @@ class $$DevicesTableAnnotationComposer
   GeneratedColumn<bool> get isKnown =>
       $composableBuilder(column: $table.isKnown, builder: (column) => column);
 
+  GeneratedColumn<int> get ttl =>
+      $composableBuilder(column: $table.ttl, builder: (column) => column);
+
+  GeneratedColumn<String> get server =>
+      $composableBuilder(column: $table.server, builder: (column) => column);
+
   $$NetworksTableAnnotationComposer get networkId {
     final $$NetworksTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -2255,6 +2379,8 @@ class $$DevicesTableTableManager
                 Value<String?> customName = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isKnown = const Value.absent(),
+                Value<int?> ttl = const Value.absent(),
+                Value<String?> server = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DevicesCompanion(
                 networkId: networkId,
@@ -2272,6 +2398,8 @@ class $$DevicesTableTableManager
                 customName: customName,
                 notes: notes,
                 isKnown: isKnown,
+                ttl: ttl,
+                server: server,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2291,6 +2419,8 @@ class $$DevicesTableTableManager
                 Value<String?> customName = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isKnown = const Value.absent(),
+                Value<int?> ttl = const Value.absent(),
+                Value<String?> server = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DevicesCompanion.insert(
                 networkId: networkId,
@@ -2308,6 +2438,8 @@ class $$DevicesTableTableManager
                 customName: customName,
                 notes: notes,
                 isKnown: isKnown,
+                ttl: ttl,
+                server: server,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

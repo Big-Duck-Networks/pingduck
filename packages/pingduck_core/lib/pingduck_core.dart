@@ -42,6 +42,8 @@ class PdDevice {
     this.services = const [],
     this.rttMs,
     this.sources = 0,
+    this.server,
+    this.ttl,
   });
 
   final String ip;
@@ -55,6 +57,12 @@ class PdDevice {
   /// `PD_SRC_*` bitmask.
   final int sources;
 
+  /// SSDP SERVER header, e.g. "Linux/4.9 UPnP/1.0".
+  final String? server;
+
+  /// TTL of the ICMP echo reply.
+  final int? ttl;
+
   factory PdDevice._fromNative(pd_device d) {
     final services = _string(d.services, PD_SERVICES_LEN);
     return PdDevice(
@@ -66,6 +74,8 @@ class PdDevice {
       services: services.isEmpty ? const [] : services.split(','),
       rttMs: d.rtt_ms >= 0 ? d.rtt_ms : null,
       sources: d.sources,
+      server: _nonEmpty(_string(d.server, PD_SERVER_LEN)),
+      ttl: d.ttl > 0 ? d.ttl : null,
     );
   }
 

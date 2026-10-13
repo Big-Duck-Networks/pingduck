@@ -21,8 +21,9 @@ crowd data, router/security checks. Fing's "Product class" is skipped: it comes 
 2. **Store signals, not conclusions.** The Drift cache and `devices` keep the raw signals (TTL, SSDP server
    string, WS-Discovery maker/model). Brand, Family and OS are computed when shown, so a rules update re-labels
    every cached device at once.
-3. **Rules ship as an asset** (`assets/recognition/rules.json`), like the OUI CSV: vendor-name aliases,
-   model-to-family patterns and OS signatures. Updated in app releases for now; remote updates later.
+3. **Rules ship with the app** as Dart data (`lib/features/recognition/recognition_rules.dart`): brand aliases,
+   module makers, model-to-family patterns and Apple model identifiers. (Planned as a JSON asset; Dart data
+   needs no loading and is checked by the analyzer, and rules only change with releases anyway.)
 4. **Confidence is shown.** Each field is `known` (the device said so: mDNS TXT, UPnP, WS-Discovery) or
    `guessed` (inferred: OUI, TTL, ports, hostname). Guesses are labelled "likely". Nothing is invented: a field
    with no signal is hidden, matching `DeviceKind`'s rule.
