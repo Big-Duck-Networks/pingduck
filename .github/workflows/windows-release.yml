@@ -20,23 +20,30 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
+      # Full history: the build number is the commit count, as on Android.
       - uses: actions/checkout@v7
-
-      - name: Version
-        id: version
-        shell: bash
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then
-            echo "value=${GITHUB_REF#refs/tags/desktop-v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=$(grep '^version:' pingduck_app/pubspec.yaml | sed 's/version: //; s/+.*//')" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          fetch-depth: 0
 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: 3.44.0
           cache: true
+
+      # Stamps pubspec.yaml and app_version.dart in the workspace only, so the
+      # app's About screen and the installer show the same build as Play.
+      - name: Version
+        id: version
+        shell: bash
+        working-directory: pingduck_app
+        run: |
+          args=(--git)
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then args+=(--version "${GITHUB_REF#refs/tags/desktop-v}"); fi
+          dart run tools/build_number_gen.dart "${args[@]}"
+          full=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d '\r')
+          echo "value=${full%%+*}" >> "$GITHUB_OUTPUT"
+          echo "build=${full#*+}" >> "$GITHUB_OUTPUT"
 
       - name: Agent tests and build
         working-directory: agent
@@ -54,7 +61,7 @@ jobs:
       - name: Installer
         run: |
           choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" installer\windows\pingduck.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" "/DAppBuild=${{ steps.version.outputs.build }}" installer\windows\pingduck.iss
 
       - uses: actions/upload-artifact@v7
         with:
