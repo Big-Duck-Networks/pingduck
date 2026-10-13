@@ -9,38 +9,8 @@
 // checked here instead.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { importPKCS8, SignJWT } from "npm:jose@5";
-import {
-  buildMessage,
-  isDeadToken,
-  jwtClaims,
-  sameSecret,
-  type ServiceAccount,
-  TOKEN_URL,
-} from "./fcm.ts";
-
-let cached: { token: string; expires: number } | null = null;
-
-async function accessToken(sa: ServiceAccount): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  if (cached && cached.expires - 60 > now) return cached.token;
-  const key = await importPKCS8(sa.private_key, "RS256");
-  const assertion = await new SignJWT(jwtClaims(sa.client_email, now))
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-    .sign(key);
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion,
-    }),
-  });
-  if (!res.ok) throw new Error(`oauth token: ${res.status}`);
-  const json = await res.json();
-  cached = { token: json.access_token, expires: now + (json.expires_in ?? 3600) };
-  return cached.token;
-}
+import { accessToken, serviceAccountFrom } from "../_shared/google.ts";
+import { buildMessage, FCM_SCOPE, isDeadToken, sameSecret } from "./fcm.ts";
 
 function reply(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -65,8 +35,8 @@ Deno.serve(async (req) => {
   }
   if (!userId || !networkId) return reply(400, { error: "body" });
 
-  const sa: ServiceAccount = JSON.parse(Deno.env.get("FCM_SERVICE_ACCOUNT") ?? "{}");
-  if (!sa.private_key || !sa.client_email || !sa.project_id) {
+  const sa = serviceAccountFrom(Deno.env.get("FCM_SERVICE_ACCOUNT"));
+  if (!sa) {
     console.error("notify-new-devices: FCM_SERVICE_ACCOUNT missing or incomplete");
     return reply(500, { error: "config" });
   }
@@ -86,7 +56,7 @@ Deno.serve(async (req) => {
     return reply(500, { error: "db" });
   }
 
-  const bearer = await accessToken(sa);
+  const bearer = await accessToken(sa, FCM_SCOPE);
   const url = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
   let sent = 0;
   const dead: string[] = [];

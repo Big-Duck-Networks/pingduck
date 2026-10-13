@@ -1,14 +1,10 @@
 // FCM HTTP v1 helpers for notify-new-devices. Kept free of I/O so they can
 // be unit-tested with `deno test`.
 
-export const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
-export const TOKEN_URL = "https://oauth2.googleapis.com/token";
+import { jwtClaims as googleClaims } from "../_shared/google.ts";
 
-export interface ServiceAccount {
-  project_id: string;
-  client_email: string;
-  private_key: string;
-}
+export { type ServiceAccount, TOKEN_URL } from "../_shared/google.ts";
+export const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
 // A data-only message: no `notification` block, so Google never sees any
 // text and the app decides what to show after fetching the details itself.
@@ -23,15 +19,9 @@ export function buildMessage(token: string, networkId: string) {
   };
 }
 
-// Claims for the OAuth JWT-bearer assertion that buys an access token.
+// Claims for the OAuth JWT-bearer assertion that buys an FCM access token.
 export function jwtClaims(clientEmail: string, nowSeconds: number) {
-  return {
-    iss: clientEmail,
-    scope: FCM_SCOPE,
-    aud: TOKEN_URL,
-    iat: nowSeconds,
-    exp: nowSeconds + 3600,
-  };
+  return googleClaims(clientEmail, FCM_SCOPE, nowSeconds);
 }
 
 // True when FCM says the token will never work again, so it should be

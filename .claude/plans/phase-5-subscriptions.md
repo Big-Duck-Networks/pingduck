@@ -538,4 +538,5 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 ## AMENDMENTS
 
-- (none)
+- 2026-10-13: RevenueCat webhooks need a paid RevenueCat plan (Pro or higher); the project is on the free plan. Entitlements now come from Google Play's own real-time developer notifications instead: a second Pub/Sub push subscription on the RTDN topic RevenueCat created calls the new `play-rtdn` Edge Function, which reads the subscription from the Play Developer API and writes `entitlements` with source `play`. The user comes from RevenueCat's obfuscated account id on the purchase, `sha256(app user id)` (seen in `BillingWrapper` of the RevenueCat Android SDK 10.26), looked up by `user_id_for_store_tag`; tokens are remembered in `store_purchases` for linked (upgrade) tokens. `revenuecat-webhook` stays deployed for a later move to a paid plan.
+- 2026-10-13: Live-test findings. Play billing only works in builds installed from Play (Internal testing), not sideloaded or `flutter run` builds (`BILLING_UNAVAILABLE`). Offerings must use Google Play products, not RevenueCat's Test Store. Free-trial eligibility belongs to the Google account, not the PingDuck account: once a Google account has subscribed, Play no longer offers it the trial.

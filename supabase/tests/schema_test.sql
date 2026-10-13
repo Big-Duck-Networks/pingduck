@@ -267,6 +267,34 @@ update email_sends set sent_at = now() - interval '8 days';
 select prune_history();
 select pg_temp.check((select count(*) from email_sends) = 0, 'prune drops week-old email sends');
 
+-- ---- Play notifications: who a purchase belongs to ---------------------------
+-- RevenueCat tags Play purchases with sha256(user id); only the function's
+-- service role may resolve a tag, and its tables are closed to app users.
+set role service_role;
+select pg_temp.check(user_id_for_store_tag(encode(extensions.digest('11111111-1111-1111-1111-111111111111', 'sha256'), 'hex'))
+                     = '11111111-1111-1111-1111-111111111111', 'a hex sha256 tag finds its user');
+select pg_temp.check(user_id_for_store_tag(upper(encode(extensions.digest('11111111-1111-1111-1111-111111111111', 'sha256'), 'hex')))
+                     = '11111111-1111-1111-1111-111111111111', 'the hex tag is case-insensitive');
+select pg_temp.check(user_id_for_store_tag(encode(extensions.digest('11111111-1111-1111-1111-111111111111', 'sha256'), 'base64'))
+                     = '11111111-1111-1111-1111-111111111111', 'a base64 sha256 tag finds its user');
+select pg_temp.check(user_id_for_store_tag('00') is null and user_id_for_store_tag(null) is null, 'an unknown tag finds no one');
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select pg_temp.expect_error($$select user_id_for_store_tag('00')$$, 'permission denied');
+select pg_temp.expect_error($$select * from store_purchases$$, 'permission denied');
+select pg_temp.expect_error($$select * from store_notifications$$, 'permission denied');
+reset role;
+set role anon;
+select pg_temp.expect_error($$select user_id_for_store_tag('00')$$, 'permission denied');
+reset role;
+update entitlements set source = 'play' where user_id = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check((select source from entitlements where user_id = '11111111-1111-1111-1111-111111111111') = 'play',
+                     'entitlements accept the play source');
+insert into store_notifications (kind, outcome, received_at) values ('test', 'test', now() - interval '31 days');
+select prune_history();
+select pg_temp.check(not exists (select 1 from store_notifications), 'prune drops month-old notifications');
+
 -- ---- Account deletion ------------------------------------------------------
 set role anon;
 select pg_temp.expect_error($$select delete_account()$$, 'permission denied');
