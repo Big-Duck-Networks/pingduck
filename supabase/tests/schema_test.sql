@@ -77,7 +77,7 @@ select pg_temp.check(agent_sync(pg_temp.v('token'), $$[
     {"mac":"34:13:43:00:00:02","ip":"10.42.0.106","hostname":"phone"},
     {"mac":"not-a-mac","ip":"10.42.0.9"},
     {"ip":"10.42.0.8"}
-]$$) = '{"devices": 2, "new_devices": 2, "went_offline": 0, "alerted": 0}', 'first sync adds 2 devices and skips malformed ones');
+]$$) = '{"devices": 2, "new_devices": 2, "went_offline": 0, "alerted": 0, "capped": 0}', 'first sync adds 2 devices and skips malformed ones');
 
 select pg_temp.check(agent_sync(pg_temp.v('token'), $$[
     {"mac":"b8:fb:b3:00:00:01","ip":"10.42.0.1"},
@@ -177,6 +177,24 @@ select pg_temp.check((agent_sync(pg_temp.v('token'), '[{"mac":"b8:fb:b3:00:00:01
 reset role;
 delete from devices where mac in ('3a:00:00:00:00:03', '3a:00:00:00:00:04', '34:13:43:00:00:05', '00:11:22:00:00:06');
 update devices set is_known = false, hostname = 'phone' where mac = '34:13:43:00:00:02';
+
+-- ---- Limits on what an agent can write ---------------------------------------
+-- The caller's offline threshold is clamped: a negative one would flip every
+-- device offline.
+set role anon;
+select pg_temp.check((agent_sync(pg_temp.v('token'), '[]', '-1 day')->>'went_offline')::int = 0,
+                     'a negative offline threshold is clamped');
+reset role;
+-- Fill the network to the 4096-device cap.
+insert into devices (network_id, mac)
+select 'aaaaaaaa-0000-0000-0000-000000000001', ('0a' || lpad(to_hex(i), 10, '0'))::macaddr
+from generate_series(1, 4096 - (select count(*) from devices where network_id = 'aaaaaaaa-0000-0000-0000-000000000001')) i;
+set role anon;
+select pg_temp.check(agent_sync(pg_temp.v('token'), '[{"mac":"0e:00:00:00:00:99"},{"mac":"b8:fb:b3:00:00:01","ip":"10.42.0.1"}]')
+                     @> '{"devices": 1, "new_devices": 0, "capped": 1}', 'a full network refuses new devices but updates known ones');
+reset role;
+select pg_temp.check(not exists (select 1 from devices where mac = '0e:00:00:00:00:99'), 'the capped device was not stored');
+delete from devices where mac::text like '0a:%';
 delete from push_tokens where token = 'test-token-1';
 
 -- ---- Plan limits on monitored networks ------------------------------------
@@ -186,10 +204,15 @@ insert into networks (id, cidr) values
     ('aaaaaaaa-0000-0000-0000-000000000002', '192.168.1.0/24'),
     ('aaaaaaaa-0000-0000-0000-000000000003', '192.168.2.0/24');
 insert into vars select 'code2', create_pairing_code('aaaaaaaa-0000-0000-0000-000000000002')->>'code';
+-- Unredeemed codes don't count, so a third network's code can still be made...
+insert into vars select 'code3', create_pairing_code('aaaaaaaa-0000-0000-0000-000000000003')->>'code';
 reset role;
 set role anon;
 select claim_pairing_code(pg_temp.v('code2'), 'second');
+-- ...but redeeming it is checked against the plan again.
+select pg_temp.expect_error(format($$select claim_pairing_code(%L, 'third')$$, pg_temp.v('code3')), 'plan_limit');
 reset role;
+select pg_temp.check((select count(*) from agents where revoked_at is null) = 2, 'premium keeps at most 2 monitored networks');
 set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 select pg_temp.expect_error($$select create_pairing_code('aaaaaaaa-0000-0000-0000-000000000003')$$, 'plan_limit');
