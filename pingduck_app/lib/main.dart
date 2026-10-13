@@ -9,11 +9,14 @@ import 'core/desktop/desktop.dart';
 import 'core/network/lan_connectivity.dart';
 import 'core/theme/pingduck_theme.dart';
 import 'features/agent/application/agent_status.dart';
+import 'features/auth/account_auth.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/scanner/application/scan_controller.dart';
 import 'features/settings/presentation/settings_screen.dart';
 import 'features/shell/app_shell.dart';
+import 'services/billing.dart';
 import 'services/local_storage.dart';
+import 'services/plan.dart';
 import 'services/push_alerts.dart';
 import 'services/scan_quota.dart';
 import 'services/supabase_sync.dart';
@@ -80,7 +83,23 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
   // Realtime sockets don't survive the background; reconnect on return.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _startSync();
+    if (state == AppLifecycleState.resumed) {
+      _startSync();
+      ref.read(currentPlanProvider.notifier).refresh();
+    }
+  }
+
+  // Store purchases belong to an account, never to the anonymous user, so
+  // RevenueCat only knows the Supabase id once an email account is signed in.
+  // Billing never blocks or breaks launch.
+  void _startBilling() {
+    final auth = ref.read(accountAuthProvider);
+    final billing = ref.read(billingProvider);
+    billing.configure(auth.accountId).catchError((Object e) => debugPrint('billing: $e'));
+    ref.listenManual(accountEmailProvider, (prev, next) {
+      if (prev?.value == next.value) return;
+      billing.identify(auth.accountId).catchError((Object e) => debugPrint('billing: $e'));
+    });
   }
 
   @override
@@ -93,6 +112,7 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startBilling();
     // Cloud sync never blocks launch; it starts after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSync());
     ref.read(pushAlertsProvider).listen(() => ref.read(supabaseSyncProvider.notifier).refresh());

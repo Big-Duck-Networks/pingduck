@@ -12,6 +12,10 @@ abstract interface class AccountAuth {
   /// Email of the signed-in account; null while anonymous or signed out.
   String? get email;
 
+  /// User id of the signed-in account; null while anonymous or signed out.
+  /// Store purchases are tied to this id.
+  String? get accountId;
+
   /// [email] now, then on every sign-in, upgrade and sign-out.
   Stream<String?> emailChanges();
 
@@ -47,6 +51,12 @@ class SupabaseAccountAuth implements AccountAuth {
 
   @override
   String? get email => _emailOf(_auth.currentUser);
+
+  @override
+  String? get accountId {
+    final user = _auth.currentUser;
+    return user == null || user.isAnonymous ? null : user.id;
+  }
 
   @override
   Stream<String?> emailChanges() async* {

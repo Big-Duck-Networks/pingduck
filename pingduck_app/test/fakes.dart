@@ -11,7 +11,9 @@ import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/features/scanner/domain/remote_device.dart';
+import 'package:pingduck_app/services/billing.dart';
 import 'package:pingduck_app/services/local_storage.dart';
+import 'package:pingduck_app/services/plan.dart';
 import 'package:pingduck_app/services/push_alerts.dart';
 import 'package:pingduck_app/services/scan_quota.dart';
 import 'package:pingduck_app/services/supabase_sync.dart';
@@ -68,6 +70,9 @@ class FakeAuth implements AccountAuth {
 
   @override
   String? get email => _email;
+
+  @override
+  String? get accountId => _email == null ? null : 'user-$_email';
 
   @override
   Stream<String?> emailChanges() async* {
@@ -377,4 +382,56 @@ class FakePushAlerts implements PushAlerts {
 
   @override
   void listen(Future<void> Function() onAlert) => calls.add('listen');
+}
+
+/// Returns [plans] in order on each call, repeating the last one.
+class FakePlanRepository implements PlanRepository {
+  FakePlanRepository([List<Plan> plans = const [Plan.free]]) : plans = [...plans];
+  final List<Plan> plans;
+  Object? error;
+  int calls = 0;
+
+  @override
+  Future<Plan> myPlan() async {
+    calls++;
+    if (error != null) throw error!;
+    return plans.length > 1 ? plans.removeAt(0) : plans.first;
+  }
+}
+
+class FakeBilling implements Billing {
+  List<PlanOffer> offerList = const [
+    PlanOffer(id: r'$rc_annual', priceString: r'$34.99', period: 'year', trialDays: 7, savingsPercent: 42),
+    PlanOffer(id: r'$rc_monthly', priceString: r'$4.99', period: 'month', trialDays: 7),
+  ];
+  PurchaseOutcome outcome = PurchaseOutcome.purchased;
+  BillingException? buyError;
+  BillingException? restoreError;
+  SubscriptionDetails? subscription;
+  final calls = <String>[];
+
+  @override
+  Future<void> configure(String? userId) async => calls.add('configure:$userId');
+
+  @override
+  Future<void> identify(String? userId) async => calls.add('identify:$userId');
+
+  @override
+  Future<List<PlanOffer>> offers() async => offerList;
+
+  @override
+  Future<PurchaseOutcome> buy(PlanOffer offer) async {
+    calls.add('buy:${offer.id}');
+    if (buyError != null) throw buyError!;
+    return outcome;
+  }
+
+  @override
+  Future<void> restore() async {
+    calls.add('restore');
+    if (restoreError != null) throw restoreError!;
+  }
+
+  @override
+  Future<SubscriptionDetails?> details() async => subscription;
 }
