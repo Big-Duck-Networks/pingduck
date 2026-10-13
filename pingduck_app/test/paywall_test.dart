@@ -158,6 +158,13 @@ void main() {
     expect(find.textContaining('isn’t available to buy right now'), findsOneWidget);
     expect(find.text('RETRY'), findsOneWidget);
     expect(find.byKey(const Key('paywall_buy')), findsNothing);
+
+    // Prices arrive on a retry.
+    billing.offerList = FakeBilling().offerList;
+    await tester.tap(find.text('RETRY'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('paywall_buy')), findsOneWidget);
   });
 
   testWidgets('an account that already has Premium skips the paywall', (tester) async {

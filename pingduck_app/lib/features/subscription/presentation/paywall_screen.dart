@@ -98,7 +98,12 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     return offers;
   }
 
-  void _retry() => setState(() => _offers = _load());
+  void _retry() {
+    // setState must not return the Future.
+    setState(() {
+      _offers = _load();
+    });
+  }
 
   void _close(String message, {required bool paid}) {
     if (!mounted) return;
