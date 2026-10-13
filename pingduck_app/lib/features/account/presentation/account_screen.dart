@@ -270,10 +270,11 @@ class _AboutPanel extends ConsumerWidget {
                     sub: '${AppVersion.gitCommit} · ${AppVersion.buildDate}',
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: PdField(label: 'Agent version', value: agent ?? '—'),
-                ),
+                // Only when there is an agent to report a version.
+                if (agent != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(child: PdField(label: 'Agent version', value: agent)),
+                ],
               ],
             ),
           ),

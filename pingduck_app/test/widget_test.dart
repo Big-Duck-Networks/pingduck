@@ -299,8 +299,7 @@ void main() {
 
     await tester.scrollUntilVisible(find.text(AppVersion.display), 200);
     expect(find.text('${AppVersion.gitCommit} · ${AppVersion.buildDate}'), findsOneWidget);
-    expect(find.text('AGENT VERSION'), findsOneWidget);
-    expect(find.text('—'), findsWidgets, reason: 'no agent paired');
+    expect(find.text('AGENT VERSION'), findsNothing, reason: 'no agent paired');
   });
 
   testWidgets("about shows the paired agent's version", (tester) async {
