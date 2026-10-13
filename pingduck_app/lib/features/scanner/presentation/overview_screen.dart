@@ -166,6 +166,7 @@ class OverviewScreen extends ConsumerWidget {
                 itemBuilder: (_, i) => DeviceCard(
                   device: ledger[i],
                   kind: scan.kindOf(ledger[i]),
+                  isSelf: ledger[i].ip == scan.lan?.ip,
                   onTap: () => inspect(ref, ledger[i]),
                   onLongPress: () => renameDevice(context, ref, ledger[i]),
                 ),
