@@ -3,15 +3,28 @@
 ;
 ; Build (from the repo root, after `flutter build windows --release` in
 ; pingduck_app and `cargo build --release -p pingduck-agent` in agent):
-;   ISCC.exe /DAppVersion=1.0.0 installer\windows\pingduck.iss
+;   ISCC.exe installer\windows\pingduck.iss
+; The version and build number come from pingduck_app/pubspec.yaml
+; ("version: 1.0.0+14"); /DAppVersion= or /DAppBuild= override them.
 ; Output: installer\windows\Output\PingDuckSetup.exe
 ;
 ; The installer registers the PingDuckAgent service and opens the Windows
 ; Firewall for the phone (TCP 44480, UDP 1900, private networks), both via
 ; `pingduck-agent.exe install`.
 
+#define Pubspec FileOpen(AddBackslash(SourcePath) + "..\..\pingduck_app\pubspec.yaml")
+#define PubspecLine ""
+#for {PubspecLine = FileRead(Pubspec); !FileEof(Pubspec) && Pos("version:", PubspecLine) != 1; PubspecLine = FileRead(Pubspec)} 0
+#expr FileClose(Pubspec)
+#define PubspecVersion Trim(Copy(PubspecLine, 9, 64))
+#if Pos("+", PubspecVersion) == 0
+  #error pubspec.yaml has no "version: X.Y.Z+N" line
+#endif
 #ifndef AppVersion
-  #define AppVersion "0.0.0"
+  #define AppVersion Copy(PubspecVersion, 1, Pos("+", PubspecVersion) - 1)
+#endif
+#ifndef AppBuild
+  #define AppBuild Copy(PubspecVersion, Pos("+", PubspecVersion) + 1, 64)
 #endif
 #define AppName "PingDuck"
 #define Repo "..\.."
@@ -22,6 +35,7 @@ AppId={{BDB67565-E91B-403E-9D0F-BEBFC488D224}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
+VersionInfoVersion={#AppVersion}.{#AppBuild}
 AppPublisher=Big Duck Networks
 AppPublisherURL=https://pingduck.app
 AppSupportURL=https://pingduck.app/faq
@@ -112,6 +126,33 @@ begin
   if not Exec(Exe, Params, '', SW_HIDE, ewWaitUntilTerminated, Code) then
     Code := -1;
   Result := Code;
+end;
+
+// Version and build under "FOR WINDOWS" on the Welcome and Finish panels.
+// That tag is drawn into the image (make_wizard_images.py, y = 286 of 314);
+// this sits just below it, so the image needn't be redrawn per build.
+procedure AddVersionLabel(Image: TBitmapImage);
+var
+  L: TLabel;
+begin
+  L := TLabel.Create(WizardForm);
+  L.Parent := Image.Parent;
+  L.AutoSize := False;
+  L.Transparent := True;
+  L.Alignment := taCenter;
+  L.Left := Image.Left;
+  L.Width := Image.Width;
+  L.Top := Image.Top + MulDiv(Image.Height, 300, 314);
+  L.Height := ScaleY(14);
+  L.Font.Size := 8;
+  L.Font.Color := $B8A394; // #94A3B8, the tagline grey; dark mode draws it white
+  L.Caption := 'Version {#AppVersion} · Build {#AppBuild}';
+end;
+
+procedure InitializeWizard;
+begin
+  AddVersionLabel(WizardForm.WizardBitmapImage);
+  AddVersionLabel(WizardForm.WizardBitmapImage2);
 end;
 
 // With no Ready page, Options is the last page before installing.
