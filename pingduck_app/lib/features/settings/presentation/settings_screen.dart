@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/plan.dart';
 import '../../../services/push_alerts.dart';
 import '../../../services/scan_quota.dart';
 import '../../../services/supabase_sync.dart';
@@ -31,10 +32,8 @@ final autoScanOnLaunchProvider = FutureProvider<bool>((ref) async {
   return isAutoScanOnLaunchEnabled(store);
 });
 
-final isPremiumProvider = FutureProvider<bool>((ref) async {
-  final store = ref.read(localStoreProvider);
-  return isPremiumUser(store);
-});
+/// Whether the account's plan is paid, from the server (`my_plan()`).
+final isPremiumProvider = FutureProvider<bool>((ref) async => (await ref.watch(currentPlanProvider.future)).isPaid);
 
 final cloudSyncEnabledProvider = FutureProvider<bool>(
   (ref) async => await ref.read(localStoreProvider).setting(cloudSyncKey) != '0',
