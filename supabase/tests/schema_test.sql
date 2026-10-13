@@ -93,8 +93,8 @@ select pg_temp.check((select count(*) from devices) = 0, 'anon cannot read devic
 
 -- ---- Agent reports ---------------------------------------------------------
 select pg_temp.check(agent_sync(pg_temp.v('token'), $$[
-    {"mac":"b8:fb:b3:00:00:01","ip":"10.42.0.1","vendor":"TP-Link"},
-    {"mac":"34:13:43:00:00:02","ip":"10.42.0.106","hostname":"phone"},
+    {"mac":"b8:fb:b3:00:00:01","ip":"10.42.0.1","vendor":"TP-Link","ttl":64,"server":"Linux UPnP/1.0"},
+    {"mac":"34:13:43:00:00:02","ip":"10.42.0.106","hostname":"phone","ttl":-1},
     {"mac":"not-a-mac","ip":"10.42.0.9"},
     {"ip":"10.42.0.8"}
 ]$$) = '{"devices": 2, "new_devices": 2, "went_offline": 0, "alerted": 0, "capped": 0}', 'first sync adds 2 devices and skips malformed ones');
@@ -114,6 +114,9 @@ select pg_temp.check(agent_heartbeat(null)->>'status' = 'revoked', 'heartbeat wi
 select agent_heartbeat(pg_temp.v('token'), '0.3.1');
 reset role;
 select pg_temp.check((select version from agents where revoked_at is null) = '0.3.1', 'heartbeat records the agent version');
+select pg_temp.check((select (ttl, server) = (64::smallint, 'Linux UPnP/1.0') from devices where mac = 'b8:fb:b3:00:00:01'),
+                     'sync stores the reply TTL and SSDP server; a later sync without them keeps them');
+select pg_temp.check((select ttl is null from devices where mac = '34:13:43:00:00:02'), 'an unknown TTL (-1) is stored as null');
 set role anon;
 select agent_heartbeat(pg_temp.v('token'));
 select agent_heartbeat(pg_temp.v('token'), '');

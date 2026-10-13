@@ -70,10 +70,20 @@ pub fn sync_entry(d: &pingduck_core_sys::Device) -> Option<Value> {
         return None;
     }
     let mut e = json!({ "mac": d.mac, "ip": d.ip });
-    for (key, v) in [("hostname", &d.hostname), ("vendor", &d.vendor), ("model", &d.model), ("services", &d.services)] {
+    for (key, v) in [
+        ("hostname", &d.hostname),
+        ("vendor", &d.vendor),
+        ("model", &d.model),
+        ("services", &d.services),
+        ("server", &d.server),
+    ] {
         if !v.is_empty() {
             e[key] = Value::from(v.as_str());
         }
+    }
+    // Recognition signal for the app's OS guess; -1 (no reply seen) is left out.
+    if (1..=255).contains(&d.ttl) {
+        e["ttl"] = Value::from(d.ttl);
     }
     Some(e)
 }
@@ -535,7 +545,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn dev(ip: &str, mac: &str) -> pingduck_core_sys::Device {
-        pingduck_core_sys::Device { ip: ip.into(), mac: mac.into(), rtt_ms: -1, ..Default::default() }
+        pingduck_core_sys::Device { ip: ip.into(), mac: mac.into(), rtt_ms: -1, ttl: -1, ..Default::default() }
     }
 
     #[test]
@@ -549,6 +559,8 @@ pub(crate) mod tests {
         let mut router = dev("10.42.0.1", "b8:fb:b3:00:00:01");
         router.vendor = "TP-Link".into();
         router.services = "upnp:InternetGatewayDevice".into();
+        router.server = "Linux UPnP/1.0".into();
+        router.ttl = 64;
         let phone = dev("10.42.0.50", ""); // ICMP only, no MAC: agent_sync can't key it
         let tv = pingduck_core_sys::Device { hostname: "living-room".into(), ..dev("10.42.0.60", "34:13:43:00:00:02") };
         assert_eq!(
@@ -564,7 +576,8 @@ pub(crate) mod tests {
         assert_eq!(
             body["p_devices"],
             json!([
-                {"mac": "b8:fb:b3:00:00:01", "ip": "10.42.0.1", "vendor": "TP-Link", "services": "upnp:InternetGatewayDevice"},
+                {"mac": "b8:fb:b3:00:00:01", "ip": "10.42.0.1", "vendor": "TP-Link", "services": "upnp:InternetGatewayDevice",
+                 "server": "Linux UPnP/1.0", "ttl": 64},
                 {"mac": "34:13:43:00:00:02", "ip": "10.42.0.60", "hostname": "living-room"},
             ])
         );
