@@ -4,6 +4,9 @@
 // the row, so duplicate or out-of-order deliveries are harmless. Rows with
 // source 'manual' (comps, test accounts) are left alone.
 //
+// RevenueCat sends webhooks only on its paid plans. On the free plan,
+// play-rtdn keeps entitlements current from Google Play's own notifications.
+//
 // Secrets: REVENUECAT_WEBHOOK_AUTH (the exact Authorization header value set
 // on the RevenueCat webhook) and REVENUECAT_SECRET_KEY (v1 secret API key).
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected by the platform.
