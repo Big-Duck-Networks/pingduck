@@ -6,9 +6,11 @@ import '../../../core/network/lan_connectivity.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/billing.dart';
 import '../../../services/scan_quota.dart';
 import '../../device_details/application/diagnostics_controller.dart';
 import '../../shell/app_shell.dart';
+import '../../subscription/presentation/paywall_screen.dart';
 import '../../tools/presentation/tools_screen.dart';
 import '../application/scan_controller.dart';
 import '../domain/discovered_device.dart';
@@ -374,12 +376,12 @@ class _NotConnected extends StatelessWidget {
   }
 }
 
-class _FailureBanner extends StatelessWidget {
+class _FailureBanner extends ConsumerWidget {
   const _FailureBanner({required this.failure});
   final ScanFailure? failure;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final text = switch (failure?.kind) {
       ScanFailureKind.noNetwork => 'Not on a local network. Connect to Wi-Fi and rescan.',
       ScanFailureKind.permission => 'Scanning was blocked by a permission. Allow Local Network access and rescan.',
@@ -391,11 +393,26 @@ class _FailureBanner extends StatelessWidget {
     return PdPanel(
       accent: PingDuckColors.critical,
       background: PingDuckColors.criticalFill,
-      child: Row(children: [
-        const Icon(Icons.error_outline, color: PingDuckColors.critical, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text, style: PdText.bodyMd.copyWith(color: PingDuckColors.critical))),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            const Icon(Icons.error_outline, color: PingDuckColors.critical, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text, style: PdText.bodyMd.copyWith(color: PingDuckColors.critical))),
+          ]),
+          if (failure?.kind == ScanFailureKind.quotaExceeded && billingSupported) ...[
+            const SizedBox(height: 12),
+            PdButton(
+              key: const Key('quota_go_premium'),
+              label: 'Go Premium',
+              icon: Icons.workspace_premium_outlined,
+              style: PdButtonStyle.primary,
+              onPressed: () => openPaywall(context, ref),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

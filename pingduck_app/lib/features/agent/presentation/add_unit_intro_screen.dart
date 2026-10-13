@@ -6,6 +6,7 @@ import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../auth/account_auth.dart';
 import '../../auth/sign_in_screen.dart';
+import '../../subscription/presentation/paywall_screen.dart';
 import '../data/agent_repository.dart';
 import 'flow_scaffold.dart';
 import 'select_platform_screen.dart';
@@ -121,12 +122,13 @@ class _PhoneToAgent extends StatelessWidget {
   }
 }
 
-/// Shown instead of step 2 when the plan has no monitoring (Free).
-class PremiumRequiredScreen extends StatelessWidget {
+/// Shown instead of step 2 when the plan has no monitoring (Free). Once
+/// Premium is bought the flow carries on to step 2.
+class PremiumRequiredScreen extends ConsumerWidget {
   const PremiumRequiredScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return FlowScaffold(
       illustration: const IconTile(Icons.workspace_premium_outlined, color: PingDuckColors.pending),
       title: 'Monitoring is a Premium feature',
@@ -136,9 +138,21 @@ class PremiumRequiredScreen extends StatelessWidget {
         icon: Icons.check_circle_outline,
         child: Text('3 scans a day from your phone, the network tools and device names.', style: PdText.bodyMd),
       ),
-      actions: const [
-        FlowPrimaryButton(label: 'Subscriptions coming soon'),
-        MaybeLaterButton(),
+      actions: [
+        FlowPrimaryButton(
+          label: 'See Premium',
+          icon: Icons.workspace_premium_outlined,
+          onPressed: () async {
+            if (!await openPaywall(context, ref) || !context.mounted) return;
+            await Navigator.of(context).pushReplacement(
+              MaterialPageRoute<void>(
+                settings: const RouteSettings(name: '${agentFlowPrefix}platform'),
+                builder: (_) => const SelectPlatformScreen(),
+              ),
+            );
+          },
+        ),
+        const MaybeLaterButton(),
       ],
     );
   }
