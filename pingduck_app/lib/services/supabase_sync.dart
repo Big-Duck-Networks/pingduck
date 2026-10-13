@@ -10,9 +10,16 @@ import '../features/scanner/application/scan_controller.dart';
 import '../features/scanner/domain/remote_device.dart';
 import 'local_storage.dart';
 
+/// A network the account monitors, as stored in Supabase.
+typedef RemoteNetwork = ({String id, String cidr, String? gateway, String? ssid});
+
 /// The agent's devices in Supabase, read with the user's own session (RLS:
 /// devices_own_read / devices_own_update).
 abstract interface class SyncRepository {
+  /// The account's own networks (RLS: networks_own). The phone matches its
+  /// network against these itself, so its subnet isn't sent anywhere.
+  Future<List<RemoteNetwork>> myNetworks();
+
   Future<List<RemoteDevice>> devicesOf(String remoteNetworkId);
 
   /// Emits whenever a device row of the network changes. Cancelling the
@@ -25,6 +32,21 @@ abstract interface class SyncRepository {
 }
 
 class SupabaseSyncRepository implements SyncRepository {
+  @override
+  Future<List<RemoteNetwork>> myNetworks() async {
+    final rows = await (await signedInClient()).from('networks').select('id, cidr, gateway_ip, ssid');
+    return [
+      for (final r in rows)
+        (
+          id: r['id'] as String,
+          cidr: r['cidr'] as String,
+          // inet can come back as "10.0.0.1/32".
+          gateway: (r['gateway_ip'] as String?)?.replaceFirst(RegExp(r'/32$'), ''),
+          ssid: r['ssid'] as String?,
+        ),
+    ];
+  }
+
   @override
   Future<List<RemoteDevice>> devicesOf(String remoteNetworkId) async {
     final rows = await (await signedInClient())
@@ -134,6 +156,8 @@ class SupabaseSync extends Notifier<SyncStatus> {
       if (current()) state = SyncStatus(SyncPhase.off, lastSyncedAt: state.lastSyncedAt);
       return;
     }
+    await _autoLink();
+    if (!current()) return;
     final linked = await _store.linkedNetworks();
     if (!current()) return;
     if (linked.isEmpty) {
@@ -186,6 +210,27 @@ class SupabaseSync extends Notifier<SyncStatus> {
     for (final n in await _store.linkedNetworks()) {
       await _repo.markAllKnown(n.remoteId);
       await _pull(n.id, n.remoteId);
+    }
+  }
+
+  /// Links local networks to the account's monitored network with the same
+  /// subnet and gateway, so a second phone (or one that paired from Windows)
+  /// syncs without pairing again. The Wi-Fi name settles a tie; a match that
+  /// is still ambiguous is left unlinked rather than guessed.
+  Future<void> _autoLink() async {
+    final unlinked = await _store.unlinkedNetworks();
+    if (unlinked.isEmpty) return;
+    final List<RemoteNetwork> mine;
+    try {
+      mine = await _repo.myNetworks();
+    } catch (e) {
+      debugPrint('cloud sync: auto-link: $e');
+      return;
+    }
+    for (final n in unlinked) {
+      var match = [for (final r in mine) if (r.cidr == n.cidr && r.gateway == n.gateway) r];
+      if (match.length > 1 && n.ssid != null) match = [for (final r in match) if (r.ssid == n.ssid) r];
+      if (match.length == 1) await _store.setRemoteId(n.id, match.single.id);
     }
   }
 

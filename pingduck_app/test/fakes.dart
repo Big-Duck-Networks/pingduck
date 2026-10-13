@@ -338,6 +338,11 @@ class FakeSyncRepository implements SyncRepository {
 
   void change(String remoteId) => _changes[remoteId]?.add(null);
 
+  final networks = <RemoteNetwork>[];
+
+  @override
+  Future<List<RemoteNetwork>> myNetworks() async => networks;
+
   @override
   Future<List<RemoteDevice>> devicesOf(String remoteNetworkId) async {
     fetches.add(remoteNetworkId);
