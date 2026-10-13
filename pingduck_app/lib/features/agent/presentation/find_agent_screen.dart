@@ -14,6 +14,7 @@ import '../domain/agent_platform.dart';
 import '../domain/agent_unit.dart';
 import 'agent_activated_screen.dart';
 import 'flow_scaffold.dart';
+import 'taken_agent_sheet.dart';
 
 /// Step 4: search the LAN for agents, then activate one. No Fing reference
 /// exists for this screen; it follows the flow's structure.
@@ -123,6 +124,8 @@ class _FindAgentScreenState extends ConsumerState<FindAgentScreen> {
           ],
           PairingFailed(:final failure) => [
             FlowPrimaryButton(label: 'Try again', icon: Icons.refresh, onPressed: _search),
+            if (failure == PairingFailure.takenByOther)
+              PdButton(label: 'How to reset it', icon: Icons.restart_alt, onPressed: () => showTakenAgentSheet(context)),
             if (failure == PairingFailure.notConfirmed)
               PdButton(label: 'Open Homelab Agent', icon: Icons.dns_outlined, onPressed: _openHomelabAgent),
           ],
@@ -178,7 +181,7 @@ class _FoundList extends StatelessWidget {
             onTap: switch (availability) {
               AgentAvailability.available => () => onChoose(agent),
               AgentAvailability.yours => onYours,
-              AgentAvailability.taken => null,
+              AgentAvailability.taken => () => showTakenAgentSheet(context),
             },
           ),
           const SizedBox(height: 12),
@@ -252,7 +255,7 @@ class _AgentCard extends StatelessWidget {
               if (availability == AgentAvailability.taken) ...[
                 const SizedBox(height: 10),
                 Text(
-                  'Activated by another account. Revoke it there, or wipe the agent\'s volume to start over.',
+                  'Activated by another account. Tap to see how to reset it.',
                   style: PdText.bodySm,
                 ),
               ],

@@ -9,6 +9,13 @@ const _run = 'docker run -d --name pingduck-agent --restart unless-stopped \\\n'
     '  -v pingduck:/var/lib/pingduck \\\n'
     '  $agentImage';
 
+/// Removes the container and its volume, which holds the pairing, so the
+/// agent starts unpaired when it is run again.
+const resetAgentCommand = 'docker rm -f pingduck-agent && docker volume rm pingduck';
+
+/// The Linux run command, for running the agent again after a reset.
+const agentRunCommand = _run;
+
 /// The same container with a pairing code, for networks where the app can't
 /// reach the agent by itself.
 String runWithCode(String code) => 'docker run -d --name pingduck-agent --restart unless-stopped \\\n'

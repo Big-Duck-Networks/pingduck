@@ -8,8 +8,9 @@ import '../../features/scanner/domain/discovered_device.dart';
 import '../network/network_context.dart';
 
 /// Why a scan could not run.
-/// [quotaExceeded] comes from the app's plan check, not the core.
-enum ScanFailureKind { noNetwork, permission, quotaExceeded, other }
+/// [quotaExceeded] and [quotaUnverified] come from the app's plan check, not
+/// the core.
+enum ScanFailureKind { noNetwork, permission, quotaExceeded, quotaUnverified, other }
 
 class ScanFailure implements Exception {
   const ScanFailure(this.kind, this.message);

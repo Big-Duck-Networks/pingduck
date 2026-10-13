@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ffi/scanner_bridge.dart';
@@ -95,10 +97,26 @@ class ScanState {
 final scannerBridgeProvider = Provider<ScannerBridge>((ref) => FfiScannerBridge());
 final multicastLockProvider = Provider<MulticastLock>((ref) => const MulticastLock());
 
-final scanQuotaProvider = Provider<ScanQuota>((ref) => ServerScanQuota(ref.read(localStoreProvider), () async {
-      final result = await (await signedInClient()).rpc('claim_scan');
+final scanQuotaProvider = Provider<ScanQuota>((ref) => ServerScanQuota(ref.read(localStoreProvider), ({
+      required bool automatic,
+    }) async {
+      final result = await (await signedInClient()).rpc(
+        'claim_scan',
+        params: {'p_device': await _deviceId(), 'p_automatic': automatic},
+      );
       return Map<String, dynamic>.from(result as Map);
     }));
+
+/// The Android ID, so the server counts Free scans per phone and not only
+/// per (anonymous, easily replaced) account. Null elsewhere.
+Future<String?> _deviceId() async {
+  if (!Platform.isAndroid) return null;
+  try {
+    return await const MethodChannel('pingduck/system').invokeMethod<String>('deviceId');
+  } catch (_) {
+    return null;
+  }
+}
 
 /// One-time location prompt that reveals the Wi-Fi name (see [WifiNameAccess]).
 final wifiNameAccessProvider = Provider<WifiNameAccess>((ref) {
@@ -166,14 +184,19 @@ class ScanController extends Notifier<ScanState> {
         state = before;
         return;
       }
-    } else if (!(await quota.claim()).allowed) {
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        phase: ScanPhase.failed,
-        failure: const ScanFailure(ScanFailureKind.quotaExceeded, 'Daily scan limit reached.'),
-        finishedAt: DateTime.now(),
-      );
-      return;
+    } else {
+      final claim = await quota.claim();
+      if (!claim.allowed) {
+        if (!ref.mounted) return;
+        state = state.copyWith(
+          phase: ScanPhase.failed,
+          failure: claim.unverified
+              ? const ScanFailure(ScanFailureKind.quotaUnverified, 'Could not check the scan allowance.')
+              : const ScanFailure(ScanFailureKind.quotaExceeded, 'Daily scan limit reached.'),
+          finishedAt: DateTime.now(),
+        );
+        return;
+      }
     }
 
     // Switching networks swaps in that network's cached inventory.
