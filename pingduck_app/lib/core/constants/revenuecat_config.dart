@@ -1,11 +1,10 @@
 /// RevenueCat public SDK key for the Play Store app. Like the Supabase
 /// publishable key it is meant to ship in the app: it can only read offerings
 /// and start purchases, and the server decides entitlements. Override with
-/// `--dart-define=REVENUECAT_ANDROID_KEY=goog_...`. Until the real key is set,
-/// billing stays off.
+/// `--dart-define=REVENUECAT_ANDROID_KEY=goog_...`.
 const revenueCatAndroidKey = String.fromEnvironment(
   'REVENUECAT_ANDROID_KEY',
-  defaultValue: 'goog_REPLACE_ME',
+  defaultValue: 'goog_KsxgrYAlLNuevLdpuRbicezPTUR',
 );
 
 bool get revenueCatKeySet => revenueCatAndroidKey.startsWith('goog_') && revenueCatAndroidKey != 'goog_REPLACE_ME';
