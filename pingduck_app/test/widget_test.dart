@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pingduck_app/features/scanner/presentation/device_card.dart';
 import 'package:pingduck_app/core/theme/pingduck_colors.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
@@ -174,6 +175,23 @@ void main() {
     expect(find.text('Lenovo'), findsWidgets);
     expect(find.text('Windows'), findsWidgets);
     expect(find.text('LIKELY'), findsWidgets);  // MAC vendor and TTL are guesses
+  });
+
+  testWidgets('the phone running the app is tagged THIS DEVICE', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await tester.pump();
+    bridge.devices!
+      ..add(dev(testLan.ip, hostname: 'Pixel-8-Pro', rtt: 1))
+      ..add(dev('10.42.0.20', hostname: 'Living Room TV', rtt: 4));
+    await tester.pump();
+
+    await scrollTo(tester, find.text('Pixel-8-Pro'));
+    expect(find.text('THIS DEVICE'), findsOneWidget);
+    final card = find.ancestor(of: find.text('THIS DEVICE'), matching: find.byType(DeviceCard));
+    expect(find.descendant(of: card, matching: find.text('Pixel-8-Pro')), findsOneWidget);
+    await settleScan(tester);
   });
 
   testWidgets('tapping a device card opens Node Inspect under Tools', (tester) async {

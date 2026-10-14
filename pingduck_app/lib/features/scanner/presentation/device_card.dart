@@ -9,10 +9,20 @@ import '../domain/discovered_device.dart';
 /// A device list row: status rule on the leading edge, identity, latency
 /// with its history, and the evidence (sources, services) behind it.
 class DeviceCard extends StatelessWidget {
-  const DeviceCard({super.key, required this.device, required this.kind, this.onTap, this.onLongPress});
+  const DeviceCard({
+    super.key,
+    required this.device,
+    required this.kind,
+    this.isSelf = false,
+    this.onTap,
+    this.onLongPress,
+  });
 
   final DiscoveredDevice device;
   final DeviceKind kind;
+
+  /// The phone or PC running the app.
+  final bool isSelf;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -76,6 +86,7 @@ class DeviceCard extends StatelessWidget {
                             ),
                             if (kind != DeviceKind.unknown)
                               PdChip(kind.label, uppercase: true, tone: _kindTone(kind)),
+                            if (isSelf) const PdChip('THIS DEVICE', tone: PdTone.ink),
                           ],
                         ),
                         const SizedBox(height: 2),
