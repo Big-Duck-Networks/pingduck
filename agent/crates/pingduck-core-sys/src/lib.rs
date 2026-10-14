@@ -31,6 +31,8 @@ pub struct PdDevice {
     pub services: [c_char; 512],
     pub rtt_ms: i32,
     pub sources: u32,
+    pub server: [c_char; 96],
+    pub ttl: i32,
 }
 
 type PdDeviceCb = extern "C" fn(dev: *const PdDevice, user: *mut c_void);
@@ -115,6 +117,10 @@ pub struct Device {
     pub services: String,
     /// ICMP round trip, -1 if unknown.
     pub rtt_ms: i32,
+    /// SSDP SERVER header, e.g. "Linux/4.9 UPnP/1.0", or empty.
+    pub server: String,
+    /// TTL of the ICMP echo reply, -1 if unknown.
+    pub ttl: i32,
 }
 
 impl Device {
@@ -127,6 +133,8 @@ impl Device {
             model: field(&d.model),
             services: field(&d.services),
             rtt_ms: d.rtt_ms,
+            server: field(&d.server),
+            ttl: d.ttl,
         }
     }
 }
@@ -252,9 +260,11 @@ mod tests {
     #[test]
     fn device_layout_matches_the_header() {
         // 16 + 18 + 256 + 128 + 128 + 512 = 1058, padded to 1060 for the
-        // int32 fields, + 4 + 4.
-        assert_eq!(std::mem::size_of::<PdDevice>(), 1068);
+        // int32 fields, + 4 + 4, then server[96] and ttl (appended in core 0.2).
+        assert_eq!(std::mem::size_of::<PdDevice>(), 1168);
         assert_eq!(std::mem::offset_of!(PdDevice, rtt_ms), 1060);
+        assert_eq!(std::mem::offset_of!(PdDevice, server), 1068);
+        assert_eq!(std::mem::offset_of!(PdDevice, ttl), 1164);
     }
 
     #[test]

@@ -310,7 +310,9 @@ TEST("ssdp: apply_description builds name, vendor and model") {
 
     pd_device bare = make_device("10.42.0.26");
     ssdp::apply_description("", r, bare);
-    CHECK_EQ(std::string(bare.model), r.server);
+    CHECK_EQ(std::string(bare.model), std::string());  // the SERVER header is not a model
+    CHECK_EQ(std::string(bare.server), r.server);
+    CHECK_EQ(std::string(d.server), r.server);
 }
 
 // ---- ICMP / ARP / procfs ---------------------------------------------------
@@ -322,10 +324,16 @@ TEST("icmp: echo replies with and without an IP header") {
     CHECK_EQ(id, 0x1234);
     CHECK_EQ(seq, 7);
 
+    int ttl = -1;
+    REQUIRE(parse_echo_reply(bare, sizeof(bare), &id, &seq, &ttl));
+    CHECK_EQ(ttl, -1);  // no IP header: the caller's cmsg value stands
+
     uint8_t with_ip[28] = {0x45};
+    with_ip[8] = 128;  // a Windows host
     std::memcpy(with_ip + 20, bare, 8);
-    REQUIRE(parse_echo_reply(with_ip, sizeof(with_ip), &id, &seq));
+    REQUIRE(parse_echo_reply(with_ip, sizeof(with_ip), &id, &seq, &ttl));
     CHECK_EQ(seq, 7);
+    CHECK_EQ(ttl, 128);
 
     CHECK(!parse_echo_reply(with_ip, 27, &id, &seq));       // truncated
     uint8_t bad_ihl[28] = {0x41};

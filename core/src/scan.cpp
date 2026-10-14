@@ -68,6 +68,8 @@ bool DeviceMerger::add(const pd_device& in, pd_device* out) {
         }
         changed |= before != d.services;
         if (d.rtt_ms < 0 && in.rtt_ms >= 0) d.rtt_ms = in.rtt_ms, changed = true;
+        if (d.ttl < 0 && in.ttl >= 0) d.ttl = in.ttl, changed = true;
+        changed |= fill(d.server, sizeof(d.server), in.server);
         if ((d.sources | in.sources) != d.sources) d.sources |= in.sources, changed = true;
     }
     if (changed && out) *out = d;

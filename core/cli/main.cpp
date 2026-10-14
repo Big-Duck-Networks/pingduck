@@ -98,9 +98,10 @@ struct Printer {
     void print_json(const pd_device& d) const {
         std::printf(
             "{\"ip\":\"%s\",\"mac\":\"%s\",\"hostname\":\"%s\",\"vendor\":\"%s\",\"model\":\"%s\","
-            "\"services\":\"%s\",\"rtt_ms\":%d,\"sources\":\"%s\"}\n",
+            "\"services\":\"%s\",\"rtt_ms\":%d,\"ttl\":%d,\"server\":\"%s\",\"sources\":\"%s\"}\n",
             d.ip, d.mac, json_escape(d.hostname).c_str(), json_escape(d.vendor).c_str(),
-            json_escape(d.model).c_str(), json_escape(d.services).c_str(), d.rtt_ms, sources_str(d.sources).c_str());
+            json_escape(d.model).c_str(), json_escape(d.services).c_str(), d.rtt_ms, d.ttl,
+            json_escape(d.server).c_str(), sources_str(d.sources).c_str());
     }
 
     void print_table() {

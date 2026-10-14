@@ -82,7 +82,8 @@ void apply_description(const std::string& xml, const Responder& r, pd_device& d)
 
 // Locates an ICMP echo reply in `buf`, skipping an IPv4 header when present
 // (raw sockets and Apple's DGRAM ICMP sockets include it). Fills id and seq.
-bool parse_echo_reply(const uint8_t* buf, size_t n, uint16_t* id, uint16_t* seq);
+// `ttl`, when given, gets the IP header's TTL if the buffer starts with one.
+bool parse_echo_reply(const uint8_t* buf, size_t n, uint16_t* id, uint16_t* seq, int* ttl = nullptr);
 
 // Ethernet ARP who-has frame from `src_mac`/`src_ip` for `target_ip`.
 void build_arp_request(uint8_t frame[42], const uint8_t src_mac[6], uint32_t src_ip, uint32_t target_ip);

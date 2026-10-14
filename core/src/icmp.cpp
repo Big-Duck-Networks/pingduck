@@ -24,17 +24,20 @@ using namespace pd;
 
 namespace pd {
 
-bool parse_echo_reply(const uint8_t* buf, size_t n, uint16_t* id, uint16_t* seq) {
+bool parse_echo_reply(const uint8_t* buf, size_t n, uint16_t* id, uint16_t* seq, int* ttl) {
     const uint8_t* icmp = buf;
+    int header_ttl = -1;
     if (n > 0 && (buf[0] >> 4) == 4) {
         size_t ihl = static_cast<size_t>(buf[0] & 0x0F) * 4;
         if (ihl < 20 || n < ihl + 8) return false;
+        header_ttl = buf[8];
         icmp = buf + ihl;
         n -= ihl;
     }
     if (n < 8 || icmp[0] != 0 /* echo reply */ || icmp[1] != 0) return false;
     *id = static_cast<uint16_t>(icmp[4] << 8 | icmp[5]);
     *seq = static_cast<uint16_t>(icmp[6] << 8 | icmp[7]);
+    if (ttl && header_ttl >= 0) *ttl = header_ttl;
     return true;
 }
 
@@ -77,7 +80,43 @@ pd_socket open_icmp_socket(bool* raw) {
         fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
         *raw = true;
     }
+#if defined(IP_RECVTTL)
+    // Linux/Android ping sockets strip the IP header; the TTL comes as a cmsg.
+    int on = 1;
+    if (fd != PD_INVALID_SOCKET && !*raw) setsockopt(fd, IPPROTO_IP, IP_RECVTTL, &on, sizeof(on));
+#endif
     return fd;
+}
+
+// recvfrom plus the reply's TTL: from the IP_TTL cmsg on ping sockets that
+// strip the header; parse_echo_reply reads it from the header otherwise.
+ssize_t recv_echo(pd_socket fd, uint8_t* buf, size_t cap, sockaddr_in* from, int* ttl) {
+    iovec iov{buf, cap};
+    alignas(cmsghdr) uint8_t control[64];
+    msghdr msg{};
+    msg.msg_name = from;
+    msg.msg_namelen = sizeof(*from);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = control;
+    msg.msg_controllen = sizeof(control);
+    ssize_t n = recvmsg(fd, &msg, 0);
+    *ttl = -1;
+    if (n <= 0) return n;
+    for (cmsghdr* c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
+        if (c->cmsg_level != IPPROTO_IP) continue;
+#if defined(IP_TTL)
+        if (c->cmsg_type == IP_TTL && c->cmsg_len >= CMSG_LEN(sizeof(int))) {
+            int v;
+            std::memcpy(&v, CMSG_DATA(c), sizeof(v));
+            *ttl = v;
+        }
+#endif
+#if defined(IP_RECVTTL) && defined(__APPLE__)
+        if (c->cmsg_type == IP_RECVTTL && c->cmsg_len >= CMSG_LEN(1)) *ttl = *CMSG_DATA(c);
+#endif
+    }
+    return n;
 }
 
 int socket_error() { return (errno == EPERM || errno == EACCES) ? PD_ERR_PERMISSION : PD_ERR_SOCKET; }
@@ -95,7 +134,7 @@ void build_echo(uint8_t pkt[32], uint16_t id, uint16_t seq) {
     pkt[3] = static_cast<uint8_t>(cs);
 }
 
-int ping_posix(uint32_t target, int timeout_ms) {
+int ping_posix(uint32_t target, int timeout_ms, int* ttl) {
     bool raw;
     Socket s(open_icmp_socket(&raw));
     if (!s.valid()) return socket_error();
@@ -120,11 +159,10 @@ int ping_posix(uint32_t target, int timeout_ms) {
         if (wait_readable(s.fd, remaining) <= 0) return PD_ERR_TIMEOUT;
 
         sockaddr_in from{};
-        socklen_t fl = sizeof(from);
-        ssize_t n = recvfrom(s.fd, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fl);
+        ssize_t n = recv_echo(s.fd, buf, sizeof(buf), &from, ttl);
         if (n <= 0 || from.sin_addr.s_addr != dst.sin_addr.s_addr) continue;
         uint16_t rid, rseq;
-        if (!parse_echo_reply(buf, static_cast<size_t>(n), &rid, &rseq) || rseq != seq) continue;
+        if (!parse_echo_reply(buf, static_cast<size_t>(n), &rid, &rseq, ttl) || rseq != seq) continue;
         // DGRAM ping sockets get their id rewritten by the kernel; only check it for raw.
         if (raw && rid != id) continue;
         return static_cast<int>(now_ms() - start);
@@ -134,7 +172,7 @@ int ping_posix(uint32_t target, int timeout_ms) {
 // Sweeps [first, first + count) from one non-blocking ICMP socket: echoes go
 // out in paced bursts while replies are drained, and hosts that stay silent
 // get one retry. Costs one thread instead of a 128-thread pool, which matters
-// on phones. `on_reply(addr, rtt)` runs on the calling thread.
+// on phones. `on_reply(addr, rtt, ttl)` runs on the calling thread.
 template <typename OnReply>
 int sweep_posix(uint32_t first, uint32_t count, int timeout_ms, const CancelToken& tok, OnReply on_reply) {
     bool raw;
@@ -154,11 +192,11 @@ int sweep_posix(uint32_t first, uint32_t count, int timeout_ms, const CancelToke
         uint8_t buf[1500];
         for (;;) {
             sockaddr_in from{};
-            socklen_t fl = sizeof(from);
-            ssize_t n = recvfrom(s.fd, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fl);
+            int ttl;
+            ssize_t n = recv_echo(s.fd, buf, sizeof(buf), &from, &ttl);
             if (n <= 0) return;
             uint16_t rid, rseq;
-            if (!parse_echo_reply(buf, static_cast<size_t>(n), &rid, &rseq)) continue;
+            if (!parse_echo_reply(buf, static_cast<size_t>(n), &rid, &rseq, &ttl)) continue;
             if (raw && rid != id) continue;
             uint32_t addr = ntohl(from.sin_addr.s_addr);
             if (addr < first || addr - first >= count) continue;
@@ -166,7 +204,7 @@ int sweep_posix(uint32_t first, uint32_t count, int timeout_ms, const CancelToke
             if (static_cast<uint16_t>(i + 1) != rseq || answered[i] || !sent_at[i]) continue;
             answered[i] = 1;
             --pending;
-            on_reply(addr, static_cast<int>(now_ms() - sent_at[i]));
+            on_reply(addr, static_cast<int>(now_ms() - sent_at[i]), ttl);
         }
     };
 
@@ -239,7 +277,8 @@ int sweep_posix(uint32_t first, uint32_t count, int timeout_ms, const CancelToke
 
 #endif
 
-int ping_host(uint32_t target, int timeout_ms) {
+int ping_host(uint32_t target, int timeout_ms, int* ttl) {
+    *ttl = -1;
 #if defined(_WIN32)
     HANDLE h = IcmpCreateFile();
     if (h == INVALID_HANDLE_VALUE) return PD_ERR_SOCKET;
@@ -250,12 +289,15 @@ int ping_host(uint32_t target, int timeout_ms) {
     int rc = PD_ERR_TIMEOUT;
     if (n > 0) {
         auto* r = reinterpret_cast<ICMP_ECHO_REPLY*>(reply);
-        if (r->Status == IP_SUCCESS && r->Address == htonl(target)) rc = static_cast<int>(r->RoundTripTime);
+        if (r->Status == IP_SUCCESS && r->Address == htonl(target)) {
+            rc = static_cast<int>(r->RoundTripTime);
+            *ttl = r->Options.Ttl;
+        }
     }
     IcmpCloseHandle(h);
     return rc;
 #else
-    return ping_posix(target, timeout_ms);
+    return ping_posix(target, timeout_ms, ttl);
 #endif
 }
 
@@ -267,7 +309,8 @@ int pd_ping(const char* ip, int timeout_ms) {
     uint32_t addr;
     if (!parse_ipv4(ip, &addr) || timeout_ms <= 0) return PD_ERR_INVALID_ARG;
     pd_init();
-    return ping_host(addr, timeout_ms);
+    int ttl;
+    return ping_host(addr, timeout_ms, &ttl);
 }
 
 int pd_arp_cache_lookup(const char* ip, char* mac_out) {
@@ -322,9 +365,10 @@ int pd_sweep(const char* cidr, int timeout_ms, int concurrency, uint32_t flags, 
     std::vector<pd_device> live;  // guarded by cb_mutex
     std::mutex cb_mutex;  // callbacks are serialised so consumers need no locking
 
-    auto report = [&](uint32_t addr, int rtt) {
+    auto report = [&](uint32_t addr, int rtt, int ttl) {
         pd_device d = make_device(ipv4_to_string(addr));
         d.rtt_ms = rtt;
+        d.ttl = ttl;
         d.sources = PD_SRC_ICMP;
         if ((flags & PD_SWEEP_ARP_CACHE) && pd_arp_cache_lookup(d.ip, d.mac) == PD_OK) {
             d.sources |= PD_SRC_ARP;
@@ -347,12 +391,13 @@ int pd_sweep(const char* cidr, int timeout_ms, int concurrency, uint32_t flags, 
         pool.emplace_back([&] {
             for (uint32_t i = next++; i < count && !tok.cancelled() && fatal == PD_OK; i = next++) {
                 uint32_t addr = first + i;
-                int rtt = ping_host(addr, timeout_ms);
+                int ttl;
+                int rtt = ping_host(addr, timeout_ms, &ttl);
                 if (rtt == PD_ERR_PERMISSION || rtt == PD_ERR_SOCKET) {
                     fatal = rtt;
                     break;
                 }
-                if (rtt >= 0) report(addr, rtt);
+                if (rtt >= 0) report(addr, rtt, ttl);
             }
         });
     }

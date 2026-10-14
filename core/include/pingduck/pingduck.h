@@ -58,6 +58,7 @@ extern "C" {
 #define PD_VENDOR_LEN    128
 #define PD_MODEL_LEN     128
 #define PD_SERVICES_LEN  512
+#define PD_SERVER_LEN    96
 
 typedef struct pd_device {
     char     ip[PD_IP_LEN];             /* dotted quad                         */
@@ -68,6 +69,9 @@ typedef struct pd_device {
     char     services[PD_SERVICES_LEN]; /* comma-separated, e.g. "_airplay._tcp" */
     int32_t  rtt_ms;                    /* ICMP round trip, -1 if unknown      */
     uint32_t sources;                   /* PD_SRC_* bitmask                    */
+    /* Appended in 0.2 so earlier offsets stay put. */
+    char     server[PD_SERVER_LEN];     /* SSDP SERVER header, e.g. "Linux/4.9 UPnP/1.0", or "" */
+    int32_t  ttl;                       /* TTL of the ICMP echo reply, -1 if unknown */
 } pd_device;
 
 typedef struct pd_interface {
