@@ -252,25 +252,15 @@ class _RttPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: PdField(
-                    label: 'MAC physical',
-                    value: d.mac?.toUpperCase() ?? 'not visible',
-                    sub: d.mac == null ? 'needs the agent on this OS' : (d.vendor ?? 'unknown vendor'),
-                    valueColor: d.mac == null ? PingDuckColors.inkMuted : null,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: PdField(label: 'Subnet', value: subnet ?? '—'),
-                ),
-              ],
-            ),
+          // Full width: a 17-character MAC doesn't fit half a phone screen.
+          PdField(
+            label: 'MAC physical',
+            value: d.mac?.toUpperCase() ?? 'not visible',
+            sub: d.mac == null ? 'needs the agent on this OS' : (d.vendor ?? 'unknown vendor'),
+            valueColor: d.mac == null ? PingDuckColors.inkMuted : null,
           ),
+          const SizedBox(height: 8),
+          PdField(label: 'Subnet', value: subnet ?? '—'),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
