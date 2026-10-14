@@ -107,3 +107,19 @@ const appleModels = <String, String>{
   'AppleTV': 'Apple TV',
   'AudioAccessory': 'HomePod',
 };
+
+/// Hostname words that name a kind of device, never a person. A device's
+/// fingerprint keeps these and blanks every other word (fingerprint.dart).
+const hostWords = <String>{
+  'iphone', 'ipad', 'macbook', 'imac', 'mac', 'mini', 'air', 'pro', 'appletv', 'homepod', 'watch',
+  'android', 'galaxy', 'pixel', 'oneplus', 'xiaomi', 'redmi',
+  'desktop', 'laptop', 'pc', 'workstation', 'server', 'nas', 'diskstation', 'ds',
+  'printer', 'hp', 'epson', 'brother', 'canon', 'officejet', 'laserjet', 'deskjet', 'envy', 'npi',
+  'chromecast', 'nest', 'google', 'home', 'echo', 'amazon', 'kindle', 'fire', 'firetv', 'roku', 'sonos',
+  'tv', 'samsung', 'lg', 'webos', 'tizen', 'bravia', 'sony', 'xbox', 'playstation', 'ps4', 'ps5', 'switch',
+  'esp', 'esp32', 'esp8266', 'tasmota', 'shelly', 'wled', 'tuya', 'wiz', 'hue', 'kasa', 'tapo', 'ring',
+  'camera', 'cam', 'doorbell', 'thermostat', 'plug', 'bulb', 'light', 'speaker',
+  'raspberrypi', 'pi', 'proxmox', 'pve', 'ubuntu', 'debian', 'unraid', 'truenas', 'synology', 'qnap',
+  'router', 'ap', 'unifi', 'udm', 'archer', 'deco', 'orbi', 'eero', 'gateway',
+  'thinkpad', 'thinkcentre', 'ideapad', 'legion', 'dell', 'optiplex', 'latitude', 'xps', 'surface',
+};

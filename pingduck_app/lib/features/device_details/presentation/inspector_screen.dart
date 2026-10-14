@@ -12,10 +12,13 @@ import '../../../services/supabase_sync.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../scanner/domain/device_kind.dart';
 import '../../scanner/domain/discovered_device.dart';
+import '../../recognition/fingerprint.dart';
+import '../../recognition/learned_labels.dart';
 import '../../recognition/recognition.dart';
 import '../../scanner/presentation/overview_screen.dart' show renameDevice;
 import '../../tools/presentation/tools_screen.dart';
 import '../application/diagnostics_controller.dart';
+import 'label_editor.dart';
 import 'recognition_panels.dart';
 
 /// Node Inspect tool: pick a device, then everything known about it plus
@@ -89,7 +92,9 @@ class _Inspector extends ConsumerWidget {
     final diag = ref.watch(diagnosticsProvider(d.ip));
     final ctrl = ref.read(diagnosticsProvider(d.ip).notifier);
     final liveRtt = diag.pings.isNotEmpty ? diag.pings.last : (d.isOnline ? d.rttMs : null);
-    final recognition = Recognizer.of(d, kind);
+    final fingerprint = Fingerprint.of(d);
+    final learned = fingerprint == null ? null : ref.watch(learnedLabelsProvider).value?[fingerprint];
+    final recognition = Recognizer.of(d, kind, learned: learned);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -119,10 +124,8 @@ class _Inspector extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         _IdentityPanel(device: d, kind: kind, recognition: recognition),
-        if (recognition.hasDevice || recognition.os != null) ...[
-          const SizedBox(height: 16),
-          RecognitionPanels(recognition),
-        ],
+        const SizedBox(height: 16),
+        RecognitionPanels(recognition, onEdit: () => editDeviceLabel(context, ref, d, recognition)),
         const SizedBox(height: 16),
         _RttPanel(device: d, diag: diag, onToggle: ctrl.togglePing, subnet: scan.lan?.cidr),
         const SizedBox(height: 16),

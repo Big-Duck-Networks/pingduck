@@ -1,3 +1,7 @@
+import 'device_label.dart';
+
+export 'device_label.dart';
+
 /// How a device was discovered. Mirrors the `PD_SRC_*` flags in
 /// `core/include/pingduck/pingduck.h`; the bit values must stay in sync.
 enum DiscoverySource {
@@ -41,6 +45,7 @@ class DiscoveredDevice {
     this.isKnown = false,
     this.ttl,
     this.server,
+    this.label,
   });
 
   /// RTT samples kept per device (one per scan) for the ledger sparkline.
@@ -75,6 +80,9 @@ class DiscoveredDevice {
   /// ping reply and its SSDP SERVER header.
   final int? ttl;
   final String? server;
+
+  /// What the user says the device is (Node Inspect); never set by scans.
+  final DeviceLabel? label;
 
   /// Stable identity: MAC when known (survives DHCP changes), else IP.
   String get id => mac ?? ip;
@@ -114,6 +122,7 @@ class DiscoveredDevice {
         isKnown: isKnown || other.isKnown,
         ttl: other.ttl ?? ttl,
         server: other.server ?? server,
+        label: label ?? other.label,
       );
 
   /// A randomized-MAC placeholder loses to any real vendor name.
@@ -134,6 +143,8 @@ class DiscoveredDevice {
     bool clearNotes = false,
     List<int>? rttHistory,
     bool? isKnown,
+    DeviceLabel? label,
+    bool clearLabel = false,
   }) =>
       DiscoveredDevice(
         ip: ip,
@@ -153,6 +164,7 @@ class DiscoveredDevice {
         isKnown: isKnown ?? this.isKnown,
         ttl: ttl,
         server: server,
+        label: clearLabel ? null : label ?? this.label,
       );
 
   /// Appends one RTT sample, dropping the oldest beyond [historyLength].

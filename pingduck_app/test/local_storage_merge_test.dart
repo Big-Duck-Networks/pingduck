@@ -128,4 +128,31 @@ void main() {
     final version = await reopened.customSelect('PRAGMA user_version').getSingle();
     expect(version.read<int>('user_version'), reopened.schemaVersion);
   });
+
+  test('a v5 cache gains labels without losing devices', () async {
+    final dir = await Directory.systemTemp.createTemp('pingduck_cache');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/pingduck.sqlite');
+
+    // Build today's schema, then strip it back to v5.
+    final v5 = LocalStore(NativeDatabase(file));
+    final n = await v5.networkFor(key: 'k', cidr: '10.42.0.0/24');
+    await v5.saveDevices(n, [const DiscoveredDevice(ip: '10.42.0.5', hostname: 'nas')]);
+    for (final c in ['label_brand', 'label_model', 'label_os']) {
+      await v5.customStatement('ALTER TABLE devices DROP COLUMN $c');
+    }
+    await v5.customStatement('DROP TABLE learned_labels');
+    await v5.customStatement('PRAGMA user_version = 5');
+    await v5.close();
+
+    final reopened = LocalStore(NativeDatabase(file));
+    addTearDown(reopened.close);
+    expect((await reopened.devicesOf(n)).single.hostname, 'nas');
+    await reopened.saveDevices(n, [
+      const DiscoveredDevice(ip: '10.42.0.5', hostname: 'nas', label: DeviceLabel(brand: 'Synology')),
+    ]);
+    await reopened.learn('v=synology', const DeviceLabel(model: 'DS920+'));
+    expect((await reopened.devicesOf(n)).single.label, const DeviceLabel(brand: 'Synology'));
+    expect(await reopened.learned(), {'v=synology': const DeviceLabel(model: 'DS920+')});
+  });
 }

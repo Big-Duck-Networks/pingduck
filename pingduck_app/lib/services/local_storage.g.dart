@@ -644,6 +644,39 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _labelBrandMeta = const VerificationMeta(
+    'labelBrand',
+  );
+  @override
+  late final GeneratedColumn<String> labelBrand = GeneratedColumn<String>(
+    'label_brand',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _labelModelMeta = const VerificationMeta(
+    'labelModel',
+  );
+  @override
+  late final GeneratedColumn<String> labelModel = GeneratedColumn<String>(
+    'label_model',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _labelOsMeta = const VerificationMeta(
+    'labelOs',
+  );
+  @override
+  late final GeneratedColumn<String> labelOs = GeneratedColumn<String>(
+    'label_os',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     networkId,
@@ -663,6 +696,9 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
     isKnown,
     ttl,
     server,
+    labelBrand,
+    labelModel,
+    labelOs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -779,6 +815,24 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
         server.isAcceptableOrUnknown(data['server']!, _serverMeta),
       );
     }
+    if (data.containsKey('label_brand')) {
+      context.handle(
+        _labelBrandMeta,
+        labelBrand.isAcceptableOrUnknown(data['label_brand']!, _labelBrandMeta),
+      );
+    }
+    if (data.containsKey('label_model')) {
+      context.handle(
+        _labelModelMeta,
+        labelModel.isAcceptableOrUnknown(data['label_model']!, _labelModelMeta),
+      );
+    }
+    if (data.containsKey('label_os')) {
+      context.handle(
+        _labelOsMeta,
+        labelOs.isAcceptableOrUnknown(data['label_os']!, _labelOsMeta),
+      );
+    }
     return context;
   }
 
@@ -856,6 +910,18 @@ class $DevicesTable extends Devices with TableInfo<$DevicesTable, Device> {
         DriftSqlType.string,
         data['${effectivePrefix}server'],
       ),
+      labelBrand: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label_brand'],
+      ),
+      labelModel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label_model'],
+      ),
+      labelOs: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label_os'],
+      ),
     );
   }
 
@@ -887,6 +953,11 @@ class Device extends DataClass implements Insertable<Device> {
   /// Recognition signals: ping reply TTL and SSDP SERVER header.
   final int? ttl;
   final String? server;
+
+  /// What the user says the device is; overrides recognition per field.
+  final String? labelBrand;
+  final String? labelModel;
+  final String? labelOs;
   const Device({
     required this.networkId,
     required this.ip,
@@ -905,6 +976,9 @@ class Device extends DataClass implements Insertable<Device> {
     required this.isKnown,
     this.ttl,
     this.server,
+    this.labelBrand,
+    this.labelModel,
+    this.labelOs,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -948,6 +1022,15 @@ class Device extends DataClass implements Insertable<Device> {
     if (!nullToAbsent || server != null) {
       map['server'] = Variable<String>(server);
     }
+    if (!nullToAbsent || labelBrand != null) {
+      map['label_brand'] = Variable<String>(labelBrand);
+    }
+    if (!nullToAbsent || labelModel != null) {
+      map['label_model'] = Variable<String>(labelModel);
+    }
+    if (!nullToAbsent || labelOs != null) {
+      map['label_os'] = Variable<String>(labelOs);
+    }
     return map;
   }
 
@@ -988,6 +1071,15 @@ class Device extends DataClass implements Insertable<Device> {
       server: server == null && nullToAbsent
           ? const Value.absent()
           : Value(server),
+      labelBrand: labelBrand == null && nullToAbsent
+          ? const Value.absent()
+          : Value(labelBrand),
+      labelModel: labelModel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(labelModel),
+      labelOs: labelOs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(labelOs),
     );
   }
 
@@ -1014,6 +1106,9 @@ class Device extends DataClass implements Insertable<Device> {
       isKnown: serializer.fromJson<bool>(json['isKnown']),
       ttl: serializer.fromJson<int?>(json['ttl']),
       server: serializer.fromJson<String?>(json['server']),
+      labelBrand: serializer.fromJson<String?>(json['labelBrand']),
+      labelModel: serializer.fromJson<String?>(json['labelModel']),
+      labelOs: serializer.fromJson<String?>(json['labelOs']),
     );
   }
   @override
@@ -1037,6 +1132,9 @@ class Device extends DataClass implements Insertable<Device> {
       'isKnown': serializer.toJson<bool>(isKnown),
       'ttl': serializer.toJson<int?>(ttl),
       'server': serializer.toJson<String?>(server),
+      'labelBrand': serializer.toJson<String?>(labelBrand),
+      'labelModel': serializer.toJson<String?>(labelModel),
+      'labelOs': serializer.toJson<String?>(labelOs),
     };
   }
 
@@ -1058,6 +1156,9 @@ class Device extends DataClass implements Insertable<Device> {
     bool? isKnown,
     Value<int?> ttl = const Value.absent(),
     Value<String?> server = const Value.absent(),
+    Value<String?> labelBrand = const Value.absent(),
+    Value<String?> labelModel = const Value.absent(),
+    Value<String?> labelOs = const Value.absent(),
   }) => Device(
     networkId: networkId ?? this.networkId,
     ip: ip ?? this.ip,
@@ -1076,6 +1177,9 @@ class Device extends DataClass implements Insertable<Device> {
     isKnown: isKnown ?? this.isKnown,
     ttl: ttl.present ? ttl.value : this.ttl,
     server: server.present ? server.value : this.server,
+    labelBrand: labelBrand.present ? labelBrand.value : this.labelBrand,
+    labelModel: labelModel.present ? labelModel.value : this.labelModel,
+    labelOs: labelOs.present ? labelOs.value : this.labelOs,
   );
   Device copyWithCompanion(DevicesCompanion data) {
     return Device(
@@ -1100,6 +1204,13 @@ class Device extends DataClass implements Insertable<Device> {
       isKnown: data.isKnown.present ? data.isKnown.value : this.isKnown,
       ttl: data.ttl.present ? data.ttl.value : this.ttl,
       server: data.server.present ? data.server.value : this.server,
+      labelBrand: data.labelBrand.present
+          ? data.labelBrand.value
+          : this.labelBrand,
+      labelModel: data.labelModel.present
+          ? data.labelModel.value
+          : this.labelModel,
+      labelOs: data.labelOs.present ? data.labelOs.value : this.labelOs,
     );
   }
 
@@ -1122,7 +1233,10 @@ class Device extends DataClass implements Insertable<Device> {
           ..write('notes: $notes, ')
           ..write('isKnown: $isKnown, ')
           ..write('ttl: $ttl, ')
-          ..write('server: $server')
+          ..write('server: $server, ')
+          ..write('labelBrand: $labelBrand, ')
+          ..write('labelModel: $labelModel, ')
+          ..write('labelOs: $labelOs')
           ..write(')'))
         .toString();
   }
@@ -1146,6 +1260,9 @@ class Device extends DataClass implements Insertable<Device> {
     isKnown,
     ttl,
     server,
+    labelBrand,
+    labelModel,
+    labelOs,
   );
   @override
   bool operator ==(Object other) =>
@@ -1167,7 +1284,10 @@ class Device extends DataClass implements Insertable<Device> {
           other.notes == this.notes &&
           other.isKnown == this.isKnown &&
           other.ttl == this.ttl &&
-          other.server == this.server);
+          other.server == this.server &&
+          other.labelBrand == this.labelBrand &&
+          other.labelModel == this.labelModel &&
+          other.labelOs == this.labelOs);
 }
 
 class DevicesCompanion extends UpdateCompanion<Device> {
@@ -1188,6 +1308,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
   final Value<bool> isKnown;
   final Value<int?> ttl;
   final Value<String?> server;
+  final Value<String?> labelBrand;
+  final Value<String?> labelModel;
+  final Value<String?> labelOs;
   final Value<int> rowid;
   const DevicesCompanion({
     this.networkId = const Value.absent(),
@@ -1207,6 +1330,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     this.isKnown = const Value.absent(),
     this.ttl = const Value.absent(),
     this.server = const Value.absent(),
+    this.labelBrand = const Value.absent(),
+    this.labelModel = const Value.absent(),
+    this.labelOs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DevicesCompanion.insert({
@@ -1227,6 +1353,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     this.isKnown = const Value.absent(),
     this.ttl = const Value.absent(),
     this.server = const Value.absent(),
+    this.labelBrand = const Value.absent(),
+    this.labelModel = const Value.absent(),
+    this.labelOs = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : networkId = Value(networkId),
        ip = Value(ip);
@@ -1248,6 +1377,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     Expression<bool>? isKnown,
     Expression<int>? ttl,
     Expression<String>? server,
+    Expression<String>? labelBrand,
+    Expression<String>? labelModel,
+    Expression<String>? labelOs,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1268,6 +1400,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
       if (isKnown != null) 'is_known': isKnown,
       if (ttl != null) 'ttl': ttl,
       if (server != null) 'server': server,
+      if (labelBrand != null) 'label_brand': labelBrand,
+      if (labelModel != null) 'label_model': labelModel,
+      if (labelOs != null) 'label_os': labelOs,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1290,6 +1425,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     Value<bool>? isKnown,
     Value<int?>? ttl,
     Value<String?>? server,
+    Value<String?>? labelBrand,
+    Value<String?>? labelModel,
+    Value<String?>? labelOs,
     Value<int>? rowid,
   }) {
     return DevicesCompanion(
@@ -1310,6 +1448,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
       isKnown: isKnown ?? this.isKnown,
       ttl: ttl ?? this.ttl,
       server: server ?? this.server,
+      labelBrand: labelBrand ?? this.labelBrand,
+      labelModel: labelModel ?? this.labelModel,
+      labelOs: labelOs ?? this.labelOs,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1368,6 +1509,15 @@ class DevicesCompanion extends UpdateCompanion<Device> {
     if (server.present) {
       map['server'] = Variable<String>(server.value);
     }
+    if (labelBrand.present) {
+      map['label_brand'] = Variable<String>(labelBrand.value);
+    }
+    if (labelModel.present) {
+      map['label_model'] = Variable<String>(labelModel.value);
+    }
+    if (labelOs.present) {
+      map['label_os'] = Variable<String>(labelOs.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1394,6 +1544,9 @@ class DevicesCompanion extends UpdateCompanion<Device> {
           ..write('isKnown: $isKnown, ')
           ..write('ttl: $ttl, ')
           ..write('server: $server, ')
+          ..write('labelBrand: $labelBrand, ')
+          ..write('labelModel: $labelModel, ')
+          ..write('labelOs: $labelOs, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1605,12 +1758,377 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
   }
 }
 
+class $LearnedLabelsTable extends LearnedLabels
+    with TableInfo<$LearnedLabelsTable, LearnedLabel> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LearnedLabelsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _fingerprintMeta = const VerificationMeta(
+    'fingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> fingerprint = GeneratedColumn<String>(
+    'fingerprint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _brandMeta = const VerificationMeta('brand');
+  @override
+  late final GeneratedColumn<String> brand = GeneratedColumn<String>(
+    'brand',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _osMeta = const VerificationMeta('os');
+  @override
+  late final GeneratedColumn<String> os = GeneratedColumn<String>(
+    'os',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _learnedAtMeta = const VerificationMeta(
+    'learnedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> learnedAt = GeneratedColumn<DateTime>(
+    'learned_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    fingerprint,
+    brand,
+    model,
+    os,
+    learnedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'learned_labels';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LearnedLabel> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('fingerprint')) {
+      context.handle(
+        _fingerprintMeta,
+        fingerprint.isAcceptableOrUnknown(
+          data['fingerprint']!,
+          _fingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_fingerprintMeta);
+    }
+    if (data.containsKey('brand')) {
+      context.handle(
+        _brandMeta,
+        brand.isAcceptableOrUnknown(data['brand']!, _brandMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('os')) {
+      context.handle(_osMeta, os.isAcceptableOrUnknown(data['os']!, _osMeta));
+    }
+    if (data.containsKey('learned_at')) {
+      context.handle(
+        _learnedAtMeta,
+        learnedAt.isAcceptableOrUnknown(data['learned_at']!, _learnedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_learnedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {fingerprint};
+  @override
+  LearnedLabel map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LearnedLabel(
+      fingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fingerprint'],
+      )!,
+      brand: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}brand'],
+      ),
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      ),
+      os: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}os'],
+      ),
+      learnedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}learned_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LearnedLabelsTable createAlias(String alias) {
+    return $LearnedLabelsTable(attachedDatabase, alias);
+  }
+}
+
+class LearnedLabel extends DataClass implements Insertable<LearnedLabel> {
+  final String fingerprint;
+  final String? brand;
+  final String? model;
+  final String? os;
+  final DateTime learnedAt;
+  const LearnedLabel({
+    required this.fingerprint,
+    this.brand,
+    this.model,
+    this.os,
+    required this.learnedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['fingerprint'] = Variable<String>(fingerprint);
+    if (!nullToAbsent || brand != null) {
+      map['brand'] = Variable<String>(brand);
+    }
+    if (!nullToAbsent || model != null) {
+      map['model'] = Variable<String>(model);
+    }
+    if (!nullToAbsent || os != null) {
+      map['os'] = Variable<String>(os);
+    }
+    map['learned_at'] = Variable<DateTime>(learnedAt);
+    return map;
+  }
+
+  LearnedLabelsCompanion toCompanion(bool nullToAbsent) {
+    return LearnedLabelsCompanion(
+      fingerprint: Value(fingerprint),
+      brand: brand == null && nullToAbsent
+          ? const Value.absent()
+          : Value(brand),
+      model: model == null && nullToAbsent
+          ? const Value.absent()
+          : Value(model),
+      os: os == null && nullToAbsent ? const Value.absent() : Value(os),
+      learnedAt: Value(learnedAt),
+    );
+  }
+
+  factory LearnedLabel.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LearnedLabel(
+      fingerprint: serializer.fromJson<String>(json['fingerprint']),
+      brand: serializer.fromJson<String?>(json['brand']),
+      model: serializer.fromJson<String?>(json['model']),
+      os: serializer.fromJson<String?>(json['os']),
+      learnedAt: serializer.fromJson<DateTime>(json['learnedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'fingerprint': serializer.toJson<String>(fingerprint),
+      'brand': serializer.toJson<String?>(brand),
+      'model': serializer.toJson<String?>(model),
+      'os': serializer.toJson<String?>(os),
+      'learnedAt': serializer.toJson<DateTime>(learnedAt),
+    };
+  }
+
+  LearnedLabel copyWith({
+    String? fingerprint,
+    Value<String?> brand = const Value.absent(),
+    Value<String?> model = const Value.absent(),
+    Value<String?> os = const Value.absent(),
+    DateTime? learnedAt,
+  }) => LearnedLabel(
+    fingerprint: fingerprint ?? this.fingerprint,
+    brand: brand.present ? brand.value : this.brand,
+    model: model.present ? model.value : this.model,
+    os: os.present ? os.value : this.os,
+    learnedAt: learnedAt ?? this.learnedAt,
+  );
+  LearnedLabel copyWithCompanion(LearnedLabelsCompanion data) {
+    return LearnedLabel(
+      fingerprint: data.fingerprint.present
+          ? data.fingerprint.value
+          : this.fingerprint,
+      brand: data.brand.present ? data.brand.value : this.brand,
+      model: data.model.present ? data.model.value : this.model,
+      os: data.os.present ? data.os.value : this.os,
+      learnedAt: data.learnedAt.present ? data.learnedAt.value : this.learnedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LearnedLabel(')
+          ..write('fingerprint: $fingerprint, ')
+          ..write('brand: $brand, ')
+          ..write('model: $model, ')
+          ..write('os: $os, ')
+          ..write('learnedAt: $learnedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(fingerprint, brand, model, os, learnedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LearnedLabel &&
+          other.fingerprint == this.fingerprint &&
+          other.brand == this.brand &&
+          other.model == this.model &&
+          other.os == this.os &&
+          other.learnedAt == this.learnedAt);
+}
+
+class LearnedLabelsCompanion extends UpdateCompanion<LearnedLabel> {
+  final Value<String> fingerprint;
+  final Value<String?> brand;
+  final Value<String?> model;
+  final Value<String?> os;
+  final Value<DateTime> learnedAt;
+  final Value<int> rowid;
+  const LearnedLabelsCompanion({
+    this.fingerprint = const Value.absent(),
+    this.brand = const Value.absent(),
+    this.model = const Value.absent(),
+    this.os = const Value.absent(),
+    this.learnedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LearnedLabelsCompanion.insert({
+    required String fingerprint,
+    this.brand = const Value.absent(),
+    this.model = const Value.absent(),
+    this.os = const Value.absent(),
+    required DateTime learnedAt,
+    this.rowid = const Value.absent(),
+  }) : fingerprint = Value(fingerprint),
+       learnedAt = Value(learnedAt);
+  static Insertable<LearnedLabel> custom({
+    Expression<String>? fingerprint,
+    Expression<String>? brand,
+    Expression<String>? model,
+    Expression<String>? os,
+    Expression<DateTime>? learnedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (fingerprint != null) 'fingerprint': fingerprint,
+      if (brand != null) 'brand': brand,
+      if (model != null) 'model': model,
+      if (os != null) 'os': os,
+      if (learnedAt != null) 'learned_at': learnedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LearnedLabelsCompanion copyWith({
+    Value<String>? fingerprint,
+    Value<String?>? brand,
+    Value<String?>? model,
+    Value<String?>? os,
+    Value<DateTime>? learnedAt,
+    Value<int>? rowid,
+  }) {
+    return LearnedLabelsCompanion(
+      fingerprint: fingerprint ?? this.fingerprint,
+      brand: brand ?? this.brand,
+      model: model ?? this.model,
+      os: os ?? this.os,
+      learnedAt: learnedAt ?? this.learnedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (fingerprint.present) {
+      map['fingerprint'] = Variable<String>(fingerprint.value);
+    }
+    if (brand.present) {
+      map['brand'] = Variable<String>(brand.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (os.present) {
+      map['os'] = Variable<String>(os.value);
+    }
+    if (learnedAt.present) {
+      map['learned_at'] = Variable<DateTime>(learnedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LearnedLabelsCompanion(')
+          ..write('fingerprint: $fingerprint, ')
+          ..write('brand: $brand, ')
+          ..write('model: $model, ')
+          ..write('os: $os, ')
+          ..write('learnedAt: $learnedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LocalStore extends GeneratedDatabase {
   _$LocalStore(QueryExecutor e) : super(e);
   $LocalStoreManager get managers => $LocalStoreManager(this);
   late final $NetworksTable networks = $NetworksTable(this);
   late final $DevicesTable devices = $DevicesTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final $LearnedLabelsTable learnedLabels = $LearnedLabelsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1619,6 +2137,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
     networks,
     devices,
     settings,
+    learnedLabels,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -1979,6 +2498,9 @@ typedef $$DevicesTableCreateCompanionBuilder =
       Value<bool> isKnown,
       Value<int?> ttl,
       Value<String?> server,
+      Value<String?> labelBrand,
+      Value<String?> labelModel,
+      Value<String?> labelOs,
       Value<int> rowid,
     });
 typedef $$DevicesTableUpdateCompanionBuilder =
@@ -2000,6 +2522,9 @@ typedef $$DevicesTableUpdateCompanionBuilder =
       Value<bool> isKnown,
       Value<int?> ttl,
       Value<String?> server,
+      Value<String?> labelBrand,
+      Value<String?> labelModel,
+      Value<String?> labelOs,
       Value<int> rowid,
     });
 
@@ -2111,6 +2636,21 @@ class $$DevicesTableFilterComposer
 
   ColumnFilters<String> get server => $composableBuilder(
     column: $table.server,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get labelBrand => $composableBuilder(
+    column: $table.labelBrand,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get labelModel => $composableBuilder(
+    column: $table.labelModel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get labelOs => $composableBuilder(
+    column: $table.labelOs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2227,6 +2767,21 @@ class $$DevicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get labelBrand => $composableBuilder(
+    column: $table.labelBrand,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get labelModel => $composableBuilder(
+    column: $table.labelModel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get labelOs => $composableBuilder(
+    column: $table.labelOs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$NetworksTableOrderingComposer get networkId {
     final $$NetworksTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -2312,6 +2867,19 @@ class $$DevicesTableAnnotationComposer
   GeneratedColumn<String> get server =>
       $composableBuilder(column: $table.server, builder: (column) => column);
 
+  GeneratedColumn<String> get labelBrand => $composableBuilder(
+    column: $table.labelBrand,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get labelModel => $composableBuilder(
+    column: $table.labelModel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get labelOs =>
+      $composableBuilder(column: $table.labelOs, builder: (column) => column);
+
   $$NetworksTableAnnotationComposer get networkId {
     final $$NetworksTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -2381,6 +2949,9 @@ class $$DevicesTableTableManager
                 Value<bool> isKnown = const Value.absent(),
                 Value<int?> ttl = const Value.absent(),
                 Value<String?> server = const Value.absent(),
+                Value<String?> labelBrand = const Value.absent(),
+                Value<String?> labelModel = const Value.absent(),
+                Value<String?> labelOs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DevicesCompanion(
                 networkId: networkId,
@@ -2400,6 +2971,9 @@ class $$DevicesTableTableManager
                 isKnown: isKnown,
                 ttl: ttl,
                 server: server,
+                labelBrand: labelBrand,
+                labelModel: labelModel,
+                labelOs: labelOs,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2421,6 +2995,9 @@ class $$DevicesTableTableManager
                 Value<bool> isKnown = const Value.absent(),
                 Value<int?> ttl = const Value.absent(),
                 Value<String?> server = const Value.absent(),
+                Value<String?> labelBrand = const Value.absent(),
+                Value<String?> labelModel = const Value.absent(),
+                Value<String?> labelOs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DevicesCompanion.insert(
                 networkId: networkId,
@@ -2440,6 +3017,9 @@ class $$DevicesTableTableManager
                 isKnown: isKnown,
                 ttl: ttl,
                 server: server,
+                labelBrand: labelBrand,
+                labelModel: labelModel,
+                labelOs: labelOs,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -2651,6 +3231,217 @@ typedef $$SettingsTableProcessedTableManager =
       Setting,
       PrefetchHooks Function()
     >;
+typedef $$LearnedLabelsTableCreateCompanionBuilder =
+    LearnedLabelsCompanion Function({
+      required String fingerprint,
+      Value<String?> brand,
+      Value<String?> model,
+      Value<String?> os,
+      required DateTime learnedAt,
+      Value<int> rowid,
+    });
+typedef $$LearnedLabelsTableUpdateCompanionBuilder =
+    LearnedLabelsCompanion Function({
+      Value<String> fingerprint,
+      Value<String?> brand,
+      Value<String?> model,
+      Value<String?> os,
+      Value<DateTime> learnedAt,
+      Value<int> rowid,
+    });
+
+class $$LearnedLabelsTableFilterComposer
+    extends Composer<_$LocalStore, $LearnedLabelsTable> {
+  $$LearnedLabelsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get brand => $composableBuilder(
+    column: $table.brand,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get os => $composableBuilder(
+    column: $table.os,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get learnedAt => $composableBuilder(
+    column: $table.learnedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LearnedLabelsTableOrderingComposer
+    extends Composer<_$LocalStore, $LearnedLabelsTable> {
+  $$LearnedLabelsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get brand => $composableBuilder(
+    column: $table.brand,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get os => $composableBuilder(
+    column: $table.os,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get learnedAt => $composableBuilder(
+    column: $table.learnedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LearnedLabelsTableAnnotationComposer
+    extends Composer<_$LocalStore, $LearnedLabelsTable> {
+  $$LearnedLabelsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get brand =>
+      $composableBuilder(column: $table.brand, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<String> get os =>
+      $composableBuilder(column: $table.os, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get learnedAt =>
+      $composableBuilder(column: $table.learnedAt, builder: (column) => column);
+}
+
+class $$LearnedLabelsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $LearnedLabelsTable,
+          LearnedLabel,
+          $$LearnedLabelsTableFilterComposer,
+          $$LearnedLabelsTableOrderingComposer,
+          $$LearnedLabelsTableAnnotationComposer,
+          $$LearnedLabelsTableCreateCompanionBuilder,
+          $$LearnedLabelsTableUpdateCompanionBuilder,
+          (
+            LearnedLabel,
+            BaseReferences<_$LocalStore, $LearnedLabelsTable, LearnedLabel>,
+          ),
+          LearnedLabel,
+          PrefetchHooks Function()
+        > {
+  $$LearnedLabelsTableTableManager(_$LocalStore db, $LearnedLabelsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LearnedLabelsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LearnedLabelsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LearnedLabelsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> fingerprint = const Value.absent(),
+                Value<String?> brand = const Value.absent(),
+                Value<String?> model = const Value.absent(),
+                Value<String?> os = const Value.absent(),
+                Value<DateTime> learnedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LearnedLabelsCompanion(
+                fingerprint: fingerprint,
+                brand: brand,
+                model: model,
+                os: os,
+                learnedAt: learnedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String fingerprint,
+                Value<String?> brand = const Value.absent(),
+                Value<String?> model = const Value.absent(),
+                Value<String?> os = const Value.absent(),
+                required DateTime learnedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => LearnedLabelsCompanion.insert(
+                fingerprint: fingerprint,
+                brand: brand,
+                model: model,
+                os: os,
+                learnedAt: learnedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$LearnedLabelsTable, LearnedLabel>(table),
+                  BaseReferences<
+                    _$LocalStore,
+                    $LearnedLabelsTable,
+                    LearnedLabel
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LearnedLabelsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $LearnedLabelsTable,
+      LearnedLabel,
+      $$LearnedLabelsTableFilterComposer,
+      $$LearnedLabelsTableOrderingComposer,
+      $$LearnedLabelsTableAnnotationComposer,
+      $$LearnedLabelsTableCreateCompanionBuilder,
+      $$LearnedLabelsTableUpdateCompanionBuilder,
+      (
+        LearnedLabel,
+        BaseReferences<_$LocalStore, $LearnedLabelsTable, LearnedLabel>,
+      ),
+      LearnedLabel,
+      PrefetchHooks Function()
+    >;
 
 class $LocalStoreManager {
   final _$LocalStore _db;
@@ -2661,4 +3452,6 @@ class $LocalStoreManager {
       $$DevicesTableTableManager(_db, _db.devices);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
+  $$LearnedLabelsTableTableManager get learnedLabels =>
+      $$LearnedLabelsTableTableManager(_db, _db.learnedLabels);
 }

@@ -7,15 +7,33 @@ import '../../recognition/brand_logo.dart';
 import '../../recognition/recognition.dart';
 
 /// Node Inspect's Device and Operating system cards. Only fields with a
-/// signal behind them are shown; inferred ones carry a LIKELY tag.
+/// signal behind them are shown; inferred ones carry a LIKELY tag and the
+/// user's own answers a SET BY YOU tag. [onEdit] opens the label editor.
 class RecognitionPanels extends StatelessWidget {
-  const RecognitionPanels(this.recognition, {super.key});
+  const RecognitionPanels(this.recognition, {super.key, required this.onEdit});
   final Recognition recognition;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final r = recognition;
     final os = r.os;
+    final edit = TextButton.icon(
+      onPressed: onEdit,
+      icon: const Icon(Icons.edit_outlined, size: 16),
+      label: const Text('EDIT'),
+    );
+    if (!r.hasDevice && os == null) {
+      return PdPanel(
+        title: 'Device',
+        icon: Icons.devices_outlined,
+        trailing: edit,
+        child: Text(
+          'Not recognized yet. Tell PingDuck what it is, and devices that look the same will use your answer too.',
+          style: PdText.bodySm.copyWith(color: PingDuckColors.inkSecondary),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -23,6 +41,7 @@ class RecognitionPanels extends StatelessWidget {
           _FactsPanel(
             title: 'Device',
             icon: Icons.devices_outlined,
+            trailing: edit,
             headline: r.model ?? r.family ?? r.brand ?? r.module!,
             caption: r.model != null
                 ? 'Model'
@@ -44,6 +63,7 @@ class RecognitionPanels extends StatelessWidget {
           _FactsPanel(
             title: 'Operating system',
             icon: Icons.terminal_outlined,
+            trailing: r.hasDevice ? null : edit,
             headline: Fact(os.version == null ? os.name : '${os.name} ${os.version}', os.confidence),
             caption: 'Operating system',
             logo: BrandLogo.forName(os.name),
@@ -66,6 +86,7 @@ class _FactsPanel extends StatelessWidget {
     required this.caption,
     required this.rows,
     this.logo,
+    this.trailing,
   });
 
   final String title;
@@ -73,6 +94,7 @@ class _FactsPanel extends StatelessWidget {
   final Fact headline;
   final String caption;
   final Widget? logo;
+  final Widget? trailing;
   final List<(String, Fact?)> rows;
 
   @override
@@ -80,6 +102,7 @@ class _FactsPanel extends StatelessWidget {
     return PdPanel(
       title: title,
       icon: icon,
+      trailing: trailing,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -92,7 +115,11 @@ class _FactsPanel extends StatelessWidget {
                     Text(headline.value, style: PdText.headlineSm),
                     const SizedBox(height: 2),
                     Text(
-                      headline.isGuess ? '$caption · likely' : caption,
+                      headline.isGuess
+                          ? '$caption · likely'
+                          : headline.isUser
+                              ? '$caption · set by you'
+                              : caption,
                       style: PdText.bodySm.copyWith(color: PingDuckColors.inkSecondary),
                     ),
                   ],
@@ -131,6 +158,7 @@ class _FactRow extends StatelessWidget {
               spacing: 6,
               children: [
                 if (fact.isGuess) const PdChip('LIKELY', tone: PdTone.pending),
+                if (fact.isUser) const PdChip('SET BY YOU', tone: PdTone.ink),
                 Text(fact.value, style: PdText.bodyMd, textAlign: TextAlign.end),
               ],
             ),

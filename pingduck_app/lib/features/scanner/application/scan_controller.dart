@@ -9,6 +9,8 @@ import '../../../core/network/network_context.dart';
 import '../../../services/local_storage.dart';
 import '../../../services/scan_quota.dart';
 import '../../auth/session.dart';
+import '../../recognition/fingerprint.dart';
+import '../../recognition/learned_labels.dart';
 import '../domain/device_kind.dart';
 import '../domain/discovered_device.dart';
 
@@ -278,7 +280,9 @@ class ScanController extends Notifier<ScanState> {
   Future<void> clearInventory() async {
     if (state.isScanning) return;
     await _store.clearInventory();
-    if (ref.mounted) state = ScanState(lan: state.lan);
+    if (!ref.mounted) return;
+    ref.invalidate(learnedLabelsProvider);
+    state = ScanState(lan: state.lan);
   }
 
   void cancel() {
@@ -294,6 +298,17 @@ class ScanController extends Notifier<ScanState> {
         final n = notes?.trim();
         return n == null || n.isEmpty ? d.copyWith(clearNotes: true) : d.copyWith(notes: n);
       });
+
+  /// Saves what the user says the device is, and remembers it for devices
+  /// with the same fingerprint. An empty label goes back to recognition.
+  Future<void> setLabel(String ip, DeviceLabel label) async {
+    await _edit(ip, (d) => label.isEmpty ? d.copyWith(clearLabel: true) : d.copyWith(label: label));
+    final d = state.devices[ip];
+    final fingerprint = d == null ? null : Fingerprint.of(d);
+    if (fingerprint == null) return;
+    await _store.learn(fingerprint, label);
+    if (ref.mounted) ref.invalidate(learnedLabelsProvider);
+  }
 
   /// Removes a device from the inventory and the cache.
   Future<void> forget(String ip) async {
