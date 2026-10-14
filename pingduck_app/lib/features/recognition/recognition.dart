@@ -1,6 +1,7 @@
 import '../scanner/domain/device_kind.dart';
 import '../scanner/domain/discovered_device.dart';
 import 'recognition_rules.dart';
+import 'vendor_name.dart';
 
 /// [user]: the user said so (Node Inspect's Edit).
 /// [known]: the device said so itself (mDNS, UPnP, its SSDP server string).
@@ -107,13 +108,13 @@ abstract final class Recognizer {
 
     final appleModel = _appleModel(d.model);
     final vendor = d.hasPrivateMac ? null : d.vendor;
-    final module = vendor == null ? null : _match(moduleMakers, vendor);
+    final module = vendor == null ? null : VendorName.module(vendor);
 
     Fact? brand;
     if (appleModel != null) {
       brand = const Fact('Apple', Confidence.known);
     } else if (vendor != null && module == null) {
-      brand = Fact(_match(brandRules, vendor) ?? _tidy(vendor), selfDescribed ? Confidence.known : Confidence.likely);
+      brand = Fact(VendorName.brand(vendor) ?? VendorName.tidy(vendor), selfDescribed ? Confidence.known : Confidence.likely);
     } else {
       brand = _brandFromHostname(host);
     }
@@ -223,14 +224,6 @@ abstract final class Recognizer {
     return null;
   }
 
-  static String? _match(List<BrandRule> rules, String vendor) {
-    final v = vendor.toLowerCase();
-    for (final r in rules) {
-      if (RegExp(r.pattern).hasMatch(v)) return r.name;
-    }
-    return null;
-  }
-
   /// "HP OfficeJet Pro 9010 series" with brand HP → "OfficeJet Pro 9010 series".
   static String _withoutBrand(String model, String? brand) {
     if (brand == null) return model;
@@ -238,17 +231,6 @@ abstract final class Recognizer {
     return model.toLowerCase().startsWith(prefix) && model.length > prefix.length
         ? model.substring(prefix.length)
         : model;
-  }
-
-  /// Registry names without the legal suffix: "Proxmox Server Solutions GmbH"
-  /// → "Proxmox Server Solutions".
-  static String _tidy(String vendor) {
-    var v = vendor.replaceAll(RegExp(r'\s*\(.*?\)'), '');
-    v = v.replaceAll(
-        RegExp(r'[,.]?\s*(co\.?,?\s*ltd\.?|inc\.?|corp\.?|corporation|gmbh|ltd\.?|llc|s\.?a\.?|b\.?v\.?|ag|limited)\.?$',
-            caseSensitive: false),
-        '');
-    return v.trim().replaceAll(RegExp(r'[,.]$'), '');
   }
 
   /// "Linux/5.15, UPnP/1.0, Chromecast/1.6": software, not a model. Older

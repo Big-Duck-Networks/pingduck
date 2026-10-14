@@ -152,7 +152,11 @@ class _IdentityPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final d = device;
-    final subtitle = [recognition.brand?.value, recognition.model?.value].whereType<String>().toSet().join(' · ');
+    final subtitle = [recognition.brand?.value, recognition.model?.value]
+        .whereType<String>()
+        .where((s) => s != d.displayName)
+        .toSet()
+        .join(' · ');
     return PdPanel(
       background: PingDuckColors.canvas,
       child: Column(

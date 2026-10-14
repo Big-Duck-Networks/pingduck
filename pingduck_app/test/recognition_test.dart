@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/features/recognition/fingerprint.dart';
 import 'package:pingduck_app/features/recognition/recognition.dart';
+import 'package:pingduck_app/features/recognition/vendor_name.dart';
 import 'package:pingduck_app/features/scanner/domain/device_kind.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 
@@ -206,6 +207,29 @@ void main() {
 
     test('too little to tell devices apart gives no fingerprint', () {
       expect(Fingerprint.of(device(vendor: 'Private (randomized MAC)', hostname: 'Carls-iPhone', ttl: 64)), isNull);
+    });
+  });
+
+  group('names people recognize', () {
+    test('registry names resolve to the brand, module maker or a tidied name', () {
+      expect(VendorName.of('LCFC(Hefei) Electronics Technology co., ltd'), 'Lenovo');
+      expect(VendorName.of('Espressif Inc.'), 'Espressif');
+      expect(VendorName.of('Acme Widgets Co., Ltd.'), 'Acme Widgets');
+      expect(VendorName.of('Private (randomized MAC)'), 'Private (randomized MAC)');
+      expect(VendorName.of(null), isNull);
+    });
+
+    test('a device known only by its MAC vendor is named by the brand', () {
+      expect(device(ip: '10.42.0.10', vendor: 'LCFC(Hefei) Electronics Technology co., ltd').displayName, 'Lenovo');
+    });
+
+    test("the user's label names a device that has no hostname", () {
+      final pc = device(
+        vendor: 'LCFC(Hefei) Electronics Technology co., ltd',
+        label: const DeviceLabel(brand: 'Lenovo', model: 'ThinkCentre M70q'),
+      );
+      expect(pc.displayName, 'Lenovo ThinkCentre M70q');
+      expect(device(hostname: 'office-pc', label: const DeviceLabel(model: 'ThinkCentre M70q')).displayName, 'office-pc');
     });
   });
 }

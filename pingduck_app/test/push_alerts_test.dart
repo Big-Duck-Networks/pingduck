@@ -15,13 +15,13 @@ void main() {
   test('names fall back from hostname to vendor to MAC', () {
     final t = newDeviceAlertText([nas, tv, bare], 'HomeWiFi');
     expect(t.title, '3 new devices on HomeWiFi');
-    expect(t.body, 'nas, LG Electronics, aa:bb:cc:00:00:03');
+    expect(t.body, 'nas, LG, aa:bb:cc:00:00:03');
   });
 
   test('more than three devices are summarised', () {
     final t = newDeviceAlertText([nas, tv, bare, nas, tv], null);
     expect(t.title, '5 new devices on your network');
-    expect(t.body, 'nas, LG Electronics, aa:bb:cc:00:00:03 and 2 more');
+    expect(t.body, 'nas, LG, aa:bb:cc:00:00:03 and 2 more');
   });
 
   test('no details yet still says something useful', () {

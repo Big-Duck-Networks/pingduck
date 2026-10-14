@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/constants/supabase_config.dart';
+import '../features/recognition/vendor_name.dart';
 import '../features/scanner/application/scan_controller.dart';
 import '../firebase_options.dart';
 import 'local_storage.dart';
@@ -50,7 +51,9 @@ class AlertDevice {
   final String? vendor;
   final String? mac;
 
-  String get displayName => [hostname, vendor, mac].firstWhere((s) => s != null && s.isNotEmpty, orElse: () => null) ?? 'Unknown device';
+  String get displayName =>
+      [hostname, VendorName.of(vendor), mac].firstWhere((s) => s != null && s.isNotEmpty, orElse: () => null) ??
+      'Unknown device';
 }
 
 /// The notification's title and body: up to three names, then "and N more".

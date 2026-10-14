@@ -328,7 +328,7 @@ class _FocusCard extends ConsumerWidget {
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          Expanded(child: PdField(label: 'Vendor', value: d.vendor ?? '—')),
+          Expanded(child: PdField(label: 'Vendor', value: d.vendorName ?? '—')),
           const SizedBox(width: 8),
           Expanded(
             child: PdField(

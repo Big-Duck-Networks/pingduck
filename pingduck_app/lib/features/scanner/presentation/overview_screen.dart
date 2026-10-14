@@ -56,7 +56,7 @@ List<DiscoveredDevice> sortAndFilter(Iterable<DiscoveredDevice> devices, LedgerS
       LedgerSort.latency => (a.rttMs ?? 1 << 30).compareTo(b.rttMs ?? 1 << 30),
       LedgerSort.ip => 0,
       LedgerSort.name => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
-      LedgerSort.vendor => (a.vendor ?? '~').toLowerCase().compareTo((b.vendor ?? '~').toLowerCase()),
+      LedgerSort.vendor => (a.vendorName ?? '~').toLowerCase().compareTo((b.vendorName ?? '~').toLowerCase()),
       LedgerSort.lastSeen => (b.lastSeen ?? DateTime(0)).compareTo(a.lastSeen ?? DateTime(0)),
     };
     return c != 0 ? c : byIp(a, b);
