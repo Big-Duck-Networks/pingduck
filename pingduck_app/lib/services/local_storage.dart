@@ -44,6 +44,10 @@ class Devices extends Table {
   /// Mirrors Supabase `devices.is_known` for agent-monitored networks.
   BoolColumn get isKnown => boolean().withDefault(const Constant(false))();
 
+  /// Recognition signals: ping reply TTL and SSDP SERVER header.
+  IntColumn get ttl => integer().nullable()();
+  TextColumn get server => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {networkId, ip};
 }
@@ -83,7 +87,7 @@ class LocalStore extends _$LocalStore {
   LocalStore([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'pingduck'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -91,6 +95,10 @@ class LocalStore extends _$LocalStore {
           if (from < 2) await _addColumn(m, networks, networks.ssid);
           if (from < 3) await _addColumn(m, networks, networks.remoteId);
           if (from < 4) await _addColumn(m, devices, devices.isKnown);
+          if (from < 5) {
+            await _addColumn(m, devices, devices.ttl);
+            await _addColumn(m, devices, devices.server);
+          }
         },
         beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
       );
@@ -165,6 +173,9 @@ class LocalStore extends _$LocalStore {
                     ? Value(r.vendor)
                     : const Value.absent(),
                 model: row.model == null ? Value(r.model) : const Value.absent(),
+                services: row.services.isEmpty && r.services.isNotEmpty ? Value(r.services.join(',')) : const Value.absent(),
+                ttl: row.ttl == null ? Value(r.ttl) : const Value.absent(),
+                server: row.server == null ? Value(r.server) : const Value.absent(),
                 sources: Value(row.sources | DiscoverySource.agent.bit),
                 lastSeen: seen != null && (row.lastSeen == null || seen.isAfter(row.lastSeen!))
                     ? Value(seen)
@@ -181,6 +192,9 @@ class LocalStore extends _$LocalStore {
               hostname: Value(r.hostname),
               vendor: Value(r.vendor),
               model: Value(r.model),
+              services: Value(r.services.join(',')),
+              ttl: Value(r.ttl),
+              server: Value(r.server),
               sources: Value(DiscoverySource.agent.bit),
               firstSeen: Value(r.firstSeenAt),
               lastSeen: Value(r.lastSeenAt),
@@ -281,6 +295,8 @@ class LocalStore extends _$LocalStore {
         notes: r.notes,
         rttHistory: r.rttHistory.isEmpty ? const [] : [for (final s in r.rttHistory.split(',')) int.tryParse(s) ?? 0],
         isKnown: r.isKnown,
+        ttl: r.ttl,
+        server: r.server,
       );
 
   static DevicesCompanion _toRow(int networkId, DiscoveredDevice d) => DevicesCompanion.insert(
@@ -299,5 +315,7 @@ class LocalStore extends _$LocalStore {
         customName: Value(d.customName),
         notes: Value(d.notes),
         isKnown: Value(d.isKnown),
+        ttl: Value(d.ttl),
+        server: Value(d.server),
       );
 }

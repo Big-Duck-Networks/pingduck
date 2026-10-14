@@ -10,6 +10,9 @@ class RemoteDevice {
     this.isKnown = false,
     this.firstSeenAt,
     this.lastSeenAt,
+    this.services = const [],
+    this.ttl,
+    this.server,
   });
 
   final String mac;
@@ -22,10 +25,15 @@ class RemoteDevice {
   final bool isKnown;
   final DateTime? firstSeenAt;
   final DateTime? lastSeenAt;
+  final List<String> services;
+  final int? ttl;
+  final String? server;
 
-  static const columns = 'mac, ip, hostname, vendor, model, is_known, first_seen_at, last_seen_at';
+  /// Every column: an app built for a newer schema must not break sync
+  /// against a database that has not been migrated yet, or the reverse.
+  static const columns = '*';
 
-  /// Parses a row selected with [columns]; null without a MAC.
+  /// Parses a `devices` row; null without a MAC. Unknown columns are ignored.
   static RemoteDevice? fromRow(Map<String, dynamic> r) {
     final mac = r['mac'];
     if (mac is! String || mac.isEmpty) return null;
@@ -40,6 +48,12 @@ class RemoteDevice {
       isKnown: r['is_known'] == true,
       firstSeenAt: DateTime.tryParse(r['first_seen_at'] as String? ?? '')?.toLocal(),
       lastSeenAt: DateTime.tryParse(r['last_seen_at'] as String? ?? '')?.toLocal(),
+      services: switch (r['services']) {
+        final String s when s.isNotEmpty => s.split(','),
+        _ => const [],
+      },
+      ttl: (r['ttl'] as num?)?.toInt(),
+      server: r['server'] as String?,
     );
   }
 }

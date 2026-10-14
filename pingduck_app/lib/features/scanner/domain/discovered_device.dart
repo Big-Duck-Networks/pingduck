@@ -39,6 +39,8 @@ class DiscoveredDevice {
     this.notes,
     this.rttHistory = const [],
     this.isKnown = false,
+    this.ttl,
+    this.server,
   });
 
   /// RTT samples kept per device (one per scan) for the ledger sparkline.
@@ -68,6 +70,11 @@ class DiscoveredDevice {
 
   /// Marked known by the user (Supabase `devices.is_known`): no alerts for it.
   final bool isKnown;
+
+  /// Recognition signals (features/recognition): the TTL of the device's
+  /// ping reply and its SSDP SERVER header.
+  final int? ttl;
+  final String? server;
 
   /// Stable identity: MAC when known (survives DHCP changes), else IP.
   String get id => mac ?? ip;
@@ -105,6 +112,8 @@ class DiscoveredDevice {
         rttHistory: rttHistory.isNotEmpty ? rttHistory : other.rttHistory,
         // Scans never report it, so a scan must not clear it.
         isKnown: isKnown || other.isKnown,
+        ttl: other.ttl ?? ttl,
+        server: other.server ?? server,
       );
 
   /// A randomized-MAC placeholder loses to any real vendor name.
@@ -142,6 +151,8 @@ class DiscoveredDevice {
         notes: clearNotes ? null : notes ?? this.notes,
         rttHistory: rttHistory ?? this.rttHistory,
         isKnown: isKnown ?? this.isKnown,
+        ttl: ttl,
+        server: server,
       );
 
   /// Appends one RTT sample, dropping the oldest beyond [historyLength].

@@ -135,6 +135,48 @@ void main() {
     await settleScan(tester);
   });
 
+  testWidgets('Node Inspect shows what the device is and its OS, marking guesses', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    final chromecast = DiscoveredDevice(
+      ip: '10.42.0.17',
+      hostname: 'Chromecast',
+      vendor: 'Google, Inc.',
+      model: 'Chromecast',
+      server: 'Linux/5.15.170-android14-11-gf4a1f03072a, UPnP/1.0',
+      ttl: 64,
+      sources: const {DiscoverySource.mdns, DiscoverySource.ssdp},
+      firstSeen: DateTime(2026, 10, 5),
+      lastSeen: DateTime(2026, 10, 5),
+    );
+    final pc = DiscoveredDevice(
+      ip: '10.42.0.100',
+      vendor: 'LCFC(Hefei) Electronics Technology co., ltd',
+      ttl: 128,
+      sources: const {DiscoverySource.icmp},
+      firstSeen: DateTime(2026, 10, 5),
+      lastSeen: DateTime(2026, 10, 5),
+    );
+    await tester.pumpWidget(await app(tester, onboarded: true, cached: [chromecast, pc]));
+    await settleScan(tester);
+
+    await scrollTo(tester, find.text('Chromecast'));
+    await tester.tap(find.text('Chromecast').first);
+    await tester.pumpAndSettle();
+    expect(find.text('DEVICE'), findsOneWidget);
+    expect(find.text('OPERATING SYSTEM'), findsOneWidget);
+    expect(find.text('Android 14'), findsOneWidget);
+    expect(find.text('LIKELY'), findsNothing);  // the device said all of it itself
+
+    await tester.tap(find.byTooltip('All devices'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10.42.0.100').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Lenovo'), findsWidgets);
+    expect(find.text('Windows'), findsWidgets);
+    expect(find.text('LIKELY'), findsWidgets);  // MAC vendor and TTL are guesses
+  });
+
   testWidgets('the phone running the app is tagged THIS DEVICE', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
