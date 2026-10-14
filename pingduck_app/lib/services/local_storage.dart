@@ -48,8 +48,27 @@ class Devices extends Table {
   IntColumn get ttl => integer().nullable()();
   TextColumn get server => text().nullable()();
 
+  /// What the user says the device is; overrides recognition per field.
+  TextColumn get labelBrand => text().nullable()();
+  TextColumn get labelModel => text().nullable()();
+  TextColumn get labelOs => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {networkId, ip};
+}
+
+/// Labels the user gave, by device fingerprint (features/recognition/
+/// fingerprint.dart), offered as a guess for other devices that look the
+/// same, on any network. Stays on this phone.
+class LearnedLabels extends Table {
+  TextColumn get fingerprint => text()();
+  TextColumn get brand => text().nullable()();
+  TextColumn get model => text().nullable()();
+  TextColumn get os => text().nullable()();
+  DateTimeColumn get learnedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {fingerprint};
 }
 
 /// A saved network as listed on the My Networks page.
@@ -82,12 +101,12 @@ class Settings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Networks, Devices, Settings])
+@DriftDatabase(tables: [Networks, Devices, Settings, LearnedLabels])
 class LocalStore extends _$LocalStore {
   LocalStore([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'pingduck'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -98,6 +117,12 @@ class LocalStore extends _$LocalStore {
           if (from < 5) {
             await _addColumn(m, devices, devices.ttl);
             await _addColumn(m, devices, devices.server);
+          }
+          if (from < 6) {
+            await _addColumn(m, devices, devices.labelBrand);
+            await _addColumn(m, devices, devices.labelModel);
+            await _addColumn(m, devices, devices.labelOs);
+            await _createTable(m, learnedLabels);
           }
         },
         beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
@@ -110,6 +135,15 @@ class LocalStore extends _$LocalStore {
     final existing = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
     if (existing.any((r) => r.read<String>('name') == column.name)) return;
     await m.addColumn(table, column);
+  }
+
+  /// Creates [table] unless it is already there (see [_addColumn]).
+  Future<void> _createTable(Migrator m, TableInfo table) async {
+    final existing = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable.withString(table.actualTableName)],
+    ).get();
+    if (existing.isEmpty) await m.createTable(table);
   }
 
   /// Returns the id of the network with [key], creating it if needed.
@@ -234,6 +268,7 @@ class LocalStore extends _$LocalStore {
   Future<void> clearInventory() => transaction(() async {
         await delete(devices).go();
         await delete(networks).go();
+        await delete(learnedLabels).go();
         await (delete(settings)..where((s) => s.key.equals('lastNetworkId'))).go();
       });
 
@@ -275,6 +310,27 @@ class LocalStore extends _$LocalStore {
   Future<void> forgetDevice(int networkId, String ip) =>
       (delete(devices)..where((d) => d.networkId.equals(networkId) & d.ip.equals(ip))).go();
 
+  /// Every label the user taught, by fingerprint.
+  Future<Map<String, DeviceLabel>> learned() async => {
+        for (final r in await select(learnedLabels).get())
+          r.fingerprint: DeviceLabel(brand: r.brand, model: r.model, os: r.os),
+      };
+
+  /// Remembers [label] for devices with [fingerprint]; an empty one forgets it.
+  Future<void> learn(String fingerprint, DeviceLabel label) async {
+    if (label.isEmpty) {
+      await (delete(learnedLabels)..where((l) => l.fingerprint.equals(fingerprint))).go();
+      return;
+    }
+    await into(learnedLabels).insertOnConflictUpdate(LearnedLabelsCompanion.insert(
+      fingerprint: fingerprint,
+      brand: Value(label.brand),
+      model: Value(label.model),
+      os: Value(label.os),
+      learnedAt: DateTime.now(),
+    ));
+  }
+
   Future<String?> setting(String key) async =>
       (await (select(settings)..where((s) => s.key.equals(key))).getSingleOrNull())?.value;
 
@@ -297,6 +353,9 @@ class LocalStore extends _$LocalStore {
         isKnown: r.isKnown,
         ttl: r.ttl,
         server: r.server,
+        label: r.labelBrand == null && r.labelModel == null && r.labelOs == null
+            ? null
+            : DeviceLabel(brand: r.labelBrand, model: r.labelModel, os: r.labelOs),
       );
 
   static DevicesCompanion _toRow(int networkId, DiscoveredDevice d) => DevicesCompanion.insert(
@@ -317,5 +376,8 @@ class LocalStore extends _$LocalStore {
         isKnown: Value(d.isKnown),
         ttl: Value(d.ttl),
         server: Value(d.server),
+        labelBrand: Value(d.label?.brand),
+        labelModel: Value(d.label?.model),
+        labelOs: Value(d.label?.os),
       );
 }

@@ -2,9 +2,11 @@ import '../scanner/domain/device_kind.dart';
 import '../scanner/domain/discovered_device.dart';
 import 'recognition_rules.dart';
 
+/// [user]: the user said so (Node Inspect's Edit).
 /// [known]: the device said so itself (mDNS, UPnP, its SSDP server string).
-/// [likely]: inferred from indirect signals (MAC vendor, hostname, TTL).
-enum Confidence { known, likely }
+/// [likely]: inferred from indirect signals (MAC vendor, hostname, TTL), or
+/// learned from a label the user gave a device that looks the same.
+enum Confidence { user, known, likely }
 
 class Fact {
   const Fact(this.value, this.confidence);
@@ -12,6 +14,7 @@ class Fact {
   final Confidence confidence;
 
   bool get isGuess => confidence == Confidence.likely;
+  bool get isUser => confidence == Confidence.user;
 
   @override
   bool operator ==(Object other) => other is Fact && other.value == value && other.confidence == confidence;
@@ -31,6 +34,7 @@ class OperatingSystem {
   final Confidence confidence;
 
   bool get isGuess => confidence == Confidence.likely;
+  bool get isUser => confidence == Confidence.user;
 
   @override
   String toString() => '$name${version == null ? '' : ' $version'}${isGuess ? ' (likely)' : ''}';
@@ -54,7 +58,49 @@ class Recognition {
 /// Turns the signals a scan collected into Brand, Model, Family and OS.
 /// Pure and cheap, so it runs whenever a device is shown.
 abstract final class Recognizer {
-  static Recognition of(DiscoveredDevice d, DeviceKind kind) {
+  /// Per field, the user's own label wins, then what the device said itself,
+  /// then [learned] (the label of a device with the same fingerprint), then
+  /// the guesses from indirect signals.
+  static Recognition of(DiscoveredDevice d, DeviceKind kind, {DeviceLabel? learned}) {
+    final auto = _auto(d, kind);
+    final mine = d.label;
+    if ((mine == null || mine.isEmpty) && (learned == null || learned.isEmpty)) return auto;
+
+    Fact? pick(String? own, Fact? guess, String? taught) {
+      if (own != null) return Fact(own, Confidence.user);
+      if (guess != null && !guess.isGuess) return guess;
+      if (taught != null) return Fact(taught, Confidence.likely);
+      return guess;
+    }
+
+    final brand = pick(mine?.brand, auto.brand, learned?.brand);
+    final model = pick(mine?.model, auto.model, learned?.model);
+    var family = auto.family;
+    if (model != auto.model && model != null) {
+      final f = _family(brand?.value, _withoutBrand(model.value, brand?.value));
+      family = f == null ? null : Fact(f, model.confidence);
+    }
+
+    var os = auto.os;
+    if (mine?.os != null) {
+      os = _labelOs(mine!.os!, Confidence.user);
+    } else if ((os == null || os.isGuess) && learned?.os != null) {
+      os = _labelOs(learned!.os!, Confidence.likely);
+    }
+    return Recognition(brand: brand, model: model, family: family, module: auto.module, os: os);
+  }
+
+  /// "windows 11" → Windows, version 11, by Microsoft.
+  static OperatingSystem _labelOs(String text, Confidence confidence) {
+    final m = RegExp(r'^(.*?)\s+v?(\d[\w.]*)$').firstMatch(text.trim());
+    final typed = m?.group(1) ?? text.trim();
+    final name = _osNames.firstWhere((n) => n.toLowerCase() == typed.toLowerCase(), orElse: () => typed);
+    return OperatingSystem(name, vendor: _osVendor[name], version: m?.group(2), confidence: confidence);
+  }
+
+  static final _osNames = [..._osVendor.keys, 'Linux'];
+
+  static Recognition _auto(DiscoveredDevice d, DeviceKind kind) {
     final selfDescribed = d.model != null && !_isServerBanner(d.model!) &&
         d.sources.any((s) => s == DiscoverySource.mdns || s == DiscoverySource.ssdp);
     final host = (d.hostname ?? '').toLowerCase();

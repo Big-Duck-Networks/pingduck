@@ -177,6 +177,48 @@ void main() {
     expect(find.text('LIKELY'), findsWidgets);  // MAC vendor and TTL are guesses
   });
 
+  testWidgets('Node Inspect lets the user say what a device is', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    final pc = DiscoveredDevice(
+      ip: '10.42.0.100',
+      vendor: 'LCFC(Hefei) Electronics Technology co., ltd',
+      ttl: 128,
+      sources: const {DiscoverySource.icmp},
+      firstSeen: DateTime(2026, 10, 5),
+      lastSeen: DateTime(2026, 10, 5),
+    );
+    final mystery = DiscoveredDevice(
+      ip: '10.42.0.77',
+      sources: const {DiscoverySource.icmp},
+      firstSeen: DateTime(2026, 10, 5),
+      lastSeen: DateTime(2026, 10, 5),
+    );
+    await tester.pumpWidget(await app(tester, onboarded: true, cached: [pc, mystery]));
+    await settleScan(tester);
+
+    await scrollTo(tester, find.text('10.42.0.77'));
+    await tester.tap(find.text('10.42.0.77').first);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Not recognized yet'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('All devices'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10.42.0.100').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EDIT'));
+    await tester.pumpAndSettle();
+    final fields = find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField));
+    expect(tester.widget<TextField>(fields.at(0)).controller!.text, 'Lenovo', reason: 'starts from the current guess');
+    await tester.enterText(fields.at(1), 'ThinkCentre M70q');
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ThinkCentre M70q'), findsWidgets);
+    expect(find.text('SET BY YOU'), findsWidgets);
+    expect(find.text('Model · set by you'), findsOneWidget);
+  });
+
   testWidgets('the phone running the app is tagged THIS DEVICE', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);

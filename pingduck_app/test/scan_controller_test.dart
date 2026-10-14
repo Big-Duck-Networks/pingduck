@@ -2,7 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/core/ffi/scanner_bridge.dart';
 import 'package:pingduck_app/core/network/network_context.dart';
+import 'package:pingduck_app/features/recognition/fingerprint.dart';
+import 'package:pingduck_app/features/recognition/learned_labels.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
+import 'package:pingduck_app/features/scanner/domain/device_label.dart';
 import 'package:pingduck_app/services/local_storage.dart';
 
 import 'fakes.dart';
@@ -140,6 +143,36 @@ void main() {
     await ctrl().rename('10.42.0.5', 'Vault');
     await ctrl().rename('10.42.0.5', '  ');
     expect(state().devices['10.42.0.5']!.displayName, 'nas');
+  });
+
+  test('a label is kept across restarts and taught to devices that look the same', () async {
+    await runScan([
+      dev('10.42.0.31', hostname: 'ESP_3A1B2C', vendor: 'Espressif Inc.', services: ['_hap._tcp']),
+      dev('10.42.0.32', hostname: 'ESP_9F00E1', vendor: 'Espressif Inc.', services: ['_hap._tcp']),
+    ]);
+    const plug = DeviceLabel(brand: 'Meross', model: 'Smart Plug Mini');
+    await ctrl().setLabel('10.42.0.31', plug);
+
+    expect(state().devices['10.42.0.31']!.label, plug);
+    expect(state().devices['10.42.0.32']!.label, isNull, reason: 'only the device the user labeled');
+    final twin = Fingerprint.of(state().devices['10.42.0.32']!)!;
+    expect((await container.read(learnedLabelsProvider.future))[twin], plug);
+    expect((await restoreLastScan(store)).devices['10.42.0.31']!.label, plug);
+
+    // A later scan never clears it; resetting forgets what was taught.
+    await runScan([dev('10.42.0.31', hostname: 'ESP_3A1B2C', vendor: 'Espressif Inc.')]);
+    expect(state().devices['10.42.0.31']!.label, plug);
+    await ctrl().setLabel('10.42.0.31', const DeviceLabel());
+    expect(state().devices['10.42.0.31']!.label, isNull);
+    expect(await container.read(learnedLabelsProvider.future), isEmpty);
+  });
+
+  test('clearing the inventory forgets taught labels too', () async {
+    await runScan([dev('10.42.0.31', vendor: 'Espressif Inc.')]);
+    await ctrl().setLabel('10.42.0.31', const DeviceLabel(brand: 'Meross'));
+    expect(await container.read(learnedLabelsProvider.future), isNotEmpty);
+    await ctrl().clearInventory();
+    expect(await container.read(learnedLabelsProvider.future), isEmpty);
   });
 
   test('switching networks swaps in that network\'s cache', () async {

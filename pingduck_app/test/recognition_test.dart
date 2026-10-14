@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pingduck_app/features/recognition/fingerprint.dart';
 import 'package:pingduck_app/features/recognition/recognition.dart';
 import 'package:pingduck_app/features/scanner/domain/device_kind.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
@@ -13,6 +14,7 @@ DiscoveredDevice device({
   int? ttl,
   List<String> services = const [],
   Set<DiscoverySource> sources = const {DiscoverySource.icmp},
+  DeviceLabel? label,
 }) =>
     DiscoveredDevice(
       ip: ip,
@@ -24,9 +26,11 @@ DiscoveredDevice device({
       services: services,
       sources: sources,
       isOnline: true,
+      label: label,
     );
 
-Recognition recognize(DiscoveredDevice d) => Recognizer.of(d, DeviceKind.of(d));
+Recognition recognize(DiscoveredDevice d, {DeviceLabel? learned}) =>
+    Recognizer.of(d, DeviceKind.of(d), learned: learned);
 
 void main() {
   test('HP printer: brand, model and family it announced over mDNS', () {
@@ -140,5 +144,68 @@ void main() {
     final r = recognize(device(vendor: 'TP-Link Systems Inc.', model: 'Linux UPnP/1.0 MiniUPnPd/2.2'));
     expect(r.model, isNull);
     expect(r.brand?.value, 'TP-Link');
+  });
+
+  group('labels', () {
+    final lenovo = device(ip: '10.42.0.100', vendor: 'LCFC(Hefei) Electronics Technology co., ltd', ttl: 128);
+
+    test("the user's own label wins every field and is marked as theirs", () {
+      final r = recognize(device(
+        vendor: 'LCFC(Hefei) Electronics Technology co., ltd',
+        ttl: 128,
+        label: const DeviceLabel(model: 'ThinkCentre M70q', os: 'windows 11'),
+      ));
+      expect(r.brand, const Fact('Lenovo', Confidence.likely), reason: 'fields left blank keep the guess');
+      expect(r.model, const Fact('ThinkCentre M70q', Confidence.user));
+      expect(r.family, const Fact('ThinkCentre', Confidence.user));
+      expect(r.os?.name, 'Windows', reason: 'typed names match the known spelling');
+      expect(r.os?.version, '11');
+      expect(r.os?.vendor, 'Microsoft');
+      expect(r.os?.isUser, isTrue);
+    });
+
+    test('a learned label fills guesses but never overrides what the device said', () {
+      const taught = DeviceLabel(brand: 'Lenovo', model: 'ThinkCentre M70q', os: 'Windows 11');
+      final pc = recognize(lenovo, learned: taught);
+      expect(pc.model, const Fact('ThinkCentre M70q', Confidence.likely));
+      expect(pc.os?.version, '11');
+      expect(pc.os?.isGuess, isTrue);
+
+      final printer = recognize(
+        device(
+          vendor: 'HP Inc.',
+          model: 'HP OfficeJet Pro 9010 series',
+          sources: {DiscoverySource.mdns},
+        ),
+        learned: const DeviceLabel(model: 'LaserJet'),
+      );
+      expect(printer.model, const Fact('OfficeJet Pro 9010 series', Confidence.known));
+    });
+  });
+
+  group('fingerprint', () {
+    DiscoveredDevice plug(String ip, String host) =>
+        device(ip: ip, hostname: host, vendor: 'Espressif Inc.', ttl: 255, services: ['_hap._tcp']);
+
+    test('two units of the same product match; IPs and hostname names do not count', () {
+      expect(Fingerprint.of(plug('10.42.0.31', 'ESP_3A1B2C')), Fingerprint.of(plug('10.42.0.32', 'ESP_9F00E1')));
+      expect(Fingerprint.of(plug('10.42.0.31', 'ESP_3A1B2C')), isNot(Fingerprint.of(plug('10.42.0.31', 'shelly-plug'))));
+    });
+
+    test('carries no personal words or versions', () {
+      expect(Fingerprint.hostShape('Carls-iPhone.local'), '*-iphone');
+      expect(Fingerprint.hostShape('DESKTOP-4F2K9QZ'), 'desktop-*');
+      final cast = Fingerprint.of(device(
+        vendor: 'Google, Inc.',
+        server: 'Linux/5.15.170-android14-11-gf4a1f03072a, UPnP/1.0',
+        ttl: 63,
+      ))!;
+      expect(cast, contains('r=linux/#, upnp/#'));
+      expect(cast, contains('t=64'), reason: 'one router hop away is still a 64 host');
+    });
+
+    test('too little to tell devices apart gives no fingerprint', () {
+      expect(Fingerprint.of(device(vendor: 'Private (randomized MAC)', hostname: 'Carls-iPhone', ttl: 64)), isNull);
+    });
   });
 }
