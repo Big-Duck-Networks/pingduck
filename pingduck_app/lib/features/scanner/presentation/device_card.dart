@@ -169,10 +169,13 @@ class DeviceCard extends StatelessWidget {
       parts.add(TextSpan(text: 'MAC: ', style: PdText.code.copyWith(color: PingDuckColors.inkMuted)));
       parts.add(TextSpan(text: d.mac!.toUpperCase(), style: PdText.code));
       if (d.vendor != null && !d.hasPrivateMac) {
-        parts.add(TextSpan(text: ' (${d.vendor})', style: PdText.code.copyWith(color: PingDuckColors.route)));
+        parts.add(TextSpan(text: ' (${d.vendorName})', style: PdText.code.copyWith(color: PingDuckColors.route)));
       }
-    } else if (d.vendor != null || d.model != null) {
-      final what = [d.vendor, if (d.model != d.displayName) d.model].whereType<String>().join(' · ');
+    } else if ((d.vendor != null && d.vendorName != d.displayName) || (d.model != null && d.model != d.displayName)) {
+      final what = [
+        if (d.vendorName != d.displayName) d.vendorName,
+        if (d.model != d.displayName) d.model,
+      ].whereType<String>().join(' · ');
       parts.add(TextSpan(text: what, style: PdText.code.copyWith(color: PingDuckColors.inkSecondary)));
     } else if (!d.isOnline && d.lastSeen != null) {
       parts.add(TextSpan(text: 'last seen ${_ago(d.lastSeen!)}', style: PdText.code.copyWith(color: PingDuckColors.inkMuted)));

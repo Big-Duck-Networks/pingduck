@@ -1,3 +1,4 @@
+import '../../recognition/vendor_name.dart';
 import 'device_label.dart';
 
 export 'device_label.dart';
@@ -87,7 +88,20 @@ class DiscoveredDevice {
   /// Stable identity: MAC when known (survives DHCP changes), else IP.
   String get id => mac ?? ip;
 
-  String get displayName => customName ?? hostname ?? (_isServerBanner(model) ? null : model) ?? vendor ?? ip;
+  String get displayName =>
+      customName ?? hostname ?? _labelName ?? (_isServerBanner(model) ? null : model) ?? vendorName ?? ip;
+
+  /// The MAC vendor as people know it: "Lenovo", not "LCFC(Hefei)
+  /// Electronics Technology co., ltd" (the registry name, kept in [vendor]).
+  String? get vendorName => VendorName.of(vendor);
+
+  /// "Lenovo ThinkCentre M70q" from the user's label, or null without a model.
+  String? get _labelName {
+    final l = label;
+    if (l == null || l.model == null) return null;
+    final brand = l.brand;
+    return brand == null || l.model!.toLowerCase().startsWith(brand.toLowerCase()) ? l.model : '$brand ${l.model}';
+  }
 
   /// SSDP devices without a readable description fall back to their HTTP
   /// SERVER header ("Linux/5.15, UPnP/1.0, Chromecast/1.6"): software, not a name.
