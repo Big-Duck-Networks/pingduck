@@ -270,3 +270,6 @@ buffer beyond the holiday weeks, so any slip moves the launch.
 4. Make the phone-to-agent pairing test possible: find what keeps attaching the hypervisor's MAC filter to `pingduck-vm`, or run the agent on another host.
 5. Finish the security audit: Supabase Auth settings, the website, and the Firebase key restrictions.
 6. First iPhone run once a Mac is available: app scan, `SOCK_DGRAM` ICMP check, and mDNS without the multicast entitlement.
+7. Phase 7 security: router checks (open admin pages, exposed UPnP/IGD, Telnet) and the exposed services report (Telnet, SMB, RDP, unprotected web admin across the LAN), shown as one "network health" summary. Mostly built from the port scan and UPnP data the app already has, and meets the second half of the Phase 7 exit.
+8. Phase 7 recognition: NetBIOS names, so Windows PCs show their real names, plus mDNS TXT records and open ports as hints (9100 for a printer, 548 for a Mac).
+9. Phase 7 agent signals: DHCP option 55 fingerprints and HTTP banners from the agent, which tell Windows, macOS, iOS and Android apart better than TTL. Needs packet capture in the agent.
