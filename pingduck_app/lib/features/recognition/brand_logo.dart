@@ -11,7 +11,7 @@ class BrandLogo extends StatelessWidget {
   final String slug;
   final Color color;
 
-  static const size = 40.0;
+  static const size = 52.0;
 
   /// The logo for a recognized brand or OS name, or null when none is bundled.
   static BrandLogo? forName(String name) {
