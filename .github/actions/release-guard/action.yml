@@ -1,0 +1,111 @@
+name: Release guard
+description: >
+  Stops a release unless it runs from main, its tag is new, the listed
+  workflows passed for this commit, and (optionally) production has every
+  migration. Callers check out with fetch-depth 0 and pass GH_TOKEN; for
+  check-migrations they also set SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD
+  and SUPABASE_PROJECT_REF (the database-check environment has them).
+
+inputs:
+  tag:
+    description: The tag this release creates, e.g. agent-v0.3.1
+    required: true
+  workflows:
+    description: Comma-separated workflow files that must have passed, e.g. agent.yml,core.yml
+    required: true
+  check-migrations:
+    description: Fail if production lacks a migration
+    default: "false"
+
+outputs:
+  run-id:
+    description: The passing run of the first workflow listed (to download its artifacts)
+    value: ${{ steps.workflows.outputs.run-id }}
+  run-sha:
+    description: The commit that run built
+    value: ${{ steps.workflows.outputs.run-sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Only from main
+      shell: bash
+      run: |
+        if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+          echo "::error::Run this from main, not $GITHUB_REF."
+          exit 1
+        fi
+        echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Branch | main at \`${GITHUB_SHA::7}\` |" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Tag must be new
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+          echo "::error::$TAG already exists. Bump the version name first."
+          exit 1
+        fi
+        echo "| Tag | \`$TAG\` is new |" >> "$GITHUB_STEP_SUMMARY"
+
+    # A workflow whose path filter skipped this commit has no run on it, so
+    # take the newest main run on this commit or an ancestor: nothing it
+    # covers has changed since.
+    - name: Workflows passed
+      id: workflows
+      shell: bash
+      env:
+        WORKFLOWS: ${{ inputs.workflows }}
+      run: |
+        first=true
+        IFS=',' read -ra list <<< "$WORKFLOWS"
+        for w in "${list[@]}"; do
+          w=$(echo "$w" | xargs)
+          found=""
+          while read -r id sha status conclusion; do
+            if git merge-base --is-ancestor "$sha" "$GITHUB_SHA" 2>/dev/null; then
+              found="$id $sha $status $conclusion"
+              break
+            fi
+          done < <(gh run list --workflow "$w" --branch main --limit 50 \
+                     --json databaseId,headSha,status,conclusion,event \
+                     --jq '.[] | select(.event != "pull_request") | "\(.databaseId) \(.headSha) \(.status) \(.conclusion)"')
+          if [ -z "$found" ]; then
+            echo "::error::$w has no run on main for this commit or an ancestor."
+            exit 1
+          fi
+          read -r id sha status conclusion <<< "$found"
+          if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
+            echo "::error::$w on ${sha::7} is $status/$conclusion, not success. Wait for it or re-run it: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id"
+            exit 1
+          fi
+          echo "| \`$w\` | passed on \`${sha::7}\` ([run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id)) |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$first" = true ]; then
+            echo "run-id=$id" >> "$GITHUB_OUTPUT"
+            echo "run-sha=$sha" >> "$GITHUB_OUTPUT"
+            first=false
+          fi
+        done
+
+    - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+      if: inputs.check-migrations == 'true'
+      with:
+        version: latest
+
+    - name: Production has every migration
+      if: inputs.check-migrations == 'true'
+      shell: bash
+      run: |
+        if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+          echo "::error::The SUPABASE_* secrets are not set; run the job in the database-check environment."
+          exit 1
+        fi
+        supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        supabase db push --dry-run 2>&1 | tee pending.txt
+        if ! grep -q "up to date" pending.txt; then
+          echo "::error::Production lacks migrations. Run Deploy database first."
+          exit 1
+        fi
+        echo "| Database | production is up to date |" >> "$GITHUB_STEP_SUMMARY"

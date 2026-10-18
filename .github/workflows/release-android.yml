@@ -1,0 +1,90 @@
+name: release android
+
+# Releases the app version name in pingduck_app/pubspec.yaml: after the
+# release guard (main, new tag, app.yml and core.yml green, production
+# migrated), it takes the signed AAB app.yml already built on main, tags
+# app-vX.Y.Z on that commit and attaches the AAB to a GitHub release. Nothing
+# is rebuilt and nothing goes to Play: upload the attached AAB by hand
+# (docs/RELEASING.md).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # No reviewer here: the dry run in the release guard only reads the
+    # migration history.
+    environment: database-check
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: version
+        run: |
+          version=$(grep -m1 '^version:' pingduck_app/pubspec.yaml | sed -E 's/^version: *([^+ ]+).*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - id: guard
+        uses: ./.github/actions/release-guard
+        with:
+          tag: app-v${{ steps.version.outputs.version }}
+          workflows: app.yml,core.yml
+          check-migrations: "true"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      # app.yml's path filter leaves out core/, which the AAB compiles in.
+      - name: The AAB has the current core
+        env:
+          BUILT: ${{ steps.guard.outputs.run-sha }}
+        run: |
+          if ! git diff --quiet "$BUILT" "$GITHUB_SHA" -- core/; then
+            echo "::error::core/ changed after the AAB was built on ${BUILT::7}. Run app.yml on main (Run workflow) and release again."
+            exit 1
+          fi
+      - name: Download the AAB
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ steps.guard.outputs.run-id }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          name=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/artifacts" \
+            --jq '.artifacts[] | select(.name | startswith("pingduck-")) | select(.expired | not) | .name' | head -1)
+          if [ -z "$name" ]; then
+            echo "::error::Run $RUN has no signed AAB (expired after 30 days, or the key was missing). Run app.yml on main and release again."
+            exit 1
+          fi
+          case "$name" in
+            "pingduck-$VERSION+"*) ;;
+            *) echo "::error::$name does not match version $VERSION in pubspec.yaml."; exit 1 ;;
+          esac
+          gh run download "$RUN" --name "$name" --dir aab
+          mv aab/app-release.aab "$name.aab"
+          echo "AAB=$name.aab" >> "$GITHUB_ENV"
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILT: ${{ steps.guard.outputs.run-sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "app-v$VERSION" "$BUILT"
+          git push origin "app-v$VERSION"
+          gh release create "app-v$VERSION" "$AAB" --generate-notes --title "PingDuck $VERSION (Android)"
+          {
+            echo "### Released \`app-v$VERSION\`"
+            echo "Upload \`$AAB\` from the release to Play by hand: internal testing first, then closed testing or production."
+          } >> "$GITHUB_STEP_SUMMARY"
