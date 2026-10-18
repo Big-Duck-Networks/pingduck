@@ -344,6 +344,21 @@ select pg_temp.check(not exists (select 1 from scan_usage where user_id = '22222
 select pg_temp.check(exists (select 1 from auth.users where id = '11111111-1111-1111-1111-111111111111')
     and exists (select 1 from networks where owner_id = '11111111-1111-1111-1111-111111111111'), 'other accounts are untouched');
 
+-- ---- Waitlist: the website joins with the anon key ---------------------------
+set role anon;
+select join_waitlist('  Someone@Example.com ');
+select join_waitlist('someone@example.com');
+select pg_temp.expect_error($$select join_waitlist('not-an-email')$$, 'invalid email');
+select pg_temp.expect_error($$select join_waitlist(null)$$, 'invalid email');
+select pg_temp.expect_error($$select count(*) from waitlist$$, 'permission denied');
+reset role;
+select pg_temp.check((select count(*) from waitlist where email = 'someone@example.com') = 1,
+    'waitlist stores one lower-cased row, and a repeat is silent');
+insert into waitlist (email, created_at) select 'bulk' || g || '@example.com', now() from generate_series(1, 500) g;
+set role anon;
+select pg_temp.expect_error($$select join_waitlist('late@example.com')$$, 'busy');
+reset role;
+
 reset role;
 rollback;
 select 'ALL SCHEMA TESTS PASSED' as result;
