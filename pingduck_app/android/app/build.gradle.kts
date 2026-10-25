@@ -28,6 +28,10 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
+    buildFeatures {
+        resValues = true
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "app.webcap.pingduck"
@@ -37,6 +41,22 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    flavorDimensions += "default"
+
+    productFlavors {
+        create("dev") {
+            dimension = "default"
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appName"] = "PingDuck Dev"
+            resValue("string", "app_name", "PingDuck Dev")
+        }
+        create("prod") {
+            dimension = "default"
+            manifestPlaceholders["appName"] = "PingDuck"
+            resValue("string", "app_name", "PingDuck")
+        }
     }
 
     signingConfigs {

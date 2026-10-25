@@ -7,7 +7,7 @@ assets/branding/; then run flutter_launcher_icons and flutter_native_splash.
 """
 import os
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 INK = (0x11, 0x18, 0x27, 255)
 EMERALD = (0x05, 0x96, 0x69, 255)
@@ -65,6 +65,26 @@ def full_icon(d, S):
 save('icon.png', render(1024, full_icon).convert('RGB'))
 
 
+def dev_badge(d, S):
+    """Draws a pill badge with 'DEV' inside the adaptive safe zone."""
+    bx0, by0, bx1, by1 = int(0.48 * S), int(0.69 * S), int(0.82 * S), int(0.81 * S)
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=int(0.04 * S), fill=AMBER)
+    font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
+    if os.path.exists(font_path):
+        font = ImageFont.truetype(font_path, int(0.075 * S))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=INK, anchor='mm', font=font)
+
+
+def full_icon_dev(d, S):
+    d.rectangle([0, 0, S, S], fill=INK)
+    m = S * 0.06
+    duck(d, m, m, S - 2 * m, body=AMBER, beak=EMERALD)
+    dev_badge(d, S)
+
+
+save('icon_dev.png', render(1024, full_icon_dev).convert('RGB'))
+
+
 # Android adaptive foreground: transparent. flutter_launcher_icons insets it
 # by 16% per side, which puts this near-full-bleed duck inside the safe zone.
 def foreground(d, S):
@@ -75,6 +95,15 @@ def foreground(d, S):
 save('icon_foreground.png', render(1024, foreground))
 
 
+def foreground_dev(d, S):
+    box = S * 0.92
+    duck(d, (S - box) / 2, (S - box) / 2, box, body=AMBER, beak=EMERALD)
+    dev_badge(d, S)
+
+
+save('icon_dev_foreground.png', render(1024, foreground_dev))
+
+
 # Android 13 themed icon: single colour silhouette (the OS tints it).
 def monochrome(d, S):
     box = S * 0.92
@@ -82,6 +111,15 @@ def monochrome(d, S):
 
 
 save('icon_monochrome.png', render(1024, monochrome))
+
+
+def monochrome_dev(d, S):
+    box = S * 0.92
+    duck(d, (S - box) / 2, (S - box) / 2, box, body=WHITE, beak=WHITE, eye=(0, 0, 0, 0))
+    dev_badge(d, S)
+
+
+save('icon_dev_monochrome.png', render(1024, monochrome_dev))
 
 
 # Splash: the DuckLogo disc. Android 12+ masks it to a circle within 2/3 of

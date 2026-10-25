@@ -11,7 +11,9 @@
 # number there is a placeholder and is never bumped by hand.
 param(
   [ValidateSet('apk', 'appbundle', 'windows', 'installer')]
-  [string]$Target = 'apk'
+  [string]$Target = 'apk',
+  [ValidateSet('dev', 'prod')]
+  [string]$Flavor = 'dev'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -31,11 +33,11 @@ try {
   Invoke-Checked 'stamping the build number' { dart run tools/build_number_gen.dart --git }
   $full = ((Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value).Trim()
   $version, $build = $full -split '\+'
-  Write-Output "Building $Target $version ($build)"
+  Write-Output "Building $Target $version ($build) [flavor: $Flavor]"
 
   switch ($Target) {
-    'apk' { Invoke-Checked 'flutter build apk' { flutter build apk --release } }
-    'appbundle' { Invoke-Checked 'flutter build appbundle' { flutter build appbundle --release } }
+    'apk' { Invoke-Checked 'flutter build apk' { flutter build apk --release --flavor $Flavor } }
+    'appbundle' { Invoke-Checked 'flutter build appbundle' { flutter build appbundle --release --flavor prod } }
     { $_ -in 'windows', 'installer' } { Invoke-Checked 'flutter build windows' { flutter build windows --release } }
   }
 
