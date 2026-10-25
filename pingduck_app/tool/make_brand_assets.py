@@ -66,19 +66,24 @@ save('icon.png', render(1024, full_icon).convert('RGB'))
 
 
 def dev_badge(d, S):
-    """Draws a pill badge with 'DEV' inside the adaptive safe zone."""
-    bx0, by0, bx1, by1 = int(0.48 * S), int(0.69 * S), int(0.82 * S), int(0.81 * S)
-    d.rounded_rectangle([bx0, by0, bx1, by1], radius=int(0.04 * S), fill=AMBER)
+    """Draws a centered pill badge with 'DEV' strictly inside the adaptive safe zone."""
+    bw = S * 0.28
+    bh = S * 0.09
+    bx0 = (S - bw) / 2
+    by0 = S * 0.69
+    bx1 = bx0 + bw
+    by1 = by0 + bh
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=AMBER)
     font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
     if os.path.exists(font_path):
-        font = ImageFont.truetype(font_path, int(0.075 * S))
+        font = ImageFont.truetype(font_path, int(bh * 0.65))
         d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=INK, anchor='mm', font=font)
 
 
 def full_icon_dev(d, S):
     d.rectangle([0, 0, S, S], fill=INK)
-    m = S * 0.06
-    duck(d, m, m, S - 2 * m, body=AMBER, beak=EMERALD)
+    box = S * 0.82
+    duck(d, (S - box) / 2, S * 0.05, box, body=EMERALD, beak=AMBER, eye=INK)
     dev_badge(d, S)
 
 
@@ -96,8 +101,8 @@ save('icon_foreground.png', render(1024, foreground))
 
 
 def foreground_dev(d, S):
-    box = S * 0.92
-    duck(d, (S - box) / 2, (S - box) / 2, box, body=AMBER, beak=EMERALD)
+    box = S * 0.82
+    duck(d, (S - box) / 2, S * 0.05, box, body=EMERALD, beak=AMBER, eye=INK)
     dev_badge(d, S)
 
 
@@ -114,9 +119,19 @@ save('icon_monochrome.png', render(1024, monochrome))
 
 
 def monochrome_dev(d, S):
-    box = S * 0.92
-    duck(d, (S - box) / 2, (S - box) / 2, box, body=WHITE, beak=WHITE, eye=(0, 0, 0, 0))
-    dev_badge(d, S)
+    box = S * 0.82
+    duck(d, (S - box) / 2, S * 0.05, box, body=WHITE, beak=WHITE, eye=(0, 0, 0, 0))
+    bw = S * 0.28
+    bh = S * 0.09
+    bx0 = (S - bw) / 2
+    by0 = S * 0.69
+    bx1 = bx0 + bw
+    by1 = by0 + bh
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=WHITE)
+    font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
+    if os.path.exists(font_path):
+        font = ImageFont.truetype(font_path, int(bh * 0.65))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=(0, 0, 0, 0), anchor='mm', font=font)
 
 
 save('icon_dev_monochrome.png', render(1024, monochrome_dev))
