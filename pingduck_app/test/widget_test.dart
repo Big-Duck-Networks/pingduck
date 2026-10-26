@@ -413,28 +413,22 @@ void main() {
 
     expect(find.byTooltip('Settings'), findsNothing);
     await showAppSettingsRow(tester);
-    expect(find.text('SETTINGS'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
     expect(find.text('App settings'), findsOneWidget);
 
     await openAppSettings(tester);
     await tester.pumpAndSettle();
 
-    expect(find.text('APP SETTINGS'), findsOneWidget);
-    expect(find.text('APP'), findsOneWidget);
-    expect(find.text('USER SETTINGS'), findsOneWidget);
+    expect(find.text('App settings'), findsWidgets);
     expect(find.text('SCANNING'), findsOneWidget);
     expect(find.text('CLOUD & ALERTS'), findsOneWidget);
-
-    await tester.tap(find.text('USER SETTINGS'));
-    await tester.pumpAndSettle();
-    expect(find.text('ACCOUNT DELETION'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.text('ACCOUNT'), findsWidgets);
   });
 
-  testWidgets('account tab displays Made on Long Island tag in about panel', (tester) async {
+  testWidgets('account tab has About us & this App menu item and opens about screen', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(await app(tester, onboarded: true));
@@ -443,25 +437,18 @@ void main() {
     await tester.tap(find.text('ACCOUNT'));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('Made on Long Island'), 200);
-    expect(find.text('Made on Long Island'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('About us & this App'), 200);
+    expect(find.text('About us & this App'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text(AppVersion.display), 200);
-    expect(find.text('${AppVersion.gitCommit} · ${AppVersion.buildDate}'), findsOneWidget);
-    expect(find.text('AGENT VERSION'), findsNothing, reason: 'no agent paired');
-  });
-
-  testWidgets("about shows the paired agent's version", (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    addTearDown(tester.view.reset);
-    final agent = PairedAgent(id: 'a1', networkId: 'n1', name: 'homelab', version: '0.3.1', createdAt: DateTime(2026));
-    await tester.pumpWidget(await app(tester, onboarded: true, agents: [agent]));
-    await settleScan(tester);
-
-    await tester.tap(find.text('ACCOUNT'));
+    await tester.tap(find.text('About us & this App'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('AGENT VERSION'), 200);
-    expect(find.text('0.3.1'), findsOneWidget);
+
+    expect(find.text('About & contacts'), findsOneWidget);
+    expect(find.text('Rate PingDuck on the Store'), findsOneWidget);
+    expect(find.text('Release notes'), findsOneWidget);
+    expect(find.text('Website'), findsOneWidget);
+    expect(find.text('Tell a friend'), findsOneWidget);
+    expect(find.text(AppVersion.display), findsOneWidget);
   });
 
   Future<void> openSignIn(WidgetTester tester) async {
@@ -642,17 +629,19 @@ void main() {
     await fill(tester, email: 'duck@example.com', password: 'quackquack');
     await tapText(tester, 'SIGN IN');
 
-    await openAppSettings(tester);
+    // Tap profile card on Account screen to open Account details
+    await tester.tap(find.text('duck@example.com'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('USER SETTINGS'));
-    await tester.pumpAndSettle();
+    expect(find.text('Account details'), findsOneWidget);
 
-    await tapText(tester, 'DELETE ACCOUNT');
+    await tester.tap(find.text('Delete account'));
+    await tester.pumpAndSettle();
     await tapText(tester, 'CANCEL');
     expect(auth.deletions, 0);
     expect(find.text('duck@example.com'), findsOneWidget);
 
-    await tapText(tester, 'DELETE ACCOUNT');
+    await tester.tap(find.text('Delete account'));
+    await tester.pumpAndSettle();
     await tapText(tester, 'DELETE');
     expect(auth.deletions, 1);
     expect(find.text('Not signed in'), findsOneWidget);

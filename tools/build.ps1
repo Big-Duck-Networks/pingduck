@@ -42,6 +42,19 @@ try {
   }
 
   if ($Target -eq 'installer') {
+    if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+      $cmakeDir = @(
+        'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin',
+        'C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin',
+        'C:\Program Files\CMake\bin'
+      ) | Where-Object { Test-Path (Join-Path $_ 'cmake.exe') } | Select-Object -First 1
+      if ($cmakeDir) {
+        $env:PATH = "$cmakeDir;$env:PATH"
+      }
+    }
+    if (-not $env:CMAKE_GENERATOR) {
+      $env:CMAKE_GENERATOR = 'Visual Studio 17 2022'
+    }
     Invoke-Checked 'cargo build' { cargo build --release --locked -p pingduck-agent --manifest-path (Join-Path $repo 'agent\Cargo.toml') }
     $iscc = @(
       (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
