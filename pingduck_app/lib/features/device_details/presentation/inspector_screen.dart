@@ -60,7 +60,7 @@ class _Picker extends ConsumerWidget {
             onTap: () => ref.read(selectedDeviceProvider.notifier).select(d.ip),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: PingDuckColors.hairline)),
               ),
               child: Row(
@@ -468,9 +468,9 @@ class _PortRow extends StatelessWidget {
         color: PingDuckColors.canvas,
         border: Border(
           left: BorderSide(color: color, width: 4),
-          top: const BorderSide(color: PingDuckColors.hairline),
-          right: const BorderSide(color: PingDuckColors.hairline),
-          bottom: const BorderSide(color: PingDuckColors.hairline),
+          top: BorderSide(color: PingDuckColors.hairline),
+          right: BorderSide(color: PingDuckColors.hairline),
+          bottom: BorderSide(color: PingDuckColors.hairline),
         ),
       ),
       child: Row(

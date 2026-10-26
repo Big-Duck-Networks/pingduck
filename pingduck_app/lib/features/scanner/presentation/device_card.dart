@@ -48,9 +48,9 @@ class DeviceCard extends StatelessWidget {
             color: d.isOnline ? PingDuckColors.surface1 : PingDuckColors.canvas,
             border: Border(
               left: BorderSide(color: status, width: 6),
-              top: const BorderSide(color: PingDuckColors.partition),
-              right: const BorderSide(color: PingDuckColors.partition),
-              bottom: const BorderSide(color: PingDuckColors.partition),
+              top: BorderSide(color: PingDuckColors.partition),
+              right: BorderSide(color: PingDuckColors.partition),
+              bottom: BorderSide(color: PingDuckColors.partition),
             ),
           ),
           padding: const EdgeInsets.all(12),

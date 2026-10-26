@@ -16,7 +16,7 @@ class PdPanel extends StatelessWidget {
     this.trailing,
     this.accent,
     this.padding = const EdgeInsets.all(12),
-    this.background = PingDuckColors.surface1,
+    this.background,
     required this.child,
   });
 
@@ -25,19 +25,19 @@ class PdPanel extends StatelessWidget {
   final Widget? trailing;
   final Color? accent;
   final EdgeInsets padding;
-  final Color background;
+  final Color? background;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: background,
+        color: background ?? PingDuckColors.surface1,
         border: Border(
           top: BorderSide(color: accent ?? PingDuckColors.partition, width: accent == null ? 1 : 2),
-          left: const BorderSide(color: PingDuckColors.partition),
-          right: const BorderSide(color: PingDuckColors.partition),
-          bottom: const BorderSide(color: PingDuckColors.partition),
+          left: BorderSide(color: PingDuckColors.partition),
+          right: BorderSide(color: PingDuckColors.partition),
+          bottom: BorderSide(color: PingDuckColors.partition),
         ),
       ),
       padding: padding,
@@ -73,7 +73,7 @@ class PdField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: PingDuckColors.canvas,
         border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
       ),
@@ -183,7 +183,7 @@ class _PdButtonState extends State<PdButton> {
             color: enabled ? fill : PingDuckColors.surface2,
             border: Border.all(color: enabled ? border : PingDuckColors.hairline),
             boxShadow: [
-              if (offset > 0) BoxShadow(color: PingDuckColors.keyline, offset: Offset(offset, offset)),
+              if (offset > 0 && !PingDuckColors.isDark) BoxShadow(color: PingDuckColors.keyline, offset: Offset(offset, offset)),
             ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12),

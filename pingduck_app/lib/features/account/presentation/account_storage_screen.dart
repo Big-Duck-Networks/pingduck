@@ -62,20 +62,20 @@ class AccountStorageScreen extends ConsumerWidget {
             title: 'Account',
             trailingText: accountTier,
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           _StorageRow(
             icon: Icons.check,
             title: 'Account state',
             trailingText: accountState,
             trailingColor: accountState == 'OK' ? PingDuckColors.live : PingDuckColors.inkSecondary,
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           _StorageRow(
             icon: Icons.wifi,
             title: 'Networks in your account',
             trailingText: networksCount,
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           const SizedBox(height: 20),
 
           // 2. Action Controls (Restore + Refresh)

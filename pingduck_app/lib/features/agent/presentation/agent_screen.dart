@@ -27,8 +27,8 @@ class AgentScreen extends ConsumerWidget {
           const ToolBreadcrumb(Tool.agent),
           const SizedBox(height: 8),
           if (agents.isLoading && !agents.hasValue)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(child: CircularProgressIndicator(color: PingDuckColors.ink)),
             )
           else if (agents.hasError && list.isEmpty)
@@ -71,7 +71,7 @@ class _NoAgent extends StatelessWidget {
             color: PingDuckColors.surface1,
             border: Border.all(color: PingDuckColors.partition),
           ),
-          child: const Icon(Icons.dns_outlined, color: PingDuckColors.inkMuted),
+          child: Icon(Icons.dns_outlined, color: PingDuckColors.inkMuted),
         ),
         const SizedBox(width: 12),
         Expanded(

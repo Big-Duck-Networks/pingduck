@@ -66,7 +66,7 @@ class AccountScreen extends ConsumerWidget {
           style: PdText.headlineLg.copyWith(fontSize: 28, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6),
-        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         const SizedBox(height: 12),
 
         // 2. User Profile Card
@@ -271,7 +271,7 @@ class _ProfileCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkSecondary),
+                Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkSecondary),
               ],
             ),
           ),
@@ -356,7 +356,7 @@ class _AccountActionRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
+            Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
           ],
         ),
       ),

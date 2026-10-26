@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/supabase_config.dart';
 import 'core/desktop/desktop.dart';
 import 'core/network/lan_connectivity.dart';
+import 'core/theme/pingduck_colors.dart';
 import 'core/theme/pingduck_theme.dart';
+import 'core/theme/theme_mode_provider.dart';
 import 'features/agent/application/agent_status.dart';
 import 'features/auth/account_auth.dart';
 import 'features/onboarding/onboarding_screen.dart';
@@ -148,6 +150,12 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
       title: 'PingDuck',
       debugShowCheckedModeBanner: false,
       theme: PingDuckTheme.light(),
+      darkTheme: PingDuckTheme.dark(),
+      themeMode: ref.watch(appThemeModeProvider),
+      builder: (context, child) {
+        PingDuckColors.isDark = Theme.of(context).brightness == Brightness.dark;
+        return child ?? const SizedBox.shrink();
+      },
       home: onboarded
           ? const AppShell()
           : OnboardingScreen(onDone: () async {

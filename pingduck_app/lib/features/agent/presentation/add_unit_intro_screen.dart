@@ -110,7 +110,7 @@ class _PhoneToAgent extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  const Icon(Icons.dns_outlined, size: 32, color: PingDuckColors.ink),
+                  Icon(Icons.dns_outlined, size: 32, color: PingDuckColors.ink),
                   Positioned(right: 4, bottom: 4, child: const DuckLogo(size: 20, isDev: false)),
                 ],
               ),

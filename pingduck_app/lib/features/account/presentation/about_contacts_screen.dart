@@ -63,7 +63,7 @@ class AboutContactsScreen extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 24, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 24, thickness: 1, color: PingDuckColors.hairline),
 
           // 1. Rate on the Store
           _ContactActionRow(

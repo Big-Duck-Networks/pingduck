@@ -54,7 +54,7 @@ class AppShell extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(right: BorderSide(color: PingDuckColors.hairline)),
               ),
               child: NavigationRail(
@@ -83,7 +83,7 @@ class AppShell extends ConsumerWidget {
       appBar: const _Header(),
       body: body,
       bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(top: BorderSide(color: PingDuckColors.hairline)),
         ),
         child: NavigationBar(
@@ -192,7 +192,7 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right, size: 18, color: PingDuckColors.inkSecondary),
+                    Icon(Icons.chevron_right, size: 18, color: PingDuckColors.inkSecondary),
                   ],
                 ),
               ),

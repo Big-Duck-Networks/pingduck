@@ -148,7 +148,7 @@ class OverviewScreen extends ConsumerWidget {
                 badge: '${scan.onlineCount} online',
                 trailing: TextButton.icon(
                   onPressed: () => _cycleSort(ref, sort),
-                  icon: const Icon(Icons.sort, size: 18, color: PingDuckColors.inkSecondary),
+                  icon: Icon(Icons.sort, size: 18, color: PingDuckColors.inkSecondary),
                   label: Text('SORT: ${sort.label}', style: PdText.labelMd),
                 ),
               ),
@@ -349,7 +349,7 @@ class _NotConnected extends StatelessWidget {
                   color: PingDuckColors.surface1,
                   border: Border.all(color: PingDuckColors.partition),
                 ),
-                child: const Icon(Icons.wifi_off, size: 34, color: PingDuckColors.inkSecondary),
+                child: Icon(Icons.wifi_off, size: 34, color: PingDuckColors.inkSecondary),
               ),
             ),
             const SizedBox(height: 20),

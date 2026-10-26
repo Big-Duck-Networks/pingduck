@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/revenuecat_config.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
+import '../../../core/theme/theme_mode_provider.dart';
 import '../../../services/billing.dart';
 import '../../../services/external_links.dart';
 import '../../../services/plan.dart';
@@ -94,10 +95,32 @@ class _AppSettingsTab extends ConsumerWidget {
             : !alertsSupported
                 ? 'Android only for now'
                 : null;
+    final themeMode = ref.watch(appThemeModeProvider);
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       children: [
+        // APPEARANCE Section
+        const _SectionHeader('APPEARANCE'),
+        _SettingRow(
+          title: 'Theme',
+          subtitle: switch (themeMode) {
+            ThemeMode.light => 'Light',
+            ThemeMode.dark => 'Dark (pitch-black AMOLED)',
+            ThemeMode.system => 'System default',
+          },
+          trailing: _PillBadge(
+            label: switch (themeMode) {
+              ThemeMode.light => 'Light',
+              ThemeMode.dark => 'Dark',
+              ThemeMode.system => 'System',
+            },
+            onTap: () => _showThemeSheet(context, ref, themeMode),
+          ),
+          onTap: () => _showThemeSheet(context, ref, themeMode),
+        ),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+
         // SCANNING Section
         const _SectionHeader('SCANNING'),
         _SettingRow(
@@ -115,7 +138,7 @@ class _AppSettingsTab extends ConsumerWidget {
             },
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         _SettingRow(
           title: 'Reply timeout',
           subtitle: 'How long to wait for slow devices during network discovery.',
@@ -124,14 +147,14 @@ class _AppSettingsTab extends ConsumerWidget {
             onTap: () => _showTimeoutSheet(context, ref, timeout),
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
 
         // CLOUD & ALERTS Section
         const _SectionHeader('CLOUD & ALERTS'),
         _SettingRow(
           title: 'Homelab Agent',
           subtitle: hasAgent ? _agentLine(agents, DateTime.now()) : 'Not set up · Add a monitoring unit',
-          trailing: const Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkMuted),
+          trailing: Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkMuted),
           onTap: () {
             if (!hasAgent) {
               openAddMonitoringUnit(context);
@@ -142,7 +165,7 @@ class _AppSettingsTab extends ConsumerWidget {
             ref.read(activeToolProvider.notifier).open(Tool.agent);
           },
         ),
-        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         _SettingRow(
           title: 'Cloud sync',
           subtitle: !hasAgent ? 'Needs a monitoring unit' : _syncLine(syncOn, sync, DateTime.now()),
@@ -160,7 +183,7 @@ class _AppSettingsTab extends ConsumerWidget {
                 : null,
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         _SettingRow(
           title: 'New-device alerts',
           subtitle: alertsBlocker ?? (alertsOn ? 'On · A notification when a device joins' : 'Off'),
@@ -173,7 +196,7 @@ class _AppSettingsTab extends ConsumerWidget {
           ),
         ),
         if (hasAgent) ...[
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           _SettingRow(
             title: 'Mark devices as known',
             subtitle: 'Current devices won’t trigger alerts; only newly joined devices will.',
@@ -312,7 +335,75 @@ class _AppSettingsTab extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+                Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _showThemeSheet(BuildContext context, WidgetRef ref, ThemeMode current) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: PingDuckColors.canvas,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('THEME', style: PdText.labelLg),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Choose how PingDuck looks on your device.',
+                style: PdText.bodySm,
+              ),
+              const SizedBox(height: 16),
+              for (final mode in [ThemeMode.system, ThemeMode.dark, ThemeMode.light]) ...[
+                InkWell(
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await setAppThemeMode(ref, mode);
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            switch (mode) {
+                              ThemeMode.system => 'System default',
+                              ThemeMode.dark => 'Dark (pitch-black AMOLED)',
+                              ThemeMode.light => 'Light',
+                            },
+                            style: PdText.headlineSm.copyWith(
+                              color: mode == current ? PingDuckColors.route : PingDuckColors.ink,
+                              fontWeight: mode == current ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        if (mode == current)
+                          const Icon(Icons.check, size: 20, color: PingDuckColors.route),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
               ],
             ],
           ),

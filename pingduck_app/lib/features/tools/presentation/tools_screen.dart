@@ -127,7 +127,7 @@ class _ToolCard extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: PingDuckColors.surface1,
             border: Border(
               top: BorderSide(color: PingDuckColors.ink, width: 2),
@@ -165,7 +165,7 @@ class _ToolCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, color: PingDuckColors.inkSecondary),
+              Icon(Icons.chevron_right, color: PingDuckColors.inkSecondary),
             ],
           ),
         ),
