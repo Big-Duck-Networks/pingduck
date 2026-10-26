@@ -41,10 +41,7 @@ class AccountStorageScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Account storage',
-          style: PdText.headlineSm.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
+        title: const Text('Account storage'),
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),

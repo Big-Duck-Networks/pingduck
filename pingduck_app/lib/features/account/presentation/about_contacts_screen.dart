@@ -32,7 +32,7 @@ class AboutContactsScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('About & contacts', style: PdText.headlineSm),
+        title: const Text('About & contacts'),
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),

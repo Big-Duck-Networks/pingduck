@@ -110,4 +110,31 @@ void main() {
     expect(PingDuckColors.ink, const Color(0xFFFFFFFF));
     PingDuckColors.isDark = false;
   });
+
+  testWidgets('SettingsScreen AppBar title is visible with dark ink color in dark mode', (tester) async {
+    final store = memoryStore();
+    addTearDown(store.close);
+    await store.setSetting(appThemeModeKey, 'dark');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(
+          theme: PingDuckTheme.light(),
+          darkTheme: PingDuckTheme.dark(),
+          themeMode: ThemeMode.dark,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titleFinder = find.text('App settings');
+    expect(titleFinder, findsOneWidget);
+    final theme = PingDuckTheme.dark();
+    expect(theme.appBarTheme.titleTextStyle?.color, PingDuckColors.darkInk);
+    expect(theme.appBarTheme.foregroundColor, PingDuckColors.darkInk);
+  });
 }

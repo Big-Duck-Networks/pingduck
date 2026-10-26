@@ -80,6 +80,13 @@ abstract final class PingDuckTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         shape: Border(bottom: BorderSide(color: PingDuckColors.lightHairline)),
+        titleTextStyle: TextStyle(
+          fontFamily: 'SpaceGrotesk',
+          fontSize: 18,
+          height: 24 / 18,
+          fontWeight: FontWeight.w600,
+          color: PingDuckColors.lightInk,
+        ),
       ),
       cardTheme: const CardThemeData(
         color: PingDuckColors.lightCanvas,
@@ -176,6 +183,13 @@ abstract final class PingDuckTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         shape: Border(bottom: BorderSide(color: PingDuckColors.darkHairline)),
+        titleTextStyle: TextStyle(
+          fontFamily: 'SpaceGrotesk',
+          fontSize: 18,
+          height: 24 / 18,
+          fontWeight: FontWeight.w600,
+          color: PingDuckColors.darkInk,
+        ),
       ),
       cardTheme: const CardThemeData(
         color: PingDuckColors.darkCanvas,

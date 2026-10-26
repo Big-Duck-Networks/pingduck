@@ -53,15 +53,13 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
     if (initialIndex == 1) {
       return const AccountDetailsScreen();
     }
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'App settings',
-          style: PdText.headlineSm.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
+        title: const Text('App settings'),
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
