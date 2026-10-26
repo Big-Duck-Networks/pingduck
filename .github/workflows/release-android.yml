@@ -73,7 +73,13 @@ jobs:
             *) echo "::error::$name does not match version $VERSION in pubspec.yaml."; exit 1 ;;
           esac
           gh run download "$RUN" --name "$name" --dir aab
-          mv aab/app-release.aab "$name.aab"
+          if [ -f "aab/app-release.aab" ]; then
+            mv aab/app-release.aab "$name.aab"
+          elif [ -f "aab/app-prod-release.aab" ]; then
+            mv aab/app-prod-release.aab "$name.aab"
+          else
+            mv aab/*.aab "$name.aab"
+          fi
           echo "AAB=$name.aab" >> "$GITHUB_ENV"
       - name: Tag and release
         env:

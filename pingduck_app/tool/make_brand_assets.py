@@ -7,7 +7,7 @@ assets/branding/; then run flutter_launcher_icons and flutter_native_splash.
 """
 import os
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 INK = (0x11, 0x18, 0x27, 255)
 EMERALD = (0x05, 0x96, 0x69, 255)
@@ -65,6 +65,34 @@ def full_icon(d, S):
 save('icon.png', render(1024, full_icon).convert('RGB'))
 
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_PATH = os.path.join(SCRIPT_DIR, '..', 'assets', 'fonts', 'SpaceGrotesk-700.ttf')
+
+
+def dev_badge(d, S, fill=EMERALD, text_color=INK):
+    """Draws a centered pill badge with 'DEV' strictly inside the adaptive safe zone."""
+    bw = S * 0.28
+    bh = S * 0.09
+    bx0 = (S - bw) / 2
+    by0 = S * 0.69
+    bx1 = bx0 + bw
+    by1 = by0 + bh
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=fill)
+    if os.path.exists(FONT_PATH):
+        font = ImageFont.truetype(FONT_PATH, int(bh * 0.65))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=text_color, anchor='mm', font=font)
+
+
+def full_icon_dev(d, S):
+    d.rectangle([0, 0, S, S], fill=INK)
+    box = S * 0.82
+    duck(d, (S - box) / 2, S * 0.05, box, body=AMBER, beak=EMERALD, eye=INK)
+    dev_badge(d, S, fill=EMERALD, text_color=INK)
+
+
+save('icon_dev.png', render(1024, full_icon_dev).convert('RGB'))
+
+
 # Android adaptive foreground: transparent. flutter_launcher_icons insets it
 # by 16% per side, which puts this near-full-bleed duck inside the safe zone.
 def foreground(d, S):
@@ -75,6 +103,15 @@ def foreground(d, S):
 save('icon_foreground.png', render(1024, foreground))
 
 
+def foreground_dev(d, S):
+    box = S * 0.82
+    duck(d, (S - box) / 2, S * 0.05, box, body=AMBER, beak=EMERALD, eye=INK)
+    dev_badge(d, S, fill=EMERALD, text_color=INK)
+
+
+save('icon_dev_foreground.png', render(1024, foreground_dev))
+
+
 # Android 13 themed icon: single colour silhouette (the OS tints it).
 def monochrome(d, S):
     box = S * 0.92
@@ -82,6 +119,24 @@ def monochrome(d, S):
 
 
 save('icon_monochrome.png', render(1024, monochrome))
+
+
+def monochrome_dev(d, S):
+    box = S * 0.82
+    duck(d, (S - box) / 2, S * 0.05, box, body=WHITE, beak=WHITE, eye=(0, 0, 0, 0))
+    bw = S * 0.28
+    bh = S * 0.09
+    bx0 = (S - bw) / 2
+    by0 = S * 0.69
+    bx1 = bx0 + bw
+    by1 = by0 + bh
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=WHITE)
+    if os.path.exists(FONT_PATH):
+        font = ImageFont.truetype(FONT_PATH, int(bh * 0.65))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=(0, 0, 0, 0), anchor='mm', font=font)
+
+
+save('icon_dev_monochrome.png', render(1024, monochrome_dev))
 
 
 # Splash: the DuckLogo disc. Android 12+ masks it to a circle within 2/3 of
@@ -94,6 +149,29 @@ def splash(d, S):
 
 
 save('splash.png', render(960, splash))
+
+
+def splash_dev(d, S):
+    pad = S / 6
+    d.ellipse([pad, pad, S - pad, S - pad], fill=INK)
+    inner = S - 2 * pad
+    box = inner * 0.82
+    ox = pad + (inner - box) / 2
+    oy = pad + inner * 0.05
+    duck(d, ox, oy, box, body=AMBER, beak=EMERALD, eye=INK)
+    bw = inner * 0.30
+    bh = inner * 0.10
+    bx0 = pad + (inner - bw) / 2
+    by0 = pad + inner * 0.68
+    bx1 = bx0 + bw
+    by1 = by0 + bh
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=EMERALD)
+    if os.path.exists(FONT_PATH):
+        font = ImageFont.truetype(FONT_PATH, int(bh * 0.65))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=INK, anchor='mm', font=font)
+
+
+save('splash_dev.png', render(960, splash_dev))
 
 
 # Windows: the DuckLogo disc on transparency, as multi-size .ico files for the

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../constants/app_flavor.dart';
 import '../theme/pingduck_colors.dart';
 import '../theme/pingduck_theme.dart';
 
@@ -207,41 +208,101 @@ class _PdButtonState extends State<PdButton> {
   }
 }
 
-/// The PingDuck mark: a duck head in a carbon disc.
+/// The PingDuck mark: a duck head in a carbon disc. In dev builds, displays the DEV badge.
 class DuckLogo extends StatelessWidget {
-  const DuckLogo({super.key, this.size = 40});
+  const DuckLogo({super.key, this.size = 40, this.isDev});
   final double size;
+  final bool? isDev;
 
   @override
-  Widget build(BuildContext context) =>
-      SizedBox.square(dimension: size, child: CustomPaint(painter: _DuckPainter()));
+  Widget build(BuildContext context) {
+    final dev = isDev ?? AppFlavor.current.isDev;
+    return SizedBox.square(dimension: size, child: CustomPaint(painter: _DuckPainter(isDev: dev)));
+  }
 }
 
 class _DuckPainter extends CustomPainter {
+  const _DuckPainter({this.isDev = false});
+  final bool isDev;
+
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width;
     canvas.drawCircle(Offset(s / 2, s / 2), s / 2, Paint()..color = PingDuckColors.ink);
     final duck = Paint()..color = PingDuckColors.live;
-    // Head, then body sweeping down-left, then the beak.
-    canvas.drawCircle(Offset(s * 0.52, s * 0.42), s * 0.2, duck);
-    final body = Path()
-      ..moveTo(s * 0.34, s * 0.5)
-      ..quadraticBezierTo(s * 0.22, s * 0.76, s * 0.5, s * 0.78)
-      ..quadraticBezierTo(s * 0.74, s * 0.78, s * 0.7, s * 0.56)
-      ..close();
-    canvas.drawPath(body, duck);
-    final beak = Path()
-      ..moveTo(s * 0.68, s * 0.38)
-      ..lineTo(s * 0.84, s * 0.44)
-      ..lineTo(s * 0.68, s * 0.5)
-      ..close();
-    canvas.drawPath(beak, Paint()..color = PingDuckColors.pending);
-    canvas.drawCircle(Offset(s * 0.56, s * 0.38), s * 0.035, Paint()..color = PingDuckColors.ink);
+
+    if (isDev) {
+      const scale = 0.82;
+      final ox = s * (1 - scale) / 2;
+      final oy = s * 0.05;
+      final ds = s * scale;
+
+      final devDuck = Paint()..color = PingDuckColors.pending;
+      final devBeak = Paint()..color = PingDuckColors.live;
+
+      canvas.drawCircle(Offset(ox + ds * 0.52, oy + ds * 0.42), ds * 0.2, devDuck);
+      final body = Path()
+        ..moveTo(ox + ds * 0.34, oy + ds * 0.5)
+        ..quadraticBezierTo(ox + ds * 0.22, oy + ds * 0.76, ox + ds * 0.5, oy + ds * 0.78)
+        ..quadraticBezierTo(ox + ds * 0.74, oy + ds * 0.78, ox + ds * 0.7, oy + ds * 0.56)
+        ..close();
+      canvas.drawPath(body, devDuck);
+      final beak = Path()
+        ..moveTo(ox + ds * 0.68, oy + ds * 0.38)
+        ..lineTo(ox + ds * 0.84, oy + ds * 0.44)
+        ..lineTo(ox + ds * 0.68, oy + ds * 0.5)
+        ..close();
+      canvas.drawPath(beak, devBeak);
+      canvas.drawCircle(Offset(ox + ds * 0.56, oy + ds * 0.38), ds * 0.035, Paint()..color = PingDuckColors.ink);
+
+      // Centered DEV pill badge matching app icon & splash
+      final bw = s * 0.44;
+      final bh = s * 0.16;
+      final bx = (s - bw) / 2;
+      final by = s * 0.68;
+      final r = bh / 2;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(bx, by, bw, bh), Radius.circular(r)),
+        Paint()..color = PingDuckColors.live,
+      );
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: 'DEV',
+          style: TextStyle(
+            color: PingDuckColors.ink,
+            fontSize: math.max(6.0, bh * 0.72),
+            fontWeight: FontWeight.w800,
+            fontFamily: 'SpaceGrotesk',
+            letterSpacing: 0.6,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      textPainter.paint(
+        canvas,
+        Offset(bx + (bw - textPainter.width) / 2, by + (bh - textPainter.height) / 2),
+      );
+    } else {
+      // Head, then body sweeping down-left, then the beak.
+      canvas.drawCircle(Offset(s * 0.52, s * 0.42), s * 0.2, duck);
+      final body = Path()
+        ..moveTo(s * 0.34, s * 0.5)
+        ..quadraticBezierTo(s * 0.22, s * 0.76, s * 0.5, s * 0.78)
+        ..quadraticBezierTo(s * 0.74, s * 0.78, s * 0.7, s * 0.56)
+        ..close();
+      canvas.drawPath(body, duck);
+      final beak = Path()
+        ..moveTo(s * 0.68, s * 0.38)
+        ..lineTo(s * 0.84, s * 0.44)
+        ..lineTo(s * 0.68, s * 0.5)
+        ..close();
+      canvas.drawPath(beak, Paint()..color = PingDuckColors.pending);
+      canvas.drawCircle(Offset(s * 0.56, s * 0.38), s * 0.035, Paint()..color = PingDuckColors.ink);
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DuckPainter oldDelegate) => oldDelegate.isDev != isDev;
 }
 
 /// Latency line for the ledger cards; null samples (timeouts) break the line.

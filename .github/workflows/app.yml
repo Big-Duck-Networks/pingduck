@@ -86,7 +86,17 @@ jobs:
           flutter-version: 3.44.0
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --debug
+      - name: Build dev APK
+        run: flutter build apk --debug --flavor dev
+      - name: Build prod APK
+        run: flutter build apk --debug --flavor prod
+      - name: Upload dev debug APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pingduck-dev-debug
+          path: pingduck_app/build/app/outputs/flutter-apk/app-dev-debug.apk
+          retention-days: 7
+          if-no-files-found: error
 
   # Signed AAB on every main push, kept as an artifact. It is never uploaded
   # to Play from here: internal testing uploads are done by hand.
@@ -147,7 +157,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           flutter pub get
-          flutter build appbundle --release
+          flutter build appbundle --release --flavor prod
+          mkdir -p build/app/outputs/bundle/release
+          cp build/app/outputs/bundle/prodRelease/app-prod-release.aab build/app/outputs/bundle/release/app-release.aab
       - name: Check it is not debug-signed
         if: env.HAS_KEY == 'true'
         run: |

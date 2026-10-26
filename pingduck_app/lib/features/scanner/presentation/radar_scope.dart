@@ -123,7 +123,7 @@ class _RadarScopeState extends State<RadarScope> with SingleTickerProviderStateM
                     border: Border.all(color: PingDuckColors.partition),
                   ),
                   padding: const EdgeInsets.all(8),
-                  child: const DuckLogo(),
+                  child: const DuckLogo(isDev: false),
                 ),
               ),
             ],

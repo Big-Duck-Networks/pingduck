@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_flavor.dart';
 import '../../../core/constants/app_version.dart';
 import '../../../core/desktop/desktop.dart';
 import '../../../core/theme/pingduck_colors.dart';
@@ -246,13 +247,13 @@ class _AboutPanel extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const DuckLogo(size: 48),
+              DuckLogo(size: 52, isDev: AppFlavor.current.isDev),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('PingDuck', style: PdText.headlineMd),
+                    Text(AppFlavor.current.isDev ? 'PingDuck Dev' : 'PingDuck', style: PdText.headlineMd),
                     Text('Network discovery & monitoring', style: PdText.bodySm),
                   ],
                 ),
@@ -260,7 +261,15 @@ class _AboutPanel extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const Wrap(spacing: 8, runSpacing: 6, children: [PdChip('Made on Long Island')]),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              const PdChip('Made on Long Island'),
+              if (AppFlavor.current.isDev)
+                const PdChip('DEV BUILD', tone: PdTone.pending),
+            ],
+          ),
           const SizedBox(height: 16),
           IntrinsicHeight(
             child: Row(
