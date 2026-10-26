@@ -199,6 +199,8 @@ class _ProfileCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
+    final theme = Theme.of(context);
     final email = ref.watch(accountEmailProvider).value;
     final signedIn = email != null;
     final customName = ref.watch(userDisplayNameProvider).value;
@@ -231,14 +233,14 @@ class _ProfileCard extends ConsumerWidget {
                   height: 52,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: PingDuckColors.surface2,
-                    border: Border.all(color: PingDuckColors.partition),
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    border: Border.all(color: theme.colorScheme.outline),
                   ),
                   child: Center(
                     child: Icon(
                       signedIn ? Icons.person : Icons.person_outline,
                       size: 28,
-                      color: signedIn ? PingDuckColors.ink : PingDuckColors.inkMuted,
+                      color: signedIn ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -252,7 +254,10 @@ class _ProfileCard extends ConsumerWidget {
                           Flexible(
                             child: Text(
                               displayName,
-                              style: PdText.headlineSm.copyWith(fontWeight: FontWeight.w600),
+                              style: PdText.headlineSm.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -266,14 +271,14 @@ class _ProfileCard extends ConsumerWidget {
                       Text(
                         signedIn ? email : 'Sign in to sync networks & alerts',
                         style: PdText.bodySm.copyWith(
-                          color: signedIn ? PingDuckColors.inkSecondary : PingDuckColors.inkMuted,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkSecondary),
+                Icon(Icons.chevron_right, size: 22, color: theme.colorScheme.onSurfaceVariant),
               ],
             ),
           ),
@@ -379,13 +384,15 @@ class _PlanPromoCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
+    final theme = Theme.of(context);
     final plan = ref.watch(currentPlanProvider).value;
     final details = ref.watch(subscriptionDetailsProvider).value;
     final isPaid = plan?.isPaid ?? false;
 
     return Container(
       decoration: BoxDecoration(
-        color: PingDuckColors.surface1,
+        color: theme.colorScheme.surfaceContainerLow,
         border: Border.all(
           color: isPaid ? PingDuckColors.liveBorder : PingDuckColors.route,
           width: 1.5,
@@ -401,7 +408,11 @@ class _PlanPromoCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   isPaid ? 'PingDuck Pro is active' : 'Try Pro for 24/7 monitoring!',
-                  style: PdText.headlineSm.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: PdText.headlineSm.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                  ),
                 ),
               ),
               if (isPaid)
@@ -417,7 +428,7 @@ class _PlanPromoCard extends ConsumerWidget {
                     ? 'Renews ${MaterialLocalizations.of(context).formatMediumDate(details!.expiresAt!)}.'
                     : 'Unlimited network sweeps and automated background monitoring.')
                 : '3 scans a day from your phone. Get automated monitoring, advanced protection, and real-time network intrusion alerts.',
-            style: PdText.bodySm,
+            style: PdText.bodySm.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 14),
           if (!isPaid)

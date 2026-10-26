@@ -30,14 +30,16 @@ class PdPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final outlineColor = theme.colorScheme.outline;
     return Container(
       decoration: BoxDecoration(
-        color: background ?? PingDuckColors.surface1,
+        color: background ?? theme.colorScheme.surfaceContainerLow,
         border: Border(
-          top: BorderSide(color: accent ?? PingDuckColors.partition, width: accent == null ? 1 : 2),
-          left: BorderSide(color: PingDuckColors.partition),
-          right: BorderSide(color: PingDuckColors.partition),
-          bottom: BorderSide(color: PingDuckColors.partition),
+          top: BorderSide(color: accent ?? outlineColor, width: accent == null ? 1 : 2),
+          left: BorderSide(color: outlineColor),
+          right: BorderSide(color: outlineColor),
+          bottom: BorderSide(color: outlineColor),
         ),
       ),
       padding: padding,
@@ -47,8 +49,8 @@ class PdPanel extends StatelessWidget {
           if (title != null) ...[
             Row(
               children: [
-                if (icon != null) ...[Icon(icon, size: 18, color: PingDuckColors.ink), const SizedBox(width: 8)],
-                Expanded(child: Text(title!.toUpperCase(), style: PdText.labelLg)),
+                if (icon != null) ...[Icon(icon, size: 18, color: theme.colorScheme.onSurface), const SizedBox(width: 8)],
+                Expanded(child: Text(title!.toUpperCase(), style: PdText.labelLg.copyWith(color: theme.colorScheme.onSurface))),
                 ?trailing,
               ],
             ),
@@ -72,21 +74,22 @@ class PdField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: PingDuckColors.canvas,
-        border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
+        color: theme.colorScheme.surface,
+        border: Border.fromBorderSide(BorderSide(color: theme.colorScheme.outlineVariant)),
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: PdText.labelSm),
+          Text(label.toUpperCase(), style: PdText.labelSm.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 6),
-          Text(value, style: PdText.codeLg.copyWith(color: valueColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(value, style: PdText.codeLg.copyWith(color: valueColor ?? theme.colorScheme.onSurface), maxLines: 1, overflow: TextOverflow.ellipsis),
           if (sub != null) ...[
             const SizedBox(height: 2),
-            Text(sub!, style: PdText.code.copyWith(color: PingDuckColors.inkSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(sub!, style: PdText.code.copyWith(color: theme.colorScheme.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         ],
       ),
@@ -107,6 +110,7 @@ class PdChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final (fill, border, ink) = switch (tone) {
       PdTone.neutral => (PingDuckColors.surface2, PingDuckColors.hairline, PingDuckColors.inkSecondary),
       PdTone.live => (PingDuckColors.liveFill, PingDuckColors.liveBorder, PingDuckColors.live),
@@ -217,9 +221,10 @@ class DuckLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dev = isDev ?? AppFlavor.current.isDev;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox.square(
       dimension: size,
-      child: CustomPaint(painter: _DuckPainter(isDev: dev, isDark: PingDuckColors.isDark)),
+      child: CustomPaint(painter: _DuckPainter(isDev: dev, isDark: isDark)),
     );
   }
 }
@@ -389,10 +394,11 @@ class PdSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final heading = Row(
       children: [
         if (icon != null) ...[Icon(icon, size: 22, color: PingDuckColors.live), const SizedBox(width: 8)],
-        Flexible(child: Text(title, style: PdText.headlineMd, overflow: TextOverflow.ellipsis)),
+        Flexible(child: Text(title, style: PdText.headlineMd.copyWith(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis)),
         if (badge != null) ...[const SizedBox(width: 10), PdChip(badge!, tone: PdTone.live)],
       ],
     );

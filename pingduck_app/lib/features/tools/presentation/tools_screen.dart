@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
+import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../agent/application/agent_status.dart';
 import '../../agent/presentation/agent_screen.dart';
@@ -43,6 +44,7 @@ class ToolsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
     return switch (ref.watch(activeToolProvider)) {
       Tool.nodeInspect => const NodeInspectTool(),
       Tool.agent => const AgentScreen(),
@@ -56,6 +58,7 @@ class _ToolsHub extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
     final scan = ref.watch(scanControllerProvider);
     final paired = ref.watch(myAgentsProvider).value?.length ?? 0;
     return ListView(
@@ -119,6 +122,7 @@ class _ToolCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Semantics(
       button: true,
       label: tool.title,
@@ -128,12 +132,12 @@ class _ToolCard extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: PingDuckColors.surface1,
+            color: theme.colorScheme.surfaceContainerLow,
             border: Border(
-              top: BorderSide(color: PingDuckColors.ink, width: 2),
-              left: BorderSide(color: PingDuckColors.partition),
-              right: BorderSide(color: PingDuckColors.partition),
-              bottom: BorderSide(color: PingDuckColors.partition),
+              top: BorderSide(color: theme.colorScheme.onSurface, width: 2),
+              left: BorderSide(color: theme.colorScheme.outline),
+              right: BorderSide(color: theme.colorScheme.outline),
+              bottom: BorderSide(color: theme.colorScheme.outline),
             ),
           ),
           child: Row(
@@ -142,8 +146,8 @@ class _ToolCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: PingDuckColors.canvas,
-                  border: Border.all(color: PingDuckColors.partition),
+                  color: theme.colorScheme.surface,
+                  border: Border.all(color: theme.colorScheme.outline),
                 ),
                 child: Icon(tool.icon, color: PingDuckColors.live),
               ),
@@ -154,18 +158,18 @@ class _ToolCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Flexible(child: Text(tool.title, style: PdText.headlineSm)),
+                        Flexible(child: Text(tool.title, style: PdText.headlineSm.copyWith(color: theme.colorScheme.onSurface))),
                         const SizedBox(width: 8),
                         PdChip(status),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(tool.description, style: PdText.bodySm),
+                    Text(tool.description, style: PdText.bodySm.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: PingDuckColors.inkSecondary),
+              Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
             ],
           ),
         ),

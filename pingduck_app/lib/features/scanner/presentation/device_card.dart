@@ -37,6 +37,7 @@ class DeviceCard extends StatelessWidget {
     final ipColor = d.isOnline ? (d.hasPrivateMac ? PingDuckColors.critical : PingDuckColors.route) : PingDuckColors.inkMuted;
     final rtt = d.isOnline ? d.rttMs : null;
 
+    final theme = Theme.of(context);
     return Semantics(
       button: true,
       label: '${d.displayName}, ${d.ip}, ${d.isOnline ? 'online' : 'offline'}',
@@ -45,12 +46,12 @@ class DeviceCard extends StatelessWidget {
         onLongPress: onLongPress,
         child: Container(
           decoration: BoxDecoration(
-            color: d.isOnline ? PingDuckColors.surface1 : PingDuckColors.canvas,
+            color: d.isOnline ? theme.colorScheme.surfaceContainerLow : theme.colorScheme.surface,
             border: Border(
               left: BorderSide(color: status, width: 6),
-              top: BorderSide(color: PingDuckColors.partition),
-              right: BorderSide(color: PingDuckColors.partition),
-              bottom: BorderSide(color: PingDuckColors.partition),
+              top: BorderSide(color: theme.colorScheme.outline),
+              right: BorderSide(color: theme.colorScheme.outline),
+              bottom: BorderSide(color: theme.colorScheme.outline),
             ),
           ),
           padding: const EdgeInsets.all(12),
@@ -64,10 +65,10 @@ class DeviceCard extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: PingDuckColors.canvas,
-                      border: Border.all(color: PingDuckColors.partition),
+                      color: theme.colorScheme.surface,
+                      border: Border.all(color: theme.colorScheme.outline),
                     ),
-                    child: Icon(kind.icon, color: d.isOnline ? PingDuckColors.ink : PingDuckColors.inkMuted, size: 22),
+                    child: Icon(kind.icon, color: d.isOnline ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -82,7 +83,7 @@ class DeviceCard extends StatelessWidget {
                             Text(
                               d.displayName,
                               style: PdText.headlineSm.copyWith(
-                                  color: d.isOnline ? PingDuckColors.ink : PingDuckColors.inkSecondary),
+                                  color: d.isOnline ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant),
                             ),
                             if (kind != DeviceKind.unknown)
                               PdChip(kind.label, uppercase: true, tone: _kindTone(kind)),

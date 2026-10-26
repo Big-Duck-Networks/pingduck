@@ -164,4 +164,76 @@ void main() {
     final textWidget = tester.widget<Text>(settingsHeaderFinder);
     expect(textWidget.style?.color, PingDuckColors.darkInk);
   });
+
+  testWidgets('AccountScreen cards adapt to dark mode with dark surfaces and light ink', (tester) async {
+    final store = memoryStore();
+    addTearDown(store.close);
+    await store.setSetting(appThemeModeKey, 'dark');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(
+          theme: PingDuckTheme.light(),
+          darkTheme: PingDuckTheme.dark(),
+          themeMode: ThemeMode.dark,
+          home: const Scaffold(body: AccountScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Check PlanPromoCard title text
+    final promoTitleFinder = find.text('Try Pro for 24/7 monitoring!');
+    expect(promoTitleFinder, findsOneWidget);
+    final promoText = tester.widget<Text>(promoTitleFinder);
+    expect(promoText.style?.color, PingDuckColors.darkInk);
+
+    // Check PlanPromoCard container color
+    final promoContainer = tester.widget<Container>(
+      find.ancestor(of: promoTitleFinder, matching: find.byType(Container)).first,
+    );
+    expect((promoContainer.decoration as BoxDecoration).color, PingDuckColors.darkSurface1);
+
+    // Check ProfileCard display name color
+    final notSignedInFinder = find.text('Not signed in');
+    expect(notSignedInFinder, findsOneWidget);
+    final notSignedInText = tester.widget<Text>(notSignedInFinder);
+    expect(notSignedInText.style?.color, PingDuckColors.darkInk);
+  });
+
+  testWidgets('Header network chip adapts to dark mode dynamically', (tester) async {
+    final store = memoryStore();
+    addTearDown(store.close);
+    await store.setSetting(appThemeModeKey, 'dark');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(
+          theme: PingDuckTheme.light(),
+          darkTheme: PingDuckTheme.dark(),
+          themeMode: ThemeMode.dark,
+          home: const AppShell(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final lanFinder = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('LAN'),
+    );
+    expect(lanFinder, findsOneWidget);
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: lanFinder, matching: find.byType(Container)).first,
+    );
+    expect((container.decoration as BoxDecoration).color, PingDuckColors.darkSurface1);
+  });
 }
+
