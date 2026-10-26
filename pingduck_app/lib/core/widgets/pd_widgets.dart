@@ -237,19 +237,22 @@ class _DuckPainter extends CustomPainter {
       final oy = s * 0.05;
       final ds = s * scale;
 
-      canvas.drawCircle(Offset(ox + ds * 0.52, oy + ds * 0.42), ds * 0.2, duck);
+      final devDuck = Paint()..color = PingDuckColors.pending;
+      final devBeak = Paint()..color = PingDuckColors.live;
+
+      canvas.drawCircle(Offset(ox + ds * 0.52, oy + ds * 0.42), ds * 0.2, devDuck);
       final body = Path()
         ..moveTo(ox + ds * 0.34, oy + ds * 0.5)
         ..quadraticBezierTo(ox + ds * 0.22, oy + ds * 0.76, ox + ds * 0.5, oy + ds * 0.78)
         ..quadraticBezierTo(ox + ds * 0.74, oy + ds * 0.78, ox + ds * 0.7, oy + ds * 0.56)
         ..close();
-      canvas.drawPath(body, duck);
+      canvas.drawPath(body, devDuck);
       final beak = Path()
         ..moveTo(ox + ds * 0.68, oy + ds * 0.38)
         ..lineTo(ox + ds * 0.84, oy + ds * 0.44)
         ..lineTo(ox + ds * 0.68, oy + ds * 0.5)
         ..close();
-      canvas.drawPath(beak, Paint()..color = PingDuckColors.pending);
+      canvas.drawPath(beak, devBeak);
       canvas.drawCircle(Offset(ox + ds * 0.56, oy + ds * 0.38), ds * 0.035, Paint()..color = PingDuckColors.ink);
 
       // Centered DEV pill badge matching app icon & splash
@@ -260,7 +263,7 @@ class _DuckPainter extends CustomPainter {
       final r = bh / 2;
       canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromLTWH(bx, by, bw, bh), Radius.circular(r)),
-        Paint()..color = PingDuckColors.pending,
+        Paint()..color = PingDuckColors.live,
       );
       final textPainter = TextPainter(
         text: TextSpan(

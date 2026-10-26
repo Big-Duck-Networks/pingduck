@@ -65,7 +65,11 @@ def full_icon(d, S):
 save('icon.png', render(1024, full_icon).convert('RGB'))
 
 
-def dev_badge(d, S):
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_PATH = os.path.join(SCRIPT_DIR, '..', 'assets', 'fonts', 'SpaceGrotesk-700.ttf')
+
+
+def dev_badge(d, S, fill=EMERALD, text_color=INK):
     """Draws a centered pill badge with 'DEV' strictly inside the adaptive safe zone."""
     bw = S * 0.28
     bh = S * 0.09
@@ -73,18 +77,17 @@ def dev_badge(d, S):
     by0 = S * 0.69
     bx1 = bx0 + bw
     by1 = by0 + bh
-    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=AMBER)
-    font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
-    if os.path.exists(font_path):
-        font = ImageFont.truetype(font_path, int(bh * 0.65))
-        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=INK, anchor='mm', font=font)
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=fill)
+    if os.path.exists(FONT_PATH):
+        font = ImageFont.truetype(FONT_PATH, int(bh * 0.65))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=text_color, anchor='mm', font=font)
 
 
 def full_icon_dev(d, S):
     d.rectangle([0, 0, S, S], fill=INK)
     box = S * 0.82
-    duck(d, (S - box) / 2, S * 0.05, box, body=EMERALD, beak=AMBER, eye=INK)
-    dev_badge(d, S)
+    duck(d, (S - box) / 2, S * 0.05, box, body=AMBER, beak=EMERALD, eye=INK)
+    dev_badge(d, S, fill=EMERALD, text_color=INK)
 
 
 save('icon_dev.png', render(1024, full_icon_dev).convert('RGB'))
@@ -102,8 +105,8 @@ save('icon_foreground.png', render(1024, foreground))
 
 def foreground_dev(d, S):
     box = S * 0.82
-    duck(d, (S - box) / 2, S * 0.05, box, body=EMERALD, beak=AMBER, eye=INK)
-    dev_badge(d, S)
+    duck(d, (S - box) / 2, S * 0.05, box, body=AMBER, beak=EMERALD, eye=INK)
+    dev_badge(d, S, fill=EMERALD, text_color=INK)
 
 
 save('icon_dev_foreground.png', render(1024, foreground_dev))
@@ -128,9 +131,8 @@ def monochrome_dev(d, S):
     bx1 = bx0 + bw
     by1 = by0 + bh
     d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=WHITE)
-    font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
-    if os.path.exists(font_path):
-        font = ImageFont.truetype(font_path, int(bh * 0.65))
+    if os.path.exists(FONT_PATH):
+        font = ImageFont.truetype(FONT_PATH, int(bh * 0.65))
         d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=(0, 0, 0, 0), anchor='mm', font=font)
 
 
@@ -156,17 +158,16 @@ def splash_dev(d, S):
     box = inner * 0.82
     ox = pad + (inner - box) / 2
     oy = pad + inner * 0.05
-    duck(d, ox, oy, box)
-    bw = inner * 0.28
-    bh = inner * 0.09
+    duck(d, ox, oy, box, body=AMBER, beak=EMERALD, eye=INK)
+    bw = inner * 0.30
+    bh = inner * 0.10
     bx0 = pad + (inner - bw) / 2
-    by0 = pad + inner * 0.69
+    by0 = pad + inner * 0.68
     bx1 = bx0 + bw
     by1 = by0 + bh
-    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=AMBER)
-    font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
-    if os.path.exists(font_path):
-        font = ImageFont.truetype(font_path, int(bh * 0.65))
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=EMERALD)
+    if os.path.exists(FONT_PATH):
+        font = ImageFont.truetype(FONT_PATH, int(bh * 0.65))
         d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=INK, anchor='mm', font=font)
 
 
