@@ -140,6 +140,47 @@ Text(AppVersion.display);     // "v1.0.0 (2)"
 Text(AppVersion.gitCommit);   // "5c826f2"
 ```
 
+## Mobile App & Flavors
+
+PingDuck supports multiple flavors so development builds run side-by-side with production releases on the same device:
+
+| Flavor | Application ID | App Name | Branding & Theme |
+| ------ | -------------- | -------- | ---------------- |
+| `dev` | `app.webcap.pingduck.dev` | PingDuck Dev | Amber duck (`#D97706`), Emerald beak/badge, `[dev]` tag in version |
+| `prod` | `app.webcap.pingduck` | PingDuck | Canonical Emerald duck (`#059669`), Amber beak, production release |
+
+### Running Locally
+
+```sh
+# Run dev build (installs side-by-side as PingDuck Dev)
+flutter run --flavor dev -t lib/main.dart
+
+# Run production build
+flutter run --flavor prod -t lib/main.dart
+```
+
+### Packaging & Builds
+
+Using [`tools/build.ps1`](tools/build.ps1):
+
+```powershell
+# Build signed Android App Bundle (AAB) for production
+.\tools\build.ps1 -Platform android -Flavor prod
+
+# Build Dev APK for testing
+.\tools\build.ps1 -Platform android -Flavor dev
+```
+
+### Brand Assets & Icons
+
+All launcher icons and native splash screens are rendered programmatically from vector math in [`pingduck_app/tool/make_brand_assets.py`](pingduck_app/tool/make_brand_assets.py):
+
+```sh
+cd pingduck_app
+uv run --with pillow python tool/make_brand_assets.py
+dart run flutter_launcher_icons && dart run flutter_launcher_icons:main -f flutter_launcher_icons-dev.yaml
+dart run flutter_native_splash:create -F dev,prod
+```
 
 ## License
 
