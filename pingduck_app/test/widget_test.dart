@@ -451,6 +451,28 @@ void main() {
     expect(find.text(AppVersion.display), findsOneWidget);
   });
 
+  testWidgets('account tab has Account storage row and opens account storage screen', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Account storage'), 200);
+    expect(find.text('Account storage'), findsOneWidget);
+
+    await tester.tap(find.text('Account storage'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('Account state'), findsOneWidget);
+    expect(find.text('Networks in your account'), findsOneWidget);
+    expect(find.byKey(const Key('restore_storage_button')), findsOneWidget);
+    expect(find.byKey(const Key('refresh_storage_button')), findsOneWidget);
+  });
+
   Future<void> openSignIn(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);

@@ -24,6 +24,7 @@ import '../../subscription/presentation/plan_panel.dart';
 import '../../tools/presentation/tools_screen.dart';
 import 'about_contacts_screen.dart';
 import 'account_details_screen.dart';
+import 'account_storage_screen.dart';
 
 /// The homelab agent's version: the account's paired agent, as its last
 /// heartbeat reported it, else (desktop) the agent service on this PC.
@@ -86,7 +87,9 @@ class AccountScreen extends ConsumerWidget {
               '${value.devices} device${value.devices == 1 ? '' : 's'} on ${value.networks} network${value.networks == 1 ? '' : 's'}',
             _ => null,
           },
-          onTap: () => _showStorageSheet(context, ref),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AccountStorageScreen()),
+          ),
         ),
         _AccountActionRow(
           icon: Icons.mail_outline,
@@ -186,80 +189,6 @@ class AccountScreen extends ConsumerWidget {
     }
   }
 
-  static void _showStorageSheet(BuildContext context, WidgetRef ref) {
-    final usage = ref.read(storageUsageProvider).value;
-    final scanning = ref.read(scanControllerProvider).isScanning;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: PingDuckColors.canvas,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('ACCOUNT STORAGE', style: PdText.labelLg),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              PdField(
-                label: 'Local Inventory',
-                value: usage != null
-                    ? '${usage.devices} device${usage.devices == 1 ? '' : 's'} on ${usage.networks} network${usage.networks == 1 ? '' : 's'}'
-                    : 'Loading…',
-                sub: 'Names, custom notes, vendor labels and latency history included.',
-              ),
-              const SizedBox(height: 20),
-              PdButton(
-                label: 'Clear device inventory',
-                icon: Icons.delete_outline,
-                style: PdButtonStyle.destructive,
-                onPressed: scanning
-                    ? null
-                    : () {
-                        Navigator.of(context).pop();
-                        _confirmClear(context, ref);
-                      },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('CLEAR INVENTORY?', style: PdText.labelLg),
-        content: Text(
-          'Removes every remembered network and device, including your names and notes. The next scan starts fresh.',
-          style: PdText.bodyMd,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('CLEAR', style: PdText.labelLg.copyWith(color: PingDuckColors.critical)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await ref.read(scanControllerProvider.notifier).clearInventory();
-    ref.invalidate(storageUsageProvider);
-  }
 }
 
 /// Profile row modeled directly on Fing's top profile tile.
