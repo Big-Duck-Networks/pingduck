@@ -149,6 +149,30 @@ def splash(d, S):
 save('splash.png', render(960, splash))
 
 
+def splash_dev(d, S):
+    pad = S / 6
+    d.ellipse([pad, pad, S - pad, S - pad], fill=INK)
+    inner = S - 2 * pad
+    box = inner * 0.82
+    ox = pad + (inner - box) / 2
+    oy = pad + inner * 0.05
+    duck(d, ox, oy, box)
+    bw = inner * 0.28
+    bh = inner * 0.09
+    bx0 = pad + (inner - bw) / 2
+    by0 = pad + inner * 0.69
+    bx1 = bx0 + bw
+    by1 = by0 + bh
+    d.rounded_rectangle([bx0, by0, bx1, by1], radius=bh / 2, fill=AMBER)
+    font_path = 'assets/fonts/SpaceGrotesk-700.ttf'
+    if os.path.exists(font_path):
+        font = ImageFont.truetype(font_path, int(bh * 0.65))
+        d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), 'DEV', fill=INK, anchor='mm', font=font)
+
+
+save('splash_dev.png', render(960, splash_dev))
+
+
 # Windows: the DuckLogo disc on transparency, as multi-size .ico files for the
 # exe/taskbar (windows/runner/resources) and the tray (an app asset).
 def windows_icon(d, S):

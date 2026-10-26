@@ -144,7 +144,8 @@ flutter:
 
 # Launcher icons and native splash, generated from assets/branding/
 # (re-render with `python tool/make_brand_assets.py`, then:
-#   dart run flutter_launcher_icons && dart run flutter_launcher_icons:main -f flutter_launcher_icons-dev.yaml && dart run flutter_native_splash:create)
+#   dart run flutter_launcher_icons && dart run flutter_launcher_icons:main -f flutter_launcher_icons-dev.yaml
+#   dart run flutter_native_splash:create -F dev,prod)
 flutter_launcher_icons:
   android: true
   ios: true
