@@ -7,8 +7,8 @@ import '../../recognition/brand_logo.dart';
 import '../../recognition/recognition.dart';
 
 /// Node Inspect's Device and Operating system cards. Only fields with a
-/// signal behind them are shown; inferred ones carry a LIKELY tag and the
-/// user's own answers a SET BY YOU tag. [onEdit] opens the label editor.
+/// signal behind them are shown; inferred ones carry a LIKELY tag.
+/// [onEdit] opens the label editor, and [onConfirm] confirms inferred facts.
 class RecognitionPanels extends StatelessWidget {
   const RecognitionPanels(
     this.recognition, {
@@ -191,7 +191,6 @@ class _FactRow extends StatelessWidget {
               spacing: 6,
               children: [
                 if (fact.isGuess) const PdChip('LIKELY', tone: PdTone.pending),
-                if (fact.isUser) const PdChip('SET BY YOU', tone: PdTone.ink),
                 Text(fact.value, style: PdText.bodyMd, textAlign: TextAlign.end),
               ],
             ),

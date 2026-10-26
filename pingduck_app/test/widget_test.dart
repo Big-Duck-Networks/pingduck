@@ -215,7 +215,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ThinkCentre M70q'), findsWidgets);
-    expect(find.text('SET BY YOU'), findsWidgets);
+    expect(find.text('SET BY YOU'), findsNothing);
     expect(find.text('Model · set by you'), findsOneWidget);
   });
 
@@ -245,7 +245,7 @@ void main() {
 
     expect(find.text('CONFIRM'), findsNothing);
     expect(find.text('LIKELY'), findsNothing);
-    expect(find.text('SET BY YOU'), findsWidgets);
+    expect(find.text('SET BY YOU'), findsNothing);
   });
 
 
