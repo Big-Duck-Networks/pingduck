@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pingduck_app/core/theme/pingduck_colors.dart';
 import 'package:pingduck_app/core/theme/pingduck_theme.dart';
 import 'package:pingduck_app/core/theme/theme_mode_provider.dart';
+import 'package:pingduck_app/features/account/presentation/account_screen.dart';
 import 'package:pingduck_app/features/agent/application/agent_status.dart';
 import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
@@ -136,5 +137,31 @@ void main() {
     final theme = PingDuckTheme.dark();
     expect(theme.appBarTheme.titleTextStyle?.color, PingDuckColors.darkInk);
     expect(theme.appBarTheme.foregroundColor, PingDuckColors.darkInk);
+  });
+
+  testWidgets('AccountScreen section headers render with onSurface color in dark mode', (tester) async {
+    final store = memoryStore();
+    addTearDown(store.close);
+    await store.setSetting(appThemeModeKey, 'dark');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(
+          theme: PingDuckTheme.light(),
+          darkTheme: PingDuckTheme.dark(),
+          themeMode: ThemeMode.dark,
+          home: const Scaffold(body: AccountScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final settingsHeaderFinder = find.text('Settings');
+    expect(settingsHeaderFinder, findsOneWidget);
+    final textWidget = tester.widget<Text>(settingsHeaderFinder);
+    expect(textWidget.style?.color, PingDuckColors.darkInk);
   });
 }

@@ -5,6 +5,7 @@ import '../../../core/constants/revenuecat_config.dart';
 import '../../../core/desktop/desktop.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
+import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../../services/billing.dart';
 import '../../../services/external_links.dart';
@@ -55,6 +56,7 @@ class AccountScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
@@ -306,7 +308,7 @@ class _SectionHeader extends StatelessWidget {
         style: PdText.headlineSm.copyWith(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: PingDuckColors.ink,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -329,6 +331,7 @@ class _AccountActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
@@ -336,7 +339,7 @@ class _AccountActionRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 2),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: PingDuckColors.ink),
+            Icon(icon, size: 22, color: colorScheme.onSurface),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -346,17 +349,22 @@ class _AccountActionRow extends StatelessWidget {
                     title,
                     style: PdText.bodyLg.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: PingDuckColors.ink,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle!, style: PdText.bodySm),
+                    Text(
+                      subtitle!,
+                      style: PdText.bodySm.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
+            Icon(Icons.chevron_right, size: 20, color: colorScheme.onSurfaceVariant),
           ],
         ),
       ),

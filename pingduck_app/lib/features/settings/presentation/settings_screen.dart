@@ -425,7 +425,7 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: PdText.labelLg.copyWith(
-          color: PingDuckColors.inkSecondary,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
           letterSpacing: 1.2,
           fontWeight: FontWeight.w700,
         ),
