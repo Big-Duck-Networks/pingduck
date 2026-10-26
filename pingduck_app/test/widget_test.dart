@@ -106,13 +106,30 @@ void main() {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(await app(tester, onboarded: false));
-    expect(find.text('START FIRST SCAN'), findsOneWidget);
+
+    // Step 1: Privacy Defaults
+    expect(find.text('Your network, your rules'), findsOneWidget);
+    expect(find.text('Agree and continue'), findsOneWidget);
     expect(bridge.scans, 0);
 
-    await tester.ensureVisible(find.text('START FIRST SCAN'));
-    await tester.tap(find.text('START FIRST SCAN'));
+    await tester.tap(find.text('Agree and continue'));
+    await tester.pumpAndSettle();
+
+    // Step 2: Location
+    expect(find.text('Enable location to detect your Wi-Fi'), findsOneWidget);
+    expect(find.text('Use without Wi-Fi details'), findsOneWidget);
+
+    await tester.tap(find.text('Use without Wi-Fi details'));
+    await tester.pumpAndSettle();
+
+    // Step 3: Account
+    expect(find.text('Join PingDuck for more smart scans'), findsOneWidget);
+    expect(find.text("I'll think about it"), findsOneWidget);
+
+    await tester.tap(find.text("I'll think about it"));
     await tester.pump();
     await tester.pump();
+
     expect(find.text('PINGDUCK'), findsOneWidget);
     expect(bridge.scans, 1);
     await settleScan(tester);
