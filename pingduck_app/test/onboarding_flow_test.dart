@@ -42,16 +42,27 @@ void main() {
     expect(find.text('Agree and continue'), findsOneWidget);
     expect(find.text('Review settings and policies'), findsOneWidget);
 
-    // Open privacy policies bottom sheet
+    // Open privacy settings screen
     await tester.tap(find.text('Review settings and policies'));
     await tester.pumpAndSettle();
-    expect(find.text('Privacy & Network Policies'), findsOneWidget);
-    expect(find.text('100% Local Scanning'), findsOneWidget);
-    expect(find.text('No Activity Tracking'), findsOneWidget);
-    expect(find.text('Full User Control'), findsOneWidget);
+    expect(find.text('Privacy settings'), findsOneWidget);
+    expect(find.text('Analytics Settings'), findsOneWidget);
+    expect(find.text('Crash reporting'), findsOneWidget);
+    expect(find.text('Send reports to developers when the App crashes.'), findsOneWidget);
+    expect(find.byKey(const Key('crash_reporting_switch')), findsOneWidget);
+    expect(find.text('Privacy policy'), findsWidgets);
+    expect(find.text('Terms of service'), findsOneWidget);
 
-    // Close bottom sheet
-    await tester.tap(find.text('CLOSE'));
+    // Toggle crash reporting switch
+    await tester.tap(find.byKey(const Key('crash_reporting_switch')));
+    await tester.pumpAndSettle();
+
+    // Pop back to Step 1
+    final settingsBackFinder = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byType(IconButton),
+    );
+    await tester.tap(settingsBackFinder);
     await tester.pumpAndSettle();
 
     // Advance to Step 2

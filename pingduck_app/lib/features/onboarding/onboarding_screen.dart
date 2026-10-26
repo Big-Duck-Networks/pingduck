@@ -7,10 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/theme/pingduck_colors.dart';
-import '../../core/theme/pingduck_theme.dart';
 import '../../core/theme/theme_mode_provider.dart';
-import '../../core/widgets/pd_widgets.dart';
 import '../auth/sign_in_screen.dart';
+import '../settings/presentation/privacy_settings_screen.dart';
 
 /// 3-step onboarding flow modeled after Fing's modern sequence:
 /// 1. Privacy Defaults ("Your network, your rules")
@@ -85,68 +84,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  void _showPrivacyPolicies() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  void _openPrivacySettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PrivacySettingsScreen(),
       ),
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Privacy & Network Policies',
-                  style: PdText.headlineMd.copyWith(color: theme.colorScheme.onSurface),
-                ),
-                const SizedBox(height: 12),
-                _PolicyTile(
-                  icon: Icons.shield_outlined,
-                  title: '100% Local Scanning',
-                  description:
-                      'PingDuck only sends standard network reconnaissance probes (ICMP, mDNS, UPnP) on your local subnet. No raw packet data or local payloads leave your device.',
-                ),
-                _PolicyTile(
-                  icon: Icons.visibility_off_outlined,
-                  title: 'No Activity Tracking',
-                  description:
-                      'We never monitor, log, or inspect your web browsing, DNS queries, or online activity.',
-                ),
-                _PolicyTile(
-                  icon: Icons.tune_outlined,
-                  title: 'Full User Control',
-                  description:
-                      'You can review and toggle permissions, background monitoring, and cloud sync anytime in App Settings.',
-                ),
-                const SizedBox(height: 16),
-                PdButton(
-                  label: 'CLOSE',
-                  style: PdButtonStyle.primary,
-                  onPressed: () => Navigator.of(ctx).pop(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -213,7 +155,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     primaryButtonText: 'Agree and continue',
                     onPrimaryPressed: () => _goTo(1),
                     secondaryButtonText: 'Review settings and policies',
-                    onSecondaryPressed: _showPrivacyPolicies,
+                    onSecondaryPressed: _openPrivacySettings,
                     secondaryButtonColor: PingDuckColors.route,
                   ),
 
@@ -525,59 +467,6 @@ class _AccountStepLayout extends StatelessWidget {
   }
 }
 
-/// Policy bullet point tile for the bottom sheet.
-class _PolicyTile extends StatelessWidget {
-  const _PolicyTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20, color: PingDuckColors.route),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: PdText.bodyLg.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: PdText.bodySm.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // =============================================================================
 // VECTOR ILLUSTRATIONS
