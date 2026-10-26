@@ -106,13 +106,30 @@ void main() {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(await app(tester, onboarded: false));
-    expect(find.text('START FIRST SCAN'), findsOneWidget);
+
+    // Step 1: Privacy Defaults
+    expect(find.text('Your network, your rules'), findsOneWidget);
+    expect(find.text('Agree and continue'), findsOneWidget);
     expect(bridge.scans, 0);
 
-    await tester.ensureVisible(find.text('START FIRST SCAN'));
-    await tester.tap(find.text('START FIRST SCAN'));
+    await tester.tap(find.text('Agree and continue'));
+    await tester.pumpAndSettle();
+
+    // Step 2: Location
+    expect(find.text('Enable location to detect your Wi-Fi'), findsOneWidget);
+    expect(find.text('Use without Wi-Fi details'), findsOneWidget);
+
+    await tester.tap(find.text('Use without Wi-Fi details'));
+    await tester.pumpAndSettle();
+
+    // Step 3: Account
+    expect(find.text('Join PingDuck for more smart scans'), findsOneWidget);
+    expect(find.text("I'll think about it"), findsOneWidget);
+
+    await tester.tap(find.text("I'll think about it"));
     await tester.pump();
     await tester.pump();
+
     expect(find.text('PINGDUCK'), findsOneWidget);
     expect(bridge.scans, 1);
     await settleScan(tester);
@@ -449,6 +466,28 @@ void main() {
     expect(find.text('Website'), findsOneWidget);
     expect(find.text('Tell a friend'), findsOneWidget);
     expect(find.text(AppVersion.display), findsOneWidget);
+  });
+
+  testWidgets('account tab has Account storage row and opens account storage screen', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(await app(tester, onboarded: true));
+    await settleScan(tester);
+
+    await tester.tap(find.text('ACCOUNT'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Account storage'), 200);
+    expect(find.text('Account storage'), findsOneWidget);
+
+    await tester.tap(find.text('Account storage'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('Account state'), findsOneWidget);
+    expect(find.text('Networks in your account'), findsOneWidget);
+    expect(find.byKey(const Key('restore_storage_button')), findsOneWidget);
+    expect(find.byKey(const Key('refresh_storage_button')), findsOneWidget);
   });
 
   Future<void> openSignIn(WidgetTester tester) async {

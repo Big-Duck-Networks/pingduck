@@ -5,6 +5,7 @@ import '../../../core/constants/revenuecat_config.dart';
 import '../../../core/desktop/desktop.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
+import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../../services/billing.dart';
 import '../../../services/external_links.dart';
@@ -24,6 +25,7 @@ import '../../subscription/presentation/plan_panel.dart';
 import '../../tools/presentation/tools_screen.dart';
 import 'about_contacts_screen.dart';
 import 'account_details_screen.dart';
+import 'account_storage_screen.dart';
 
 /// The homelab agent's version: the account's paired agent, as its last
 /// heartbeat reported it, else (desktop) the agent service on this PC.
@@ -54,6 +56,7 @@ class AccountScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
@@ -65,7 +68,7 @@ class AccountScreen extends ConsumerWidget {
           style: PdText.headlineLg.copyWith(fontSize: 28, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6),
-        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         const SizedBox(height: 12),
 
         // 2. User Profile Card
@@ -86,7 +89,9 @@ class AccountScreen extends ConsumerWidget {
               '${value.devices} device${value.devices == 1 ? '' : 's'} on ${value.networks} network${value.networks == 1 ? '' : 's'}',
             _ => null,
           },
-          onTap: () => _showStorageSheet(context, ref),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AccountStorageScreen()),
+          ),
         ),
         _AccountActionRow(
           icon: Icons.mail_outline,
@@ -186,80 +191,6 @@ class AccountScreen extends ConsumerWidget {
     }
   }
 
-  static void _showStorageSheet(BuildContext context, WidgetRef ref) {
-    final usage = ref.read(storageUsageProvider).value;
-    final scanning = ref.read(scanControllerProvider).isScanning;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: PingDuckColors.canvas,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('ACCOUNT STORAGE', style: PdText.labelLg),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              PdField(
-                label: 'Local Inventory',
-                value: usage != null
-                    ? '${usage.devices} device${usage.devices == 1 ? '' : 's'} on ${usage.networks} network${usage.networks == 1 ? '' : 's'}'
-                    : 'Loading…',
-                sub: 'Names, custom notes, vendor labels and latency history included.',
-              ),
-              const SizedBox(height: 20),
-              PdButton(
-                label: 'Clear device inventory',
-                icon: Icons.delete_outline,
-                style: PdButtonStyle.destructive,
-                onPressed: scanning
-                    ? null
-                    : () {
-                        Navigator.of(context).pop();
-                        _confirmClear(context, ref);
-                      },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('CLEAR INVENTORY?', style: PdText.labelLg),
-        content: Text(
-          'Removes every remembered network and device, including your names and notes. The next scan starts fresh.',
-          style: PdText.bodyMd,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('CLEAR', style: PdText.labelLg.copyWith(color: PingDuckColors.critical)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await ref.read(scanControllerProvider.notifier).clearInventory();
-    ref.invalidate(storageUsageProvider);
-  }
 }
 
 /// Profile row modeled directly on Fing's top profile tile.
@@ -268,6 +199,8 @@ class _ProfileCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
+    final theme = Theme.of(context);
     final email = ref.watch(accountEmailProvider).value;
     final signedIn = email != null;
     final customName = ref.watch(userDisplayNameProvider).value;
@@ -300,14 +233,14 @@ class _ProfileCard extends ConsumerWidget {
                   height: 52,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: PingDuckColors.surface2,
-                    border: Border.all(color: PingDuckColors.partition),
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    border: Border.all(color: theme.colorScheme.outline),
                   ),
                   child: Center(
                     child: Icon(
                       signedIn ? Icons.person : Icons.person_outline,
                       size: 28,
-                      color: signedIn ? PingDuckColors.ink : PingDuckColors.inkMuted,
+                      color: signedIn ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -321,7 +254,10 @@ class _ProfileCard extends ConsumerWidget {
                           Flexible(
                             child: Text(
                               displayName,
-                              style: PdText.headlineSm.copyWith(fontWeight: FontWeight.w600),
+                              style: PdText.headlineSm.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -335,14 +271,14 @@ class _ProfileCard extends ConsumerWidget {
                       Text(
                         signedIn ? email : 'Sign in to sync networks & alerts',
                         style: PdText.bodySm.copyWith(
-                          color: signedIn ? PingDuckColors.inkSecondary : PingDuckColors.inkMuted,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkSecondary),
+                Icon(Icons.chevron_right, size: 22, color: theme.colorScheme.onSurfaceVariant),
               ],
             ),
           ),
@@ -377,7 +313,7 @@ class _SectionHeader extends StatelessWidget {
         style: PdText.headlineSm.copyWith(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: PingDuckColors.ink,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -400,6 +336,7 @@ class _AccountActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
@@ -407,7 +344,7 @@ class _AccountActionRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 2),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: PingDuckColors.ink),
+            Icon(icon, size: 22, color: colorScheme.onSurface),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -417,17 +354,22 @@ class _AccountActionRow extends StatelessWidget {
                     title,
                     style: PdText.bodyLg.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: PingDuckColors.ink,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle!, style: PdText.bodySm),
+                    Text(
+                      subtitle!,
+                      style: PdText.bodySm.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
+            Icon(Icons.chevron_right, size: 20, color: colorScheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -442,13 +384,15 @@ class _PlanPromoCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
+    final theme = Theme.of(context);
     final plan = ref.watch(currentPlanProvider).value;
     final details = ref.watch(subscriptionDetailsProvider).value;
     final isPaid = plan?.isPaid ?? false;
 
     return Container(
       decoration: BoxDecoration(
-        color: PingDuckColors.surface1,
+        color: theme.colorScheme.surfaceContainerLow,
         border: Border.all(
           color: isPaid ? PingDuckColors.liveBorder : PingDuckColors.route,
           width: 1.5,
@@ -464,7 +408,11 @@ class _PlanPromoCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   isPaid ? 'PingDuck Pro is active' : 'Try Pro for 24/7 monitoring!',
-                  style: PdText.headlineSm.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: PdText.headlineSm.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                  ),
                 ),
               ),
               if (isPaid)
@@ -480,7 +428,7 @@ class _PlanPromoCard extends ConsumerWidget {
                     ? 'Renews ${MaterialLocalizations.of(context).formatMediumDate(details!.expiresAt!)}.'
                     : 'Unlimited network sweeps and automated background monitoring.')
                 : '3 scans a day from your phone. Get automated monitoring, advanced protection, and real-time network intrusion alerts.',
-            style: PdText.bodySm,
+            style: PdText.bodySm.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 14),
           if (!isPaid)

@@ -114,7 +114,7 @@ class TopologyScreen extends ConsumerWidget {
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             border: Border(
               left: BorderSide(color: PingDuckColors.partition),
               right: BorderSide(color: PingDuckColors.partition),
@@ -275,7 +275,7 @@ class _NodeBox extends StatelessWidget {
         decoration: BoxDecoration(
           color: fill,
           border: Border.all(color: focused ? PingDuckColors.keyline : color, width: focused ? 2 : 1.5),
-          boxShadow: focused ? const [BoxShadow(color: PingDuckColors.keyline, offset: Offset(2, 2))] : null,
+          boxShadow: focused ? [BoxShadow(color: PingDuckColors.keyline, offset: const Offset(2, 2))] : null,
         ),
         child: Icon(kind.icon, size: 20, color: isGateway ? PingDuckColors.canvas : color),
       ),

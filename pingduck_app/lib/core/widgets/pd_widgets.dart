@@ -16,7 +16,7 @@ class PdPanel extends StatelessWidget {
     this.trailing,
     this.accent,
     this.padding = const EdgeInsets.all(12),
-    this.background = PingDuckColors.surface1,
+    this.background,
     required this.child,
   });
 
@@ -25,19 +25,21 @@ class PdPanel extends StatelessWidget {
   final Widget? trailing;
   final Color? accent;
   final EdgeInsets padding;
-  final Color background;
+  final Color? background;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final outlineColor = theme.colorScheme.outline;
     return Container(
       decoration: BoxDecoration(
-        color: background,
+        color: background ?? theme.colorScheme.surfaceContainerLow,
         border: Border(
-          top: BorderSide(color: accent ?? PingDuckColors.partition, width: accent == null ? 1 : 2),
-          left: const BorderSide(color: PingDuckColors.partition),
-          right: const BorderSide(color: PingDuckColors.partition),
-          bottom: const BorderSide(color: PingDuckColors.partition),
+          top: BorderSide(color: accent ?? outlineColor, width: accent == null ? 1 : 2),
+          left: BorderSide(color: outlineColor),
+          right: BorderSide(color: outlineColor),
+          bottom: BorderSide(color: outlineColor),
         ),
       ),
       padding: padding,
@@ -47,8 +49,8 @@ class PdPanel extends StatelessWidget {
           if (title != null) ...[
             Row(
               children: [
-                if (icon != null) ...[Icon(icon, size: 18, color: PingDuckColors.ink), const SizedBox(width: 8)],
-                Expanded(child: Text(title!.toUpperCase(), style: PdText.labelLg)),
+                if (icon != null) ...[Icon(icon, size: 18, color: theme.colorScheme.onSurface), const SizedBox(width: 8)],
+                Expanded(child: Text(title!.toUpperCase(), style: PdText.labelLg.copyWith(color: theme.colorScheme.onSurface))),
                 ?trailing,
               ],
             ),
@@ -72,21 +74,22 @@ class PdField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: PingDuckColors.canvas,
-        border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border.fromBorderSide(BorderSide(color: theme.colorScheme.outlineVariant)),
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: PdText.labelSm),
+          Text(label.toUpperCase(), style: PdText.labelSm.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 6),
-          Text(value, style: PdText.codeLg.copyWith(color: valueColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(value, style: PdText.codeLg.copyWith(color: valueColor ?? theme.colorScheme.onSurface), maxLines: 1, overflow: TextOverflow.ellipsis),
           if (sub != null) ...[
             const SizedBox(height: 2),
-            Text(sub!, style: PdText.code.copyWith(color: PingDuckColors.inkSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(sub!, style: PdText.code.copyWith(color: theme.colorScheme.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         ],
       ),
@@ -107,6 +110,7 @@ class PdChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final (fill, border, ink) = switch (tone) {
       PdTone.neutral => (PingDuckColors.surface2, PingDuckColors.hairline, PingDuckColors.inkSecondary),
       PdTone.live => (PingDuckColors.liveFill, PingDuckColors.liveBorder, PingDuckColors.live),
@@ -183,7 +187,7 @@ class _PdButtonState extends State<PdButton> {
             color: enabled ? fill : PingDuckColors.surface2,
             border: Border.all(color: enabled ? border : PingDuckColors.hairline),
             boxShadow: [
-              if (offset > 0) BoxShadow(color: PingDuckColors.keyline, offset: Offset(offset, offset)),
+              if (offset > 0 && !PingDuckColors.isDark) BoxShadow(color: PingDuckColors.keyline, offset: Offset(offset, offset)),
             ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -217,18 +221,34 @@ class DuckLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dev = isDev ?? AppFlavor.current.isDev;
-    return SizedBox.square(dimension: size, child: CustomPaint(painter: _DuckPainter(isDev: dev)));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(painter: _DuckPainter(isDev: dev, isDark: isDark)),
+    );
   }
 }
 
 class _DuckPainter extends CustomPainter {
-  const _DuckPainter({this.isDev = false});
+  const _DuckPainter({this.isDev = false, this.isDark = false});
   final bool isDev;
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width;
-    canvas.drawCircle(Offset(s / 2, s / 2), s / 2, Paint()..color = PingDuckColors.ink);
+    final discColor = isDark ? const Color(0xFF1E1F24) : PingDuckColors.ink;
+    canvas.drawCircle(Offset(s / 2, s / 2), s / 2, Paint()..color = discColor);
+    if (isDark) {
+      canvas.drawCircle(
+        Offset(s / 2, s / 2),
+        s / 2 - 0.5,
+        Paint()
+          ..color = const Color(0xFF333339)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
     final duck = Paint()..color = PingDuckColors.live;
 
     if (isDev) {
@@ -253,7 +273,11 @@ class _DuckPainter extends CustomPainter {
         ..lineTo(ox + ds * 0.68, oy + ds * 0.5)
         ..close();
       canvas.drawPath(beak, devBeak);
-      canvas.drawCircle(Offset(ox + ds * 0.56, oy + ds * 0.38), ds * 0.035, Paint()..color = PingDuckColors.ink);
+      canvas.drawCircle(
+        Offset(ox + ds * 0.56, oy + ds * 0.38),
+        ds * 0.035,
+        Paint()..color = isDark ? const Color(0xFF111827) : PingDuckColors.canvas,
+      );
 
       // Centered DEV pill badge matching app icon & splash
       final bw = s * 0.44;
@@ -269,7 +293,7 @@ class _DuckPainter extends CustomPainter {
         text: TextSpan(
           text: 'DEV',
           style: TextStyle(
-            color: PingDuckColors.ink,
+            color: const Color(0xFF111827),
             fontSize: math.max(6.0, bh * 0.72),
             fontWeight: FontWeight.w800,
             fontFamily: 'SpaceGrotesk',
@@ -297,12 +321,17 @@ class _DuckPainter extends CustomPainter {
         ..lineTo(s * 0.68, s * 0.5)
         ..close();
       canvas.drawPath(beak, Paint()..color = PingDuckColors.pending);
-      canvas.drawCircle(Offset(s * 0.56, s * 0.38), s * 0.035, Paint()..color = PingDuckColors.ink);
+      canvas.drawCircle(
+        Offset(s * 0.56, s * 0.38),
+        s * 0.035,
+        Paint()..color = isDark ? const Color(0xFF111827) : PingDuckColors.canvas,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _DuckPainter oldDelegate) => oldDelegate.isDev != isDev;
+  bool shouldRepaint(covariant _DuckPainter oldDelegate) =>
+      oldDelegate.isDev != isDev || oldDelegate.isDark != isDark;
 }
 
 /// Latency line for the ledger cards; null samples (timeouts) break the line.
@@ -365,10 +394,11 @@ class PdSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final heading = Row(
       children: [
         if (icon != null) ...[Icon(icon, size: 22, color: PingDuckColors.live), const SizedBox(width: 8)],
-        Flexible(child: Text(title, style: PdText.headlineMd, overflow: TextOverflow.ellipsis)),
+        Flexible(child: Text(title, style: PdText.headlineMd.copyWith(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis)),
         if (badge != null) ...[const SizedBox(width: 10), PdChip(badge!, tone: PdTone.live)],
       ],
     );

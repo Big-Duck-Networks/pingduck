@@ -78,7 +78,7 @@ class FlowScaffold extends StatelessWidget {
               ),
             ),
             Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: PingDuckColors.canvas,
                 border: Border(top: BorderSide(color: PingDuckColors.hairline)),
               ),
@@ -122,10 +122,10 @@ class FlowPrimaryButton extends StatelessWidget {
 
 /// A square icon tile, the system's stand-in for illustrations.
 class IconTile extends StatelessWidget {
-  const IconTile(this.icon, {super.key, this.size = 64, this.color = PingDuckColors.ink, this.child});
+  const IconTile(this.icon, {super.key, this.size = 64, this.color, this.child});
   final IconData icon;
   final double size;
-  final Color color;
+  final Color? color;
   final Widget? child;
 
   @override
@@ -135,9 +135,9 @@ class IconTile extends StatelessWidget {
     decoration: BoxDecoration(
       color: PingDuckColors.surface1,
       border: Border.all(color: PingDuckColors.keyline, width: 2),
-      boxShadow: const [BoxShadow(color: PingDuckColors.keyline, offset: Offset(3, 3))],
+      boxShadow: [BoxShadow(color: PingDuckColors.keyline, offset: const Offset(3, 3))],
     ),
-    child: child ?? Icon(icon, size: size * 0.5, color: color),
+    child: child ?? Icon(icon, size: size * 0.5, color: color ?? PingDuckColors.ink),
   );
 }
 
@@ -150,7 +150,7 @@ class CommandBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: PingDuckColors.surface2,
         border: Border.fromBorderSide(BorderSide(color: PingDuckColors.hairline)),
       ),
@@ -183,14 +183,14 @@ class CommandBlock extends StatelessWidget {
 
 /// A dashed hairline, horizontal or vertical.
 class DashedLine extends StatelessWidget {
-  const DashedLine({super.key, this.vertical = false, this.color = PingDuckColors.partition});
+  const DashedLine({super.key, this.vertical = false, this.color});
   final bool vertical;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => CustomPaint(
     size: vertical ? const Size(1, double.infinity) : const Size(double.infinity, 1),
-    painter: _DashPainter(vertical, color),
+    painter: _DashPainter(vertical, color ?? PingDuckColors.partition),
   );
 }
 

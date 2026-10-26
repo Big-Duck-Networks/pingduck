@@ -36,10 +36,7 @@ class AccountDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Account details',
-          style: PdText.headlineSm.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
+        title: const Text('Account details'),
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
@@ -61,7 +58,7 @@ class AccountDetailsScreen extends ConsumerWidget {
                     color: PingDuckColors.surface2,
                     border: Border.all(color: PingDuckColors.partition, width: 2),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Icon(Icons.person, size: 52, color: PingDuckColors.ink),
                   ),
                 ),
@@ -88,7 +85,7 @@ class AccountDetailsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 28),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
 
           // 2. Action Rows
           _ActionRow(
@@ -96,25 +93,25 @@ class AccountDetailsScreen extends ConsumerWidget {
             title: 'Edit profile',
             onTap: () => _editProfile(context, ref, displayName),
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           _ActionRow(
             icon: Icons.lock_outline,
             title: 'Reset password',
             onTap: () => _resetPassword(context, ref, email),
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           _ActionRow(
             icon: Icons.delete_outline,
             title: 'Delete account',
             onTap: () => confirmDeleteAccount(context, ref),
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
           _ActionRow(
             icon: Icons.logout,
             title: 'Sign out',
             onTap: () => _signOut(context, ref),
           ),
-          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         ],
       ),
     );
@@ -226,7 +223,7 @@ class _ActionRow extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
+            Icon(Icons.chevron_right, size: 20, color: PingDuckColors.inkSecondary),
           ],
         ),
       ),

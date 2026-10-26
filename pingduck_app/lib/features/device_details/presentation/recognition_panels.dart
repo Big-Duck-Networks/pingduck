@@ -179,7 +179,7 @@ class _FactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: PingDuckColors.hairline))),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: PingDuckColors.hairline))),
       child: Row(
         children: [
           Text(label, style: PdText.bodySm.copyWith(color: PingDuckColors.inkMuted)),

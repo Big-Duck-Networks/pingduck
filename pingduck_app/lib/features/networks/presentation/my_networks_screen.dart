@@ -76,9 +76,9 @@ class _NetworkCard extends ConsumerWidget {
         color: connected ? PingDuckColors.surface1 : PingDuckColors.canvas,
         border: Border(
           top: BorderSide(color: connected ? PingDuckColors.live : PingDuckColors.ink, width: 2),
-          left: const BorderSide(color: PingDuckColors.partition),
-          right: const BorderSide(color: PingDuckColors.partition),
-          bottom: const BorderSide(color: PingDuckColors.partition),
+          left: BorderSide(color: PingDuckColors.partition),
+          right: BorderSide(color: PingDuckColors.partition),
+          bottom: BorderSide(color: PingDuckColors.partition),
         ),
       ),
       padding: const EdgeInsets.all(14),

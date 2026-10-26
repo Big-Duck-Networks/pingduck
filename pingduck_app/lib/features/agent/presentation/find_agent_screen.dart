@@ -146,7 +146,7 @@ class _Searching extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const LinearProgressIndicator(color: PingDuckColors.ink, backgroundColor: PingDuckColors.surface2, minHeight: 3),
+        LinearProgressIndicator(color: PingDuckColors.ink, backgroundColor: PingDuckColors.surface2, minHeight: 3),
         const SizedBox(height: 12),
         Text('Agents answer UPnP searches on the local network. Keep this phone on the same Wi-Fi.', style: PdText.bodySm),
       ],
@@ -236,7 +236,7 @@ class _AgentCard extends StatelessWidget {
                       color: PingDuckColors.surface1,
                       border: Border.all(color: PingDuckColors.partition),
                     ),
-                    child: const Icon(Icons.dns_outlined, color: PingDuckColors.ink),
+                    child: Icon(Icons.dns_outlined, color: PingDuckColors.ink),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -292,8 +292,8 @@ class _NoneFound extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
                   child: Icon(Icons.chevron_right, size: 18, color: PingDuckColors.inkSecondary),
                 ),
                 const SizedBox(width: 6),
@@ -347,8 +347,8 @@ class _Unreachable extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
                   child: Icon(Icons.chevron_right, size: 18, color: PingDuckColors.inkSecondary),
                 ),
                 const SizedBox(width: 6),
@@ -390,8 +390,8 @@ class _Activating extends StatelessWidget {
                     child: s.index < step.index
                         ? const Icon(Icons.check, size: 20, color: PingDuckColors.live)
                         : s == step
-                        ? const CircularProgressIndicator(strokeWidth: 2, color: PingDuckColors.ink)
-                        : const Icon(Icons.circle_outlined, size: 16, color: PingDuckColors.inkMuted),
+                        ? CircularProgressIndicator(strokeWidth: 2, color: PingDuckColors.ink)
+                        : Icon(Icons.circle_outlined, size: 16, color: PingDuckColors.inkMuted),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -475,7 +475,7 @@ class _ManualCodeState extends State<_ManualCode> {
         if (!expired)
           Row(
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2, color: PingDuckColors.ink),

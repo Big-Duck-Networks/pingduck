@@ -5,6 +5,7 @@ import '../../../core/ffi/scanner_bridge.dart';
 import '../../../core/network/lan_connectivity.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
+import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/widgets/pd_widgets.dart';
 import '../../../services/billing.dart';
 import '../../../services/scan_quota.dart';
@@ -76,6 +77,7 @@ class OverviewScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
     // Off Wi-Fi, cached devices and the last network's telemetry would be stale
     // and misleading, so the page shows only the offline state.
     if (!ref.watch(lanConnectedProvider).isOnLan) return const _NotConnected();
@@ -148,7 +150,7 @@ class OverviewScreen extends ConsumerWidget {
                 badge: '${scan.onlineCount} online',
                 trailing: TextButton.icon(
                   onPressed: () => _cycleSort(ref, sort),
-                  icon: const Icon(Icons.sort, size: 18, color: PingDuckColors.inkSecondary),
+                  icon: Icon(Icons.sort, size: 18, color: PingDuckColors.inkSecondary),
                   label: Text('SORT: ${sort.label}', style: PdText.labelMd),
                 ),
               ),
@@ -242,8 +244,9 @@ class _Segmented<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      decoration: BoxDecoration(border: Border.all(color: PingDuckColors.partition)),
+      decoration: BoxDecoration(border: Border.all(color: theme.colorScheme.outline)),
       child: Row(children: [
         for (final v in values)
           Expanded(
@@ -252,9 +255,9 @@ class _Segmented<T> extends StatelessWidget {
               child: Container(
                 height: 40,
                 alignment: Alignment.center,
-                color: v == selected ? PingDuckColors.ink : PingDuckColors.canvas,
+                color: v == selected ? theme.colorScheme.onSurface : theme.colorScheme.surface,
                 child: Text(label(v),
-                    style: PdText.labelLg.copyWith(color: v == selected ? PingDuckColors.canvas : PingDuckColors.inkMuted)),
+                    style: PdText.labelLg.copyWith(color: v == selected ? theme.colorScheme.surface : theme.colorScheme.onSurfaceVariant)),
               ),
             ),
           ),
@@ -334,6 +337,7 @@ class _NotConnected extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -346,19 +350,19 @@ class _NotConnected extends StatelessWidget {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: PingDuckColors.surface1,
-                  border: Border.all(color: PingDuckColors.partition),
+                  color: theme.colorScheme.surfaceContainerLow,
+                  border: Border.all(color: theme.colorScheme.outline),
                 ),
-                child: const Icon(Icons.wifi_off, size: 34, color: PingDuckColors.inkSecondary),
+                child: Icon(Icons.wifi_off, size: 34, color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
             const SizedBox(height: 20),
-            Text('Not connected to Wi-Fi', style: PdText.headlineMd, textAlign: TextAlign.center),
+            Text('Not connected to Wi-Fi', style: PdText.headlineMd.copyWith(color: theme.colorScheme.onSurface), textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(
               'PingDuck maps the devices on your local network. Connect to Wi-Fi (or Ethernet) and '
               'scanning starts automatically.',
-              style: PdText.bodyMd.copyWith(color: PingDuckColors.inkSecondary),
+              style: PdText.bodyMd.copyWith(color: theme.colorScheme.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             if (canOpenWifiSettings) ...[

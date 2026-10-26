@@ -32,7 +32,7 @@ class AboutContactsScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('About & contacts', style: PdText.headlineSm),
+        title: const Text('About & contacts'),
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -63,7 +63,7 @@ class AboutContactsScreen extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 24, thickness: 1, color: PingDuckColors.hairline),
+          Divider(height: 24, thickness: 1, color: PingDuckColors.hairline),
 
           // 1. Rate on the Store
           _ContactActionRow(

@@ -96,8 +96,10 @@ class _RadarScopeState extends State<RadarScope> with SingleTickerProviderStateM
           },
           child: Stack(
             children: [
-              const Positioned.fill(
-                child: RepaintBoundary(child: CustomPaint(painter: _ScopeBackgroundPainter())),
+              Positioned.fill(
+                child: RepaintBoundary(
+                  child: CustomPaint(painter: _ScopeBackgroundPainter(isDark: PingDuckColors.isDark)),
+                ),
               ),
               Positioned.fill(
                 child: RepaintBoundary(
@@ -144,11 +146,11 @@ abstract final class RadarGeometry {
   /// Rings drawn on the scope, with their labels.
   static const ringMs = [(10, 'CORE'), (50, 'LOCAL'), (200, 'BOUNDARY')];
 
-  static final Map<int, TextPainter> _captions = {};
+  static final Map<String, TextPainter> _captions = {};
 
   /// Laid-out "50ms LOCAL" style caption for a ring.
   static TextPainter ringCaption(int ms, String name) => _captions.putIfAbsent(
-        ms,
+        '${PingDuckColors.isDark}|$ms',
         () => TextPainter(
           text: TextSpan(text: '${ms}ms $name', style: PdText.labelSm.copyWith(color: PingDuckColors.inkMuted)),
           textDirection: TextDirection.ltr,
@@ -186,7 +188,9 @@ abstract final class RadarGeometry {
 /// Frame, crosshair and latency rings. Never changes for a given size, so it
 /// sits behind a RepaintBoundary and is rasterized once, not every frame.
 class _ScopeBackgroundPainter extends CustomPainter {
-  const _ScopeBackgroundPainter();
+  const _ScopeBackgroundPainter({this.isDark = false});
+
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -230,7 +234,7 @@ class _ScopeBackgroundPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ScopeBackgroundPainter old) => false;
+  bool shouldRepaint(covariant _ScopeBackgroundPainter old) => old.isDark != isDark;
 }
 
 /// Sweep arm, pulses and device markers: the only per-frame work.
@@ -299,17 +303,23 @@ class _RadarPainter extends CustomPainter {
   /// and keeping the first spot inside the scope that overlaps no marker or
   /// earlier label.
   void _tag(Canvas canvas, String text, Offset p, Size size, List<Rect> taken, {required bool dim}) {
+    final isDark = PingDuckColors.isDark;
     final tp = _labels.putIfAbsent(
-      '$dim|$text',
+      '$isDark|$dim|$text',
       () => TextPainter(
         text: TextSpan(
           text: text,
-          style: PdText.code.copyWith(color: dim ? PingDuckColors.inkSecondary : PingDuckColors.canvas, fontSize: 11),
+          style: PdText.code.copyWith(
+            color: dim
+                ? (isDark ? PingDuckColors.darkInkMuted : PingDuckColors.lightInkSecondary)
+                : (isDark ? PingDuckColors.darkInk : PingDuckColors.lightCanvas),
+            fontSize: 11,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout(),
     );
-    if (_labels.length > 512) _labels.clear();  // labels change with RTT; keep it bounded
+    if (_labels.length > 512) _labels.clear(); // labels change with RTT; keep it bounded
     final w = tp.width + 8, h = tp.height + 4;
     final candidates = [
       Offset(p.dx + 8, p.dy - h - 2),
@@ -319,7 +329,8 @@ class _RadarPainter extends CustomPainter {
     ];
     final bounds = (Offset.zero & size).deflate(1);
     Rect place(Offset o) => Rect.fromLTWH(o.dx, o.dy, w, h);
-    bool inside(Rect r) => r.left >= bounds.left && r.top >= bounds.top && r.right <= bounds.right && r.bottom <= bounds.bottom;
+    bool inside(Rect r) =>
+        r.left >= bounds.left && r.top >= bounds.top && r.right <= bounds.right && r.bottom <= bounds.bottom;
     final fits = candidates.map(place).where((r) => inside(r) && !taken.any(r.overlaps));
     // In a crowded scope some labels cannot fit: show the marker alone (it is
     // still tappable) rather than stacking or clipping text.
@@ -327,11 +338,22 @@ class _RadarPainter extends CustomPainter {
     final rect = fits.first;
     taken.add(rect);
     final at = rect.topLeft;
-    canvas.drawRect(rect, Paint()..color = dim ? PingDuckColors.surface2 : PingDuckColors.ink);
-    if (dim) {
-      canvas.drawRect(rect, Paint()
-        ..color = PingDuckColors.hairline
-        ..style = PaintingStyle.stroke);
+
+    final bg = dim
+        ? (isDark ? PingDuckColors.darkSurface1 : PingDuckColors.lightSurface2)
+        : (isDark ? PingDuckColors.darkSurface2 : PingDuckColors.lightInk);
+    canvas.drawRect(rect, Paint()..color = bg);
+
+    final border = dim
+        ? (isDark ? PingDuckColors.darkHairline : PingDuckColors.lightHairline)
+        : (isDark ? PingDuckColors.darkPartition : null);
+    if (border != null) {
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke,
+      );
     }
     tp.paint(canvas, at + const Offset(4, 2));
   }

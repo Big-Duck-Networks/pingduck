@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/lan_connectivity.dart';
 import '../../core/theme/pingduck_colors.dart';
 import '../../core/theme/pingduck_theme.dart';
+import '../../core/theme/theme_mode_provider.dart';
 import '../../core/widgets/pd_widgets.dart';
 import '../account/presentation/account_screen.dart';
 import '../networks/presentation/my_networks_screen.dart';
@@ -33,6 +34,15 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(appThemeModeProvider);
+    final platformBrightness = MediaQuery.platformBrightnessOf(context);
+    final isDark = switch (themeMode) {
+      ThemeMode.dark => true,
+      ThemeMode.light => false,
+      ThemeMode.system => platformBrightness == Brightness.dark,
+    };
+    PingDuckColors.isDark = isDark;
+
     final tab = ref.watch(appTabProvider);
     // Follow the connection: stop a scan when Wi-Fi drops, rescan when it
     // comes back.
@@ -42,19 +52,24 @@ class AppShell extends ConsumerWidget {
       final scanner = ref.read(scanControllerProvider.notifier);
       now ? scanner.scan(automatic: true) : scanner.cancel();
     });
-    final body = IndexedStack(index: tab.index, children: const [OverviewScreen(), ToolsScreen(), AccountScreen()]);
+    final body = IndexedStack(
+      key: ValueKey(isDark),
+      index: tab.index,
+      children: const [OverviewScreen(), ToolsScreen(), AccountScreen()],
+    );
     void go(int i) => ref.read(appTabProvider.notifier).go(AppTab.values[i]);
 
     // Desktop-width windows get a side rail, like Fing Desktop; phones keep
     // the bottom bar.
     if (MediaQuery.sizeOf(context).width >= wideLayoutWidth) {
       return Scaffold(
+        key: ValueKey(isDark),
         appBar: const _Header(),
         body: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(right: BorderSide(color: PingDuckColors.hairline)),
               ),
               child: NavigationRail(
@@ -80,10 +95,11 @@ class AppShell extends ConsumerWidget {
     }
 
     return Scaffold(
+      key: ValueKey(isDark),
       appBar: const _Header(),
       body: body,
       bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(top: BorderSide(color: PingDuckColors.hairline)),
         ),
         child: NavigationBar(
@@ -108,6 +124,8 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(appThemeModeProvider);
+    final theme = Theme.of(context);
     final scan = ref.watch(scanControllerProvider);
     final online = ref.watch(lanConnectedProvider).isOnLan;
     final lan = online ? scan.lan : null;
@@ -133,7 +151,7 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
                 ),
                 Text(
                   'LAN RECON',
-                  style: PdText.labelMd.copyWith(letterSpacing: 2),
+                  style: PdText.labelMd.copyWith(letterSpacing: 2, color: theme.colorScheme.onSurfaceVariant),
                   overflow: TextOverflow.clip,
                   maxLines: 1,
                 ),
@@ -155,8 +173,8 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
                 constraints: const BoxConstraints(maxWidth: 170),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: PingDuckColors.surface1,
-                  border: Border.all(color: PingDuckColors.partition),
+                  color: theme.colorScheme.surfaceContainerLow,
+                  border: Border.all(color: theme.colorScheme.outline),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -167,7 +185,7 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
                       color: !online
                           ? PingDuckColors.critical
                           : lan == null
-                          ? PingDuckColors.inkMuted
+                          ? theme.colorScheme.onSurfaceVariant
                           : PingDuckColors.live,
                     ),
                     const SizedBox(width: 8),
@@ -184,7 +202,7 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
                           ),
                           Text(
                             online ? (lan?.cidr ?? 'not scanned') : 'no Wi-Fi',
-                            style: PdText.code,
+                            style: PdText.code.copyWith(color: theme.colorScheme.onSurface),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -192,7 +210,7 @@ class _Header extends ConsumerWidget implements PreferredSizeWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right, size: 18, color: PingDuckColors.inkSecondary),
+                    Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.onSurfaceVariant),
                   ],
                 ),
               ),

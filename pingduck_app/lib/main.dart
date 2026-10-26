@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/supabase_config.dart';
 import 'core/desktop/desktop.dart';
 import 'core/network/lan_connectivity.dart';
+import 'core/theme/pingduck_colors.dart';
 import 'core/theme/pingduck_theme.dart';
+import 'core/theme/theme_mode_provider.dart';
 import 'features/agent/application/agent_status.dart';
 import 'features/auth/account_auth.dart';
 import 'features/onboarding/onboarding_screen.dart';
@@ -144,10 +146,31 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
       if (next.hasValue && prev?.value?.length != next.value?.length) _startSync();
     });
     final onboarded = ref.watch(onboardedProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
+    final platformBrightness = View.of(context).platformDispatcher.platformBrightness;
+    final isDark = switch (themeMode) {
+      ThemeMode.dark => true,
+      ThemeMode.light => false,
+      ThemeMode.system => platformBrightness == Brightness.dark,
+    };
+    PingDuckColors.isDark = isDark;
+
     return MaterialApp(
       title: 'PingDuck',
       debugShowCheckedModeBanner: false,
       theme: PingDuckTheme.light(),
+      darkTheme: PingDuckTheme.dark(),
+      themeMode: themeMode,
+      builder: (context, child) {
+        final platformBrightness = MediaQuery.platformBrightnessOf(context);
+        final isDark = switch (themeMode) {
+          ThemeMode.dark => true,
+          ThemeMode.light => false,
+          ThemeMode.system => platformBrightness == Brightness.dark,
+        };
+        PingDuckColors.isDark = isDark;
+        return child ?? const SizedBox.shrink();
+      },
       home: onboarded
           ? const AppShell()
           : OnboardingScreen(onDone: () async {
