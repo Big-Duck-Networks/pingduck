@@ -413,21 +413,15 @@ void main() {
 
     expect(find.byTooltip('Settings'), findsNothing);
     await showAppSettingsRow(tester);
-    expect(find.text('SETTINGS'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
     expect(find.text('App settings'), findsOneWidget);
 
     await openAppSettings(tester);
     await tester.pumpAndSettle();
 
-    expect(find.text('APP SETTINGS'), findsOneWidget);
-    expect(find.text('APP'), findsOneWidget);
-    expect(find.text('USER SETTINGS'), findsOneWidget);
+    expect(find.text('App settings'), findsWidgets);
     expect(find.text('SCANNING'), findsOneWidget);
     expect(find.text('CLOUD & ALERTS'), findsOneWidget);
-
-    await tester.tap(find.text('USER SETTINGS'));
-    await tester.pumpAndSettle();
-    expect(find.text('ACCOUNT DELETION'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
@@ -635,17 +629,19 @@ void main() {
     await fill(tester, email: 'duck@example.com', password: 'quackquack');
     await tapText(tester, 'SIGN IN');
 
-    await openAppSettings(tester);
+    // Tap profile card on Account screen to open Account details
+    await tester.tap(find.text('duck@example.com'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('USER SETTINGS'));
-    await tester.pumpAndSettle();
+    expect(find.text('Account details'), findsOneWidget);
 
-    await tapText(tester, 'DELETE ACCOUNT');
+    await tester.tap(find.text('Delete account'));
+    await tester.pumpAndSettle();
     await tapText(tester, 'CANCEL');
     expect(auth.deletions, 0);
     expect(find.text('duck@example.com'), findsOneWidget);
 
-    await tapText(tester, 'DELETE ACCOUNT');
+    await tester.tap(find.text('Delete account'));
+    await tester.pumpAndSettle();
     await tapText(tester, 'DELETE');
     expect(auth.deletions, 1);
     expect(find.text('Not signed in'), findsOneWidget);

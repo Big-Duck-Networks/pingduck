@@ -102,8 +102,8 @@ void main() {
 
   testWidgets('deleting the account warns while a subscription renews', (tester) async {
     await pump(tester, plan: Plan.premium, details: store(), home: const SettingsScreen(initialIndex: 1));
-    await tester.ensureVisible(find.text('DELETE ACCOUNT'));
-    await tester.tap(find.text('DELETE ACCOUNT'));
+    await tester.ensureVisible(find.text('Delete account'));
+    await tester.tap(find.text('Delete account'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('delete_subscription_warning')), findsOneWidget);
@@ -116,8 +116,8 @@ void main() {
 
   testWidgets('deleting the account without a renewing subscription has no warning', (tester) async {
     await pump(tester, plan: Plan.premium, details: store(willRenew: false), home: const SettingsScreen(initialIndex: 1));
-    await tester.ensureVisible(find.text('DELETE ACCOUNT'));
-    await tester.tap(find.text('DELETE ACCOUNT'));
+    await tester.ensureVisible(find.text('Delete account'));
+    await tester.tap(find.text('Delete account'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('delete_subscription_warning')), findsNothing);

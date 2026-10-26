@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/revenuecat_config.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
-import '../../../core/constants/revenuecat_config.dart';
-import '../../../core/widgets/pd_widgets.dart';
 import '../../../services/billing.dart';
 import '../../../services/external_links.dart';
 import '../../../services/plan.dart';
@@ -12,6 +11,7 @@ import '../../../services/push_alerts.dart';
 import '../../../services/scan_quota.dart';
 import '../../../services/supabase_sync.dart';
 import '../../agent/application/agent_status.dart';
+import '../../account/presentation/account_details_screen.dart';
 import '../../agent/domain/agent_unit.dart';
 import '../../agent/presentation/add_unit_intro_screen.dart';
 import '../../auth/account_auth.dart';
@@ -43,8 +43,8 @@ final cloudSyncEnabledProvider = FutureProvider<bool>(
   (ref) async => await ref.read(localStoreProvider).setting(cloudSyncKey) != '0',
 );
 
-/// App settings. Organized into App settings (scanning timeout, auto-scan,
-/// cloud sync and alerts) and User settings (profile and account deletion).
+/// App settings redesigned to match Fing's clean list layout with switches,
+/// badges, and hairline dividers, adhering to PingDuck's design system.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key, this.initialIndex = 0});
 
@@ -52,46 +52,22 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return DefaultTabController(
-      length: 2,
-      initialIndex: initialIndex,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('APP SETTINGS', style: PdText.labelLg),
-          leading: IconButton(
-            tooltip: 'Back',
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(44),
-            child: Container(
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: PingDuckColors.hairline)),
-              ),
-              child: const TabBar(
-                indicatorColor: PingDuckColors.live,
-                indicatorWeight: 2,
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: PingDuckColors.live,
-                unselectedLabelColor: PingDuckColors.inkSecondary,
-                labelStyle: PdText.labelLg,
-                unselectedLabelStyle: PdText.labelLg,
-                tabs: [
-                  Tab(text: 'APP'),
-                  Tab(text: 'USER SETTINGS'),
-                ],
-              ),
-            ),
-          ),
+    if (initialIndex == 1) {
+      return const AccountDetailsScreen();
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'App settings',
+          style: PdText.headlineSm.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
         ),
-        body: const TabBarView(
-          children: [
-            _AppSettingsTab(),
-            _UserSettingsTab(),
-          ],
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
+      body: const _AppSettingsTab(),
     );
   }
 }
@@ -105,184 +81,359 @@ class _AppSettingsTab extends ConsumerWidget {
     final autoScan = ref.watch(autoScanOnLaunchProvider).value ?? defaultAutoScanOnLaunch;
     final isPremium = ref.watch(isPremiumProvider).value ?? false;
 
+    final agents = ref.watch(myAgentsProvider).value ?? const <PairedAgent>[];
+    final hasAgent = agents.isNotEmpty;
+    final syncOn = ref.watch(cloudSyncEnabledProvider).value ?? true;
+    final sync = ref.watch(supabaseSyncProvider);
+
+    final alertsOn = ref.watch(alertsEnabledProvider).value ?? false;
+    final alertsBlocker = !hasAgent
+        ? 'Needs a monitoring unit'
+        : !isPremium
+            ? 'Premium plan required'
+            : !alertsSupported
+                ? 'Android only for now'
+                : null;
+
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       children: [
-        PdPanel(
-          title: 'Scanning',
-          icon: Icons.radar,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Reply timeout', style: PdText.headlineSm),
-              const SizedBox(height: 2),
-              Text(
-                'How long to wait for slow devices. Longer finds more on busy networks but scans slower.',
-                style: PdText.bodySm,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final s in scanTimeoutChoices)
-                    ChoiceChip(
-                      label: Text('${s}s'),
-                      selected: s == timeout,
-                      onSelected: (_) async {
-                        await ref.read(localStoreProvider).setSetting(scanTimeoutKey, '$s');
-                        ref.invalidate(scanTimeoutProvider);
-                      },
-                    ),
-                ],
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 14),
-                child: Divider(),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Auto-scan on launch', style: PdText.headlineSm),
-                        const SizedBox(height: 2),
-                        Text(
-                          isPremium
-                              ? 'Automatically start a network scan when the app opens.'
-                              : 'Automatically start a network scan when the app opens. On Free, at most once '
-                                    'every 30 minutes.',
-                          style: PdText.bodySm,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Switch(
-                    key: const Key('auto_scan_switch'),
-                    value: autoScan,
-                    // Free may switch it too; the server still limits Free
-                    // automatic scans (ServerScanQuota.automaticInterval).
-                    onChanged: (enabled) async {
-                      await setAutoScanOnLaunch(ref.read(localStoreProvider), enabled);
-                      ref.invalidate(autoScanOnLaunchProvider);
-                    },
-                  ),
-                ],
-              ),
-            ],
+        // SCANNING Section
+        const _SectionHeader('SCANNING'),
+        _SettingRow(
+          title: 'Auto-scan on launch',
+          subtitle: isPremium
+              ? 'Automatically start a network scan when the app opens.'
+              : 'Automatically start a network scan when the app opens. On Free, at most once every 30 minutes.',
+          trailing: Switch(
+            key: const Key('auto_scan_switch'),
+            value: autoScan,
+            activeTrackColor: PingDuckColors.route,
+            onChanged: (enabled) async {
+              await setAutoScanOnLaunch(ref.read(localStoreProvider), enabled);
+              ref.invalidate(autoScanOnLaunchProvider);
+            },
           ),
         ),
-        const SizedBox(height: 16),
-        const _CloudPanel(),
+        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        _SettingRow(
+          title: 'Reply timeout',
+          subtitle: 'How long to wait for slow devices during network discovery.',
+          trailing: _PillBadge(
+            label: '${timeout}s',
+            onTap: () => _showTimeoutSheet(context, ref, timeout),
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+
+        // CLOUD & ALERTS Section
+        const _SectionHeader('CLOUD & ALERTS'),
+        _SettingRow(
+          title: 'Homelab Agent',
+          subtitle: hasAgent ? _agentLine(agents, DateTime.now()) : 'Not set up · Add a monitoring unit',
+          trailing: const Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkMuted),
+          onTap: () {
+            if (!hasAgent) {
+              openAddMonitoringUnit(context);
+              return;
+            }
+            Navigator.of(context).popUntil((r) => r.isFirst);
+            ref.read(appTabProvider.notifier).go(AppTab.tools);
+            ref.read(activeToolProvider.notifier).open(Tool.agent);
+          },
+        ),
+        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        _SettingRow(
+          title: 'Cloud sync',
+          subtitle: !hasAgent ? 'Needs a monitoring unit' : _syncLine(syncOn, sync, DateTime.now()),
+          trailing: Switch(
+            key: const Key('cloud_sync_switch'),
+            value: hasAgent && syncOn,
+            activeTrackColor: PingDuckColors.route,
+            onChanged: hasAgent
+                ? (on) async {
+                    await ref.read(localStoreProvider).setSetting(cloudSyncKey, on ? '1' : '0');
+                    ref.invalidate(cloudSyncEnabledProvider);
+                    final s = ref.read(supabaseSyncProvider.notifier);
+                    await (on ? s.start() : s.stop());
+                  }
+                : null,
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        _SettingRow(
+          title: 'New-device alerts',
+          subtitle: alertsBlocker ?? (alertsOn ? 'On · A notification when a device joins' : 'Off'),
+          onTap: hasAgent && !isPremium ? () => openPaywall(context, ref) : null,
+          trailing: Switch(
+            key: const Key('alerts_switch'),
+            value: alertsBlocker == null && alertsOn,
+            activeTrackColor: PingDuckColors.route,
+            onChanged: alertsBlocker == null ? (on) => _setAlerts(context, ref, on) : null,
+          ),
+        ),
+        if (hasAgent) ...[
+          const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+          _SettingRow(
+            title: 'Mark devices as known',
+            subtitle: 'Current devices won’t trigger alerts; only newly joined devices will.',
+            trailing: TextButton(
+              key: const Key('mark_all_known'),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await ref.read(supabaseSyncProvider.notifier).markAllKnown();
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Current devices marked as known. Only new ones will alert.')),
+                  );
+                } catch (_) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')),
+                  );
+                }
+              },
+              child: Text(
+                'MARK ALL KNOWN',
+                style: PdText.labelMd.copyWith(color: PingDuckColors.route),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 32),
       ],
     );
   }
-}
 
-class _UserSettingsTab extends ConsumerWidget {
-  const _UserSettingsTab();
+  static Future<void> _setAlerts(BuildContext context, WidgetRef ref, bool on) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final alerts = ref.read(pushAlertsProvider);
+    try {
+      await (on ? alerts.enable() : alerts.disable());
+    } on NotificationsDeniedException {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Notifications are off for PingDuck. Turn them on in Android settings.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')));
+    }
+    ref.invalidate(alertsEnabledProvider);
+  }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final email = ref.watch(accountEmailProvider).value;
+  static String _agentLine(List<PairedAgent> agents, DateTime now) {
+    final a = agents.first;
+    final status = a.isOnline(now) ? 'Online' : 'Last seen ${_ago(a.lastSeenAt, now)}';
+    final more = agents.length > 1 ? ' · +${agents.length - 1} more' : '';
+    return [a.name, status, if (a.version != null) 'v${a.version}'].join(' · ') + more;
+  }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        PdPanel(
-          title: 'User Profile',
-          icon: Icons.person_outline,
+  static String _syncLine(bool on, SyncStatus s, DateTime now) {
+    if (!on) return 'Off · Agent devices stay on the server';
+    return switch (s.phase) {
+      SyncPhase.syncing => 'Syncing…',
+      SyncPhase.failed => 'Couldn’t sync. Retries when the app reopens.',
+      SyncPhase.live when s.lastSyncedAt != null => 'Live · Synced ${_ago(s.lastSyncedAt, now)}',
+      _ => 'Agent devices with MACs and vendors',
+    };
+  }
+
+  static String _ago(DateTime? t, DateTime now) {
+    if (t == null) return 'never';
+    final d = now.difference(t);
+    if (d.inSeconds < 60) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return '${d.inHours} h ago';
+    return '${d.inDays} d ago';
+  }
+
+  static void _showTimeoutSheet(BuildContext context, WidgetRef ref, int current) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: PingDuckColors.canvas,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: PingDuckColors.surface1,
-                      border: Border.all(color: PingDuckColors.partition),
-                    ),
-                    child: Icon(
-                      email == null ? Icons.person_outline : Icons.person,
-                      color: email == null ? PingDuckColors.inkMuted : PingDuckColors.ink,
-                    ),
+                  Text('REPLY TIMEOUT', style: PdText.labelLg),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'How long to wait for slow devices during network discovery.',
+                style: PdText.bodySm,
+              ),
+              const SizedBox(height: 16),
+              for (final s in scanTimeoutChoices) ...[
+                InkWell(
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await ref.read(localStoreProvider).setSetting(scanTimeoutKey, '$s');
+                    ref.invalidate(scanTimeoutProvider);
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    child: Row(
                       children: [
                         Text(
-                          email ?? 'Not signed in',
-                          style: PdText.headlineSm,
-                          overflow: TextOverflow.ellipsis,
+                          '${s}s',
+                          style: PdText.headlineSm.copyWith(
+                            color: s == current ? PingDuckColors.route : PingDuckColors.ink,
+                            fontWeight: s == current ? FontWeight.w700 : FontWeight.w500,
+                          ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          email == null ? 'Local profile' : 'Signed in with email',
-                          style: PdText.bodySm,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            switch (s) {
+                              1 => 'Fastest · Quiet networks',
+                              3 => 'Default · Balanced discovery',
+                              5 => 'Thorough · Busy Wi-Fi networks',
+                              _ => 'Deep scan · High-latency hosts',
+                            },
+                            style: PdText.bodySm.copyWith(
+                              color: s == current ? PingDuckColors.route : PingDuckColors.inkSecondary,
+                            ),
+                          ),
                         ),
+                        if (s == current)
+                          const Icon(Icons.check, size: 20, color: PingDuckColors.route),
                       ],
                     ),
                   ),
-                  email == null ? const PdChip('LOCAL') : const PdChip('SIGNED IN', tone: PdTone.live),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                email == null
-                    ? 'You are not signed in. An account is only needed to sync across devices or pair a Homelab Agent.'
-                    : 'Your account is linked to this device. Scans and inventory stay local until cloud sync arrives.',
-                style: PdText.bodySm,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        PdPanel(
-          title: 'Account Deletion',
-          icon: Icons.warning_amber_outlined,
-          accent: PingDuckColors.critical,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Delete account', style: PdText.headlineSm),
-              const SizedBox(height: 4),
-              Text(
-                'Permanently deletes your account and the email, plan and scan history stored with it. '
-                'This cannot be undone. Devices and notes on this phone stay until you clear them. '
-                'Subscriptions are billed by Apple or Google, so cancel any in the store first.',
-                style: PdText.bodySm,
-              ),
-              const SizedBox(height: 14),
-              if (email != null)
-                PdButton(
-                  label: 'Delete account',
-                  icon: Icons.delete_outline,
-                  style: PdButtonStyle.destructive,
-                  onPressed: () => confirmDeleteAccount(context, ref),
-                )
-              else ...[
-                const PdButton(
-                  label: 'Delete account',
-                  icon: Icons.delete_outline,
-                  style: PdButtonStyle.destructive,
-                  onPressed: null,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'No signed-in account to delete.',
-                  style: PdText.bodySm.copyWith(color: PingDuckColors.inkMuted),
-                ),
+                const Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
               ],
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+
+
+/// Category section header.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 8),
+      child: Text(
+        title,
+        style: PdText.labelLg.copyWith(
+          color: PingDuckColors.inkSecondary,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// Single setting row with title, subtitle, and trailing switch/badge/chevron.
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: PdText.bodyLg.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: PingDuckColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: PdText.bodySm.copyWith(
+                    color: PingDuckColors.inkSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 16),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: row,
+      );
+    }
+    return row;
+  }
+}
+
+/// Pill badge for selector items (e.g. timeout duration).
+class _PillBadge extends StatelessWidget {
+  const _PillBadge({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: PingDuckColors.routeFill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: PingDuckColors.routeBorder),
+        ),
+        child: Text(
+          label,
+          style: PdText.bodySm.copyWith(
+            color: PingDuckColors.route,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -352,168 +503,4 @@ Future<void> confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
       const SnackBar(content: Text('Couldn’t delete the account. Check your connection and try again.')),
     );
   }
-}
-
-/// Cloud & alerts: the account's agent, cloud sync and new-device alerts.
-class _CloudPanel extends ConsumerWidget {
-  const _CloudPanel();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final agents = ref.watch(myAgentsProvider).value ?? const <PairedAgent>[];
-    final hasAgent = agents.isNotEmpty;
-    final syncOn = ref.watch(cloudSyncEnabledProvider).value ?? true;
-    final sync = ref.watch(supabaseSyncProvider);
-    final isPremium = ref.watch(isPremiumProvider).value ?? false;
-
-    final alertsOn = ref.watch(alertsEnabledProvider).value ?? false;
-
-    final alertsBlocker = !hasAgent
-        ? 'Needs a monitoring unit'
-        : !isPremium
-        ? 'Premium plan required'
-        : !alertsSupported
-        ? 'Android only for now'
-        : null;
-
-    return PdPanel(
-      title: 'Cloud & alerts',
-      icon: Icons.cloud_outlined,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _CloudRow(
-            icon: Icons.memory,
-            title: 'Homelab Agent',
-            sub: hasAgent ? _agentLine(agents, DateTime.now()) : 'Not set up · Add a monitoring unit',
-            trailing: const Icon(Icons.chevron_right, color: PingDuckColors.inkMuted),
-            onTap: () {
-              if (!hasAgent) {
-                openAddMonitoringUnit(context);
-                return;
-              }
-              Navigator.of(context).popUntil((r) => r.isFirst);
-              ref.read(appTabProvider.notifier).go(AppTab.tools);
-              ref.read(activeToolProvider.notifier).open(Tool.agent);
-            },
-          ),
-          _CloudRow(
-            icon: Icons.sync,
-            title: 'Cloud sync',
-            sub: !hasAgent ? 'Needs a monitoring unit' : _syncLine(syncOn, sync, DateTime.now()),
-            trailing: Switch(
-              key: const Key('cloud_sync_switch'),
-              value: hasAgent && syncOn,
-              onChanged: hasAgent
-                  ? (on) async {
-                      await ref.read(localStoreProvider).setSetting(cloudSyncKey, on ? '1' : '0');
-                      ref.invalidate(cloudSyncEnabledProvider);
-                      final s = ref.read(supabaseSyncProvider.notifier);
-                      await (on ? s.start() : s.stop());
-                    }
-                  : null,
-            ),
-          ),
-          _CloudRow(
-            icon: Icons.notifications_outlined,
-            title: 'New-device alerts',
-            sub: alertsBlocker ?? (alertsOn ? 'On · A notification when a device joins' : 'Off'),
-            onTap: hasAgent && !isPremium ? () => openPaywall(context, ref) : null,
-            trailing: Switch(
-              key: const Key('alerts_switch'),
-              value: alertsBlocker == null && alertsOn,
-              onChanged: alertsBlocker == null ? (on) => _setAlerts(context, ref, on) : null,
-            ),
-          ),
-          if (hasAgent)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('mark_all_known'),
-                icon: const Icon(Icons.verified_outlined, size: 18),
-                label: const Text('Mark all current devices as known'),
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  try {
-                    await ref.read(supabaseSyncProvider.notifier).markAllKnown();
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Current devices marked as known. Only new ones will alert.')),
-                    );
-                  } catch (_) {
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')),
-                    );
-                  }
-                },
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  static Future<void> _setAlerts(BuildContext context, WidgetRef ref, bool on) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final alerts = ref.read(pushAlertsProvider);
-    try {
-      await (on ? alerts.enable() : alerts.disable());
-    } on NotificationsDeniedException {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Notifications are off for PingDuck. Turn them on in Android settings.')),
-      );
-    } catch (_) {
-      messenger.showSnackBar(const SnackBar(content: Text('Couldn’t reach PingDuck’s servers. Try again.')));
-    }
-    ref.invalidate(alertsEnabledProvider);
-  }
-
-  /// "homelab · Online · v0.3.1", plus how many more agents there are.
-  static String _agentLine(List<PairedAgent> agents, DateTime now) {
-    final a = agents.first;
-    final status = a.isOnline(now) ? 'Online' : 'Last seen ${_ago(a.lastSeenAt, now)}';
-    final more = agents.length > 1 ? ' · +${agents.length - 1} more' : '';
-    return [a.name, status, if (a.version != null) 'v${a.version}'].join(' · ') + more;
-  }
-
-  static String _syncLine(bool on, SyncStatus s, DateTime now) {
-    if (!on) return 'Off · Agent devices stay on the server';
-    return switch (s.phase) {
-      SyncPhase.syncing => 'Syncing…',
-      SyncPhase.failed => 'Couldn’t sync. Retries when the app reopens.',
-      SyncPhase.live when s.lastSyncedAt != null => 'Live · Synced ${_ago(s.lastSyncedAt, now)}',
-      _ => 'Agent devices with MACs and vendors',
-    };
-  }
-
-  static String _ago(DateTime? t, DateTime now) {
-    if (t == null) return 'never';
-    final d = now.difference(t);
-    if (d.inSeconds < 60) return 'just now';
-    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
-    if (d.inHours < 24) return '${d.inHours} h ago';
-    return '${d.inDays} d ago';
-  }
-}
-
-class _CloudRow extends StatelessWidget {
-  const _CloudRow({required this.icon, required this.title, required this.sub, this.trailing, this.onTap});
-  final IconData icon;
-  final String title;
-  final String sub;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  // PdPanel paints a background, so the tap ripple needs its own Material.
-  @override
-  Widget build(BuildContext context) => Material(
-        type: MaterialType.transparency,
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(icon, color: PingDuckColors.inkSecondary),
-          title: Text(title, style: PdText.bodyMd),
-          subtitle: Text(sub, style: PdText.bodySm),
-          trailing: trailing,
-          onTap: onTap,
-        ),
-      );
 }
