@@ -42,6 +42,17 @@ class MainActivity : FlutterActivity() {
                         openWifiSettings()
                         result.success(null)
                     }
+                    "shareText" -> {
+                        val text = call.argument<String>("text") ?: ""
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, text)
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, null)
+                        startActivity(shareIntent)
+                        result.success(null)
+                    }
                     // Per app signing key and device; survives a reinstall. The
                     // server counts Free scans by its hash (claim_scan).
                     "deviceId" -> result.success(

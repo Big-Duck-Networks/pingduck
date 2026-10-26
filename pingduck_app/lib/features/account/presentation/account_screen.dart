@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_flavor.dart';
-import '../../../core/constants/app_version.dart';
 import '../../../core/desktop/desktop.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
@@ -16,6 +14,7 @@ import '../../auth/account_auth.dart';
 import '../../auth/sign_in_screen.dart';
 import '../../scanner/application/scan_controller.dart';
 import '../../settings/presentation/settings_screen.dart';
+import 'about_contacts_screen.dart';
 import '../../shell/app_shell.dart';
 import '../../subscription/presentation/plan_panel.dart';
 import '../../tools/presentation/tools_screen.dart';
@@ -87,11 +86,26 @@ class AccountScreen extends ConsumerWidget {
         PdPanel(
           title: 'Settings',
           icon: Icons.tune_outlined,
-          child: _NavRow(
-            icon: Icons.tune_outlined,
-            title: 'App settings',
-            subtitle: 'Reply timeout, auto-scan, cloud sync and alerts',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
+          child: Column(
+            children: [
+              _NavRow(
+                icon: Icons.info_outline,
+                title: 'About us & this App',
+                subtitle: 'Version, release notes, website & contacts',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const AboutContactsScreen()),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _NavRow(
+                icon: Icons.tune_outlined,
+                title: 'App settings',
+                subtitle: 'Reply timeout, auto-scan, cloud sync and alerts',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -122,8 +136,6 @@ class AccountScreen extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        const _AboutPanel(),
       ],
     );
   }
@@ -223,115 +235,6 @@ class _IdentityPanel extends ConsumerWidget {
                     ref.invalidate(alertsEnabledProvider);
                   },
                 ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Product identity, versions and legal. Third-party notices stay reachable
-/// (BSD/MIT/OFL require it) but as a quiet text link, as in most commercial
-/// apps.
-class _AboutPanel extends ConsumerWidget {
-  const _AboutPanel();
-
-  static const company = 'Big Duck Networks';
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final agent = ref.watch(agentVersionProvider).value;
-    return PdPanel(
-      background: PingDuckColors.canvas,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              DuckLogo(size: 52, isDev: AppFlavor.current.isDev),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(AppFlavor.current.isDev ? 'PingDuck Dev' : 'PingDuck', style: PdText.headlineMd),
-                    Text('Network discovery & monitoring', style: PdText.bodySm),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              const PdChip('Made on Long Island'),
-              if (AppFlavor.current.isDev)
-                const PdChip('DEV BUILD', tone: PdTone.pending),
-            ],
-          ),
-          const SizedBox(height: 16),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: PdField(
-                    label: 'Version',
-                    value: AppVersion.display,
-                    sub: '${AppVersion.gitCommit} · ${AppVersion.buildDate}',
-                  ),
-                ),
-                // Only when there is an agent to report a version.
-                if (agent != null) ...[
-                  const SizedBox(width: 8),
-                  Expanded(child: PdField(label: 'Agent version', value: agent)),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.verified_user_outlined, size: 18, color: PingDuckColors.live),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Scanning happens on your device and only contacts hosts on your local network. '
-                  'No data leaves this device unless you enable cloud sync.',
-                  style: PdText.bodySm,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '© ${DateTime.now().year} $company. All rights reserved.',
-                  style: PdText.bodySm.copyWith(color: PingDuckColors.inkMuted),
-                ),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.padded,
-                ),
-                onPressed: () => showLicensePage(
-                  context: context,
-                  applicationName: 'PingDuck',
-                  applicationVersion: AppVersion.display,
-                  applicationLegalese: '© ${DateTime.now().year} $company',
-                ),
-                child: Text('Third-party notices', style: PdText.bodySm.copyWith(color: PingDuckColors.inkSecondary)),
-              ),
-            ],
-          ),
         ],
       ),
     );
