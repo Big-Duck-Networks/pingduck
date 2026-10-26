@@ -231,5 +231,24 @@ void main() {
       expect(pc.displayName, 'Lenovo ThinkCentre M70q');
       expect(device(hostname: 'office-pc', label: const DeviceLabel(model: 'ThinkCentre M70q')).displayName, 'office-pc');
     });
+
+    test('hasGuesses detects inferred attributes and clears when labeled', () {
+      final inferred = recognize(device(
+        vendor: 'Apple, Inc.',
+        model: 'J482AP',
+        hostname: 'ipad',
+        sources: {DiscoverySource.icmp, DiscoverySource.mdns},
+      ));
+      expect(inferred.hasGuesses, isTrue);
+
+      final confirmed = recognize(device(
+        vendor: 'Apple, Inc.',
+        model: 'J482AP',
+        hostname: 'ipad',
+        sources: {DiscoverySource.icmp, DiscoverySource.mdns},
+        label: const DeviceLabel(brand: 'Apple', model: 'J482AP', os: 'iPadOS'),
+      ));
+      expect(confirmed.hasGuesses, isFalse);
+    });
   });
 }

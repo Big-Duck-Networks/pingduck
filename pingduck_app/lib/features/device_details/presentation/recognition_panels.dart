@@ -7,12 +7,18 @@ import '../../recognition/brand_logo.dart';
 import '../../recognition/recognition.dart';
 
 /// Node Inspect's Device and Operating system cards. Only fields with a
-/// signal behind them are shown; inferred ones carry a LIKELY tag and the
-/// user's own answers a SET BY YOU tag. [onEdit] opens the label editor.
+/// signal behind them are shown; inferred ones carry a LIKELY tag.
+/// [onEdit] opens the label editor, and [onConfirm] confirms inferred facts.
 class RecognitionPanels extends StatelessWidget {
-  const RecognitionPanels(this.recognition, {super.key, required this.onEdit});
+  const RecognitionPanels(
+    this.recognition, {
+    super.key,
+    required this.onEdit,
+    this.onConfirm,
+  });
   final Recognition recognition;
   final VoidCallback onEdit;
+  final VoidCallback? onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +28,34 @@ class RecognitionPanels extends StatelessWidget {
       onPressed: onEdit,
       icon: const Icon(Icons.edit_outlined, size: 16),
       label: const Text('EDIT'),
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
     );
+
+    Widget? buildConfirm() => onConfirm == null || !r.hasGuesses
+        ? null
+        : TextButton.icon(
+            onPressed: onConfirm,
+            icon: const Icon(Icons.check_circle_outline, size: 16),
+            label: const Text('CONFIRM'),
+            style: TextButton.styleFrom(
+              foregroundColor: PingDuckColors.live,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          );
+
+    final deviceConfirm = buildConfirm();
+    final deviceTrailing = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (deviceConfirm != null) ...[deviceConfirm, const SizedBox(width: 4)],
+        edit,
+      ],
+    );
+
     if (!r.hasDevice && os == null) {
       return PdPanel(
         title: 'Device',
@@ -41,7 +74,7 @@ class RecognitionPanels extends StatelessWidget {
           _FactsPanel(
             title: 'Device',
             icon: Icons.devices_outlined,
-            trailing: edit,
+            trailing: deviceTrailing,
             headline: r.model ?? r.family ?? r.brand ?? r.module!,
             caption: r.model != null
                 ? 'Model'
@@ -63,7 +96,7 @@ class RecognitionPanels extends StatelessWidget {
           _FactsPanel(
             title: 'Operating system',
             icon: Icons.terminal_outlined,
-            trailing: r.hasDevice ? null : edit,
+            trailing: r.hasDevice ? (os.isGuess ? buildConfirm() : null) : deviceTrailing,
             headline: Fact(os.version == null ? os.name : '${os.name} ${os.version}', os.confidence),
             caption: 'Operating system',
             logo: BrandLogo.forName(os.name),
@@ -158,7 +191,6 @@ class _FactRow extends StatelessWidget {
               spacing: 6,
               children: [
                 if (fact.isGuess) const PdChip('LIKELY', tone: PdTone.pending),
-                if (fact.isUser) const PdChip('SET BY YOU', tone: PdTone.ink),
                 Text(fact.value, style: PdText.bodyMd, textAlign: TextAlign.end),
               ],
             ),

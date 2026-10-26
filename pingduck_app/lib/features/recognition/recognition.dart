@@ -54,6 +54,13 @@ class Recognition {
   final OperatingSystem? os;
 
   bool get hasDevice => brand != null || model != null || family != null || module != null;
+
+  bool get hasGuesses =>
+      (brand?.isGuess ?? false) ||
+      (model?.isGuess ?? false) ||
+      (family?.isGuess ?? false) ||
+      (module?.isGuess ?? false) ||
+      (os?.isGuess ?? false);
 }
 
 /// Turns the signals a scan collected into Brand, Model, Family and OS.

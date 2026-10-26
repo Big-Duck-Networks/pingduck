@@ -125,7 +125,11 @@ class _Inspector extends ConsumerWidget {
         const SizedBox(height: 12),
         _IdentityPanel(device: d, kind: kind, recognition: recognition),
         const SizedBox(height: 16),
-        RecognitionPanels(recognition, onEdit: () => editDeviceLabel(context, ref, d, recognition)),
+        RecognitionPanels(
+          recognition,
+          onEdit: () => editDeviceLabel(context, ref, d, recognition),
+          onConfirm: () => confirmDeviceLabel(context, ref, d, recognition),
+        ),
         const SizedBox(height: 16),
         _RttPanel(device: d, diag: diag, onToggle: ctrl.togglePing, subnet: scan.lan?.cidr),
         const SizedBox(height: 16),

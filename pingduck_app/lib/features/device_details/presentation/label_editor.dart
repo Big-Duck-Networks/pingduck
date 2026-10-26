@@ -62,3 +62,26 @@ Future<void> editDeviceLabel(BuildContext context, WidgetRef ref, DiscoveredDevi
   );
   if (label != null) await ref.read(scanControllerProvider.notifier).setLabel(d.ip, label);
 }
+
+/// Confirms what PingDuck currently recognizes for [d], saving it as a user
+/// label and learning it for other devices with the same fingerprint.
+Future<void> confirmDeviceLabel(BuildContext context, WidgetRef ref, DiscoveredDevice d, Recognition shown) async {
+  final os = shown.os;
+  final label = DeviceLabel.clean(
+    brand: shown.brand?.value,
+    model: shown.model?.value ?? shown.family?.value,
+    os: os == null ? null : [os.name, ?os.version].join(' '),
+  );
+  if (label.isEmpty) return;
+  await ref.read(scanControllerProvider.notifier).setLabel(d.ip, label);
+  if (context.mounted) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Device identification confirmed and learned for similar devices.'),
+        ),
+      );
+  }
+}
+
