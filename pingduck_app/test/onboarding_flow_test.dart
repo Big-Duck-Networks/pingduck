@@ -30,6 +30,33 @@ void main() {
     await tester.pumpAndSettle();
 
     // -------------------------------------------------------------
+    // Step 0: Discover & Protect Wi-Fi
+    // -------------------------------------------------------------
+    expect(find.text('Discover and protect your Wi-Fi'), findsOneWidget);
+    expect(
+      find.text(
+        'See every device on your network, spot intruders instantly, test your speed, and stay informed about outages.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Get started'), findsOneWidget);
+
+    // Advance to Step 1
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+
+    // Verify back navigation returns to Step 0
+    final backToStep0Finder = find.byTooltip('Back');
+    expect(backToStep0Finder, findsOneWidget);
+    await tester.tap(backToStep0Finder);
+    await tester.pumpAndSettle();
+    expect(find.text('Discover and protect your Wi-Fi'), findsOneWidget);
+
+    // Re-advance to Step 1
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+
+    // -------------------------------------------------------------
     // Step 1: Privacy Defaults
     // -------------------------------------------------------------
     expect(find.text('Your network, your rules'), findsOneWidget);

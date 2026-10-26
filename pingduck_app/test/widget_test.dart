@@ -107,10 +107,17 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(await app(tester, onboarded: false));
 
+    // Step 0: Discover and protect your Wi-Fi
+    expect(find.text('Discover and protect your Wi-Fi'), findsOneWidget);
+    expect(find.text('Get started'), findsOneWidget);
+    expect(bridge.scans, 0);
+
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+
     // Step 1: Privacy Defaults
     expect(find.text('Your network, your rules'), findsOneWidget);
     expect(find.text('Agree and continue'), findsOneWidget);
-    expect(bridge.scans, 0);
 
     await tester.tap(find.text('Agree and continue'));
     await tester.pumpAndSettle();
