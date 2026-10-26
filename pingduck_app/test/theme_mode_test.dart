@@ -9,6 +9,7 @@ import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/application/scan_controller.dart';
 import 'package:pingduck_app/features/settings/presentation/settings_screen.dart';
+import 'package:pingduck_app/features/shell/app_shell.dart';
 import 'package:pingduck_app/services/push_alerts.dart';
 import 'package:pingduck_app/services/supabase_sync.dart';
 
@@ -81,5 +82,32 @@ void main() {
 
     expect(await store.setting(appThemeModeKey), 'dark');
     expect(find.text('Dark (pitch-black AMOLED)'), findsOneWidget);
+  });
+
+  testWidgets('Dark themeMode activates PingDuckColors.isDark in AppShell', (tester) async {
+    final store = memoryStore();
+    addTearDown(store.close);
+    await store.setSetting(appThemeModeKey, 'dark');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(
+          theme: PingDuckTheme.light(),
+          darkTheme: PingDuckTheme.dark(),
+          themeMode: ThemeMode.dark,
+          home: const AppShell(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(PingDuckColors.isDark, isTrue);
+    expect(PingDuckColors.canvas, const Color(0xFF000000));
+    expect(PingDuckColors.surface1, const Color(0xFF121214));
+    expect(PingDuckColors.ink, const Color(0xFFFFFFFF));
+    PingDuckColors.isDark = false;
   });
 }

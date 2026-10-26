@@ -146,14 +146,29 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
       if (next.hasValue && prev?.value?.length != next.value?.length) _startSync();
     });
     final onboarded = ref.watch(onboardedProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
+    final platformBrightness = View.of(context).platformDispatcher.platformBrightness;
+    final isDark = switch (themeMode) {
+      ThemeMode.dark => true,
+      ThemeMode.light => false,
+      ThemeMode.system => platformBrightness == Brightness.dark,
+    };
+    PingDuckColors.isDark = isDark;
+
     return MaterialApp(
       title: 'PingDuck',
       debugShowCheckedModeBanner: false,
       theme: PingDuckTheme.light(),
       darkTheme: PingDuckTheme.dark(),
-      themeMode: ref.watch(appThemeModeProvider),
+      themeMode: themeMode,
       builder: (context, child) {
-        PingDuckColors.isDark = Theme.of(context).brightness == Brightness.dark;
+        final platformBrightness = MediaQuery.platformBrightnessOf(context);
+        final isDark = switch (themeMode) {
+          ThemeMode.dark => true,
+          ThemeMode.light => false,
+          ThemeMode.system => platformBrightness == Brightness.dark,
+        };
+        PingDuckColors.isDark = isDark;
         return child ?? const SizedBox.shrink();
       },
       home: onboarded

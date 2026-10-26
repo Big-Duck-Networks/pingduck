@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/lan_connectivity.dart';
 import '../../core/theme/pingduck_colors.dart';
 import '../../core/theme/pingduck_theme.dart';
+import '../../core/theme/theme_mode_provider.dart';
 import '../../core/widgets/pd_widgets.dart';
 import '../account/presentation/account_screen.dart';
 import '../networks/presentation/my_networks_screen.dart';
@@ -33,6 +34,14 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(appThemeModeProvider);
+    final platformBrightness = MediaQuery.platformBrightnessOf(context);
+    PingDuckColors.isDark = switch (themeMode) {
+      ThemeMode.dark => true,
+      ThemeMode.light => false,
+      ThemeMode.system => platformBrightness == Brightness.dark,
+    };
+
     final tab = ref.watch(appTabProvider);
     // Follow the connection: stop a scan when Wi-Fi drops, rescan when it
     // comes back.

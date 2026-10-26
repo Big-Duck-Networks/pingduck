@@ -217,18 +217,33 @@ class DuckLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dev = isDev ?? AppFlavor.current.isDev;
-    return SizedBox.square(dimension: size, child: CustomPaint(painter: _DuckPainter(isDev: dev)));
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(painter: _DuckPainter(isDev: dev, isDark: PingDuckColors.isDark)),
+    );
   }
 }
 
 class _DuckPainter extends CustomPainter {
-  const _DuckPainter({this.isDev = false});
+  const _DuckPainter({this.isDev = false, this.isDark = false});
   final bool isDev;
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width;
-    canvas.drawCircle(Offset(s / 2, s / 2), s / 2, Paint()..color = PingDuckColors.ink);
+    final discColor = isDark ? const Color(0xFF1E1F24) : PingDuckColors.ink;
+    canvas.drawCircle(Offset(s / 2, s / 2), s / 2, Paint()..color = discColor);
+    if (isDark) {
+      canvas.drawCircle(
+        Offset(s / 2, s / 2),
+        s / 2 - 0.5,
+        Paint()
+          ..color = const Color(0xFF333339)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
     final duck = Paint()..color = PingDuckColors.live;
 
     if (isDev) {
@@ -253,7 +268,11 @@ class _DuckPainter extends CustomPainter {
         ..lineTo(ox + ds * 0.68, oy + ds * 0.5)
         ..close();
       canvas.drawPath(beak, devBeak);
-      canvas.drawCircle(Offset(ox + ds * 0.56, oy + ds * 0.38), ds * 0.035, Paint()..color = PingDuckColors.ink);
+      canvas.drawCircle(
+        Offset(ox + ds * 0.56, oy + ds * 0.38),
+        ds * 0.035,
+        Paint()..color = isDark ? const Color(0xFF111827) : PingDuckColors.canvas,
+      );
 
       // Centered DEV pill badge matching app icon & splash
       final bw = s * 0.44;
@@ -269,7 +288,7 @@ class _DuckPainter extends CustomPainter {
         text: TextSpan(
           text: 'DEV',
           style: TextStyle(
-            color: PingDuckColors.ink,
+            color: const Color(0xFF111827),
             fontSize: math.max(6.0, bh * 0.72),
             fontWeight: FontWeight.w800,
             fontFamily: 'SpaceGrotesk',
@@ -297,12 +316,17 @@ class _DuckPainter extends CustomPainter {
         ..lineTo(s * 0.68, s * 0.5)
         ..close();
       canvas.drawPath(beak, Paint()..color = PingDuckColors.pending);
-      canvas.drawCircle(Offset(s * 0.56, s * 0.38), s * 0.035, Paint()..color = PingDuckColors.ink);
+      canvas.drawCircle(
+        Offset(s * 0.56, s * 0.38),
+        s * 0.035,
+        Paint()..color = isDark ? const Color(0xFF111827) : PingDuckColors.canvas,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _DuckPainter oldDelegate) => oldDelegate.isDev != isDev;
+  bool shouldRepaint(covariant _DuckPainter oldDelegate) =>
+      oldDelegate.isDev != isDev || oldDelegate.isDark != isDark;
 }
 
 /// Latency line for the ledger cards; null samples (timeouts) break the line.
