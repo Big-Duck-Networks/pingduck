@@ -52,7 +52,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         // Safe fallback in test or restricted environments
       }
     }
-    _goTo(2);
+    _goTo(3);
   }
 
   Future<void> _openEmailAuth() async {
@@ -99,90 +99,128 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Navigation / Progress Indicator Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  if (_currentPage > 0)
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      color: theme.colorScheme.onSurface,
-                      tooltip: 'Back',
-                      onPressed: () => _goTo(_currentPage - 1),
-                    )
-                  else
-                    const SizedBox(width: 48, height: 48),
-                  const Spacer(),
-                  // Progress Dots
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(3, (index) {
-                      final active = index == _currentPage;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: active ? 18 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: active ? PingDuckColors.route : theme.colorScheme.outlineVariant,
-                          borderRadius: BorderRadius.circular(3),
+      body: Stack(
+        children: [
+          if (_currentPage == 0)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 380,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        PingDuckColors.isDark
+                            ? const Color(0xFF1E3A8A).withValues(alpha: 0.40)
+                            : const Color(0xFF3B82F6).withValues(alpha: 0.30),
+                        theme.scaffoldBackgroundColor.withValues(alpha: 0.0),
+                      ],
+                      stops: const [0.0, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          SafeArea(
+            child: Column(
+              children: [
+                // Top Navigation / Progress Indicator Bar
+                if (_currentPage > 0)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back),
+                          color: theme.colorScheme.onSurface,
+                          tooltip: 'Back',
+                          onPressed: () => _goTo(_currentPage - 1),
                         ),
-                      );
-                    }),
+                        const Spacer(),
+                        // Progress Dots
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(4, (index) {
+                            final active = index == _currentPage;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: active ? 18 : 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: active ? PingDuckColors.route : theme.colorScheme.outlineVariant,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            );
+                          }),
+                        ),
+                        const Spacer(),
+                        const SizedBox(width: 48, height: 48),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox(height: 24),
+
+                // Page Content
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      // Step 0: Discover & Protect Wi-Fi
+                      _OnboardingStepLayout(
+                        illustration: const _DiscoverProtectIllustration(),
+                        title: 'Discover and protect your Wi-Fi',
+                        body:
+                            'See every device on your network, spot intruders instantly, test your speed, and stay informed about outages.',
+                        primaryButtonText: 'Get started',
+                        onPrimaryPressed: () => _goTo(1),
+                      ),
+
+                      // Step 1: Privacy Defaults
+                      _OnboardingStepLayout(
+                        illustration: const _PrivacyLockIllustration(),
+                        title: 'Your network, your rules',
+                        body:
+                            "We've set privacy defaults that protect you from the start. Review your preferences anytime in the App settings.",
+                        primaryButtonText: 'Agree and continue',
+                        onPrimaryPressed: () => _goTo(2),
+                        secondaryButtonText: 'Review settings and policies',
+                        onSecondaryPressed: _openPrivacySettings,
+                        secondaryButtonColor: PingDuckColors.route,
+                      ),
+
+                      // Step 2: Location Access
+                      _OnboardingStepLayout(
+                        illustration: const _LocationWifiIllustration(),
+                        title: 'Enable location to detect your Wi-Fi',
+                        body:
+                            'PingDuck uses location access to identify your exact network and keep your device names consistent across scans.',
+                        primaryButtonText: 'Continue',
+                        onPrimaryPressed: _handleLocationContinue,
+                        secondaryButtonText: 'Use without Wi-Fi details',
+                        onSecondaryPressed: () => _goTo(3),
+                        secondaryButtonColor: PingDuckColors.route,
+                      ),
+
+                      // Step 3: Account Creation & Smart Scans
+                      _AccountStepLayout(
+                        onGoogleSignIn: _handleGoogleSignIn,
+                        onEmailAuth: _openEmailAuth,
+                        onSkip: widget.onDone,
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  const SizedBox(width: 48, height: 48),
-                ],
-              ),
+                ),
+              ],
             ),
-
-            // Page Content
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  // Step 1: Privacy Defaults
-                  _OnboardingStepLayout(
-                    illustration: const _PrivacyLockIllustration(),
-                    title: 'Your network, your rules',
-                    body:
-                        "We've set privacy defaults that protect you from the start. Review your preferences anytime in the App settings.",
-                    primaryButtonText: 'Agree and continue',
-                    onPrimaryPressed: () => _goTo(1),
-                    secondaryButtonText: 'Review settings and policies',
-                    onSecondaryPressed: _openPrivacySettings,
-                    secondaryButtonColor: PingDuckColors.route,
-                  ),
-
-                  // Step 2: Location Access
-                  _OnboardingStepLayout(
-                    illustration: const _LocationWifiIllustration(),
-                    title: 'Enable location to detect your Wi-Fi',
-                    body:
-                        'PingDuck uses location access to identify your exact network and keep your device names consistent across scans.',
-                    primaryButtonText: 'Continue',
-                    onPrimaryPressed: _handleLocationContinue,
-                    secondaryButtonText: 'Use without Wi-Fi details',
-                    onSecondaryPressed: () => _goTo(2),
-                    secondaryButtonColor: PingDuckColors.route,
-                  ),
-
-                  // Step 3: Account Creation & Smart Scans
-                  _AccountStepLayout(
-                    onGoogleSignIn: _handleGoogleSignIn,
-                    onEmailAuth: _openEmailAuth,
-                    onSkip: widget.onDone,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -196,8 +234,8 @@ class _OnboardingStepLayout extends StatelessWidget {
     required this.body,
     required this.primaryButtonText,
     required this.onPrimaryPressed,
-    required this.secondaryButtonText,
-    required this.onSecondaryPressed,
+    this.secondaryButtonText,
+    this.onSecondaryPressed,
     this.secondaryButtonColor,
   });
 
@@ -206,8 +244,8 @@ class _OnboardingStepLayout extends StatelessWidget {
   final String body;
   final String primaryButtonText;
   final VoidCallback onPrimaryPressed;
-  final String secondaryButtonText;
-  final VoidCallback onSecondaryPressed;
+  final String? secondaryButtonText;
+  final VoidCallback? onSecondaryPressed;
   final Color? secondaryButtonColor;
 
   @override
@@ -278,24 +316,28 @@ class _OnboardingStepLayout extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: secondaryButtonColor ?? PingDuckColors.route,
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      ),
-                      onPressed: onSecondaryPressed,
-                      child: Text(
-                        secondaryButtonText,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: secondaryButtonColor ?? PingDuckColors.route,
+                    if (secondaryButtonText != null && onSecondaryPressed != null) ...[
+                      const SizedBox(height: 10),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: secondaryButtonColor ?? PingDuckColors.route,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        ),
+                        onPressed: onSecondaryPressed,
+                        child: Text(
+                          secondaryButtonText!,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: secondaryButtonColor ?? PingDuckColors.route,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      const SizedBox(height: 24),
+                    ],
                   ],
                 ),
               ),
@@ -472,6 +514,158 @@ class _AccountStepLayout extends StatelessWidget {
 // VECTOR ILLUSTRATIONS
 // =============================================================================
 
+/// Step 0: Wi-Fi broadcast waves inspected with a magnifying glass with scanning eye.
+class _DiscoverProtectIllustration extends StatelessWidget {
+  const _DiscoverProtectIllustration();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = PingDuckColors.isDark;
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: CustomPaint(
+        painter: _DiscoverProtectPainter(
+          strokeColor: theme.colorScheme.onSurface,
+          isDark: isDark,
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoverProtectPainter extends CustomPainter {
+  const _DiscoverProtectPainter({
+    required this.strokeColor,
+    required this.isDark,
+  });
+
+  final Color strokeColor;
+  final bool isDark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const techBlue = Color(0xFF0070F3);
+
+    final linePaint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final bluePaint = Paint()
+      ..color = techBlue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // 1. Wi-Fi wave arcs radiating up-left
+    final wifiOrigin = Offset(size.width * 0.46, size.height * 0.80);
+    final radii = [15.0, 31.0, 47.0, 63.0];
+    for (int i = 0; i < radii.length; i++) {
+      final r = radii[i];
+      final rect = Rect.fromCircle(center: wifiOrigin, radius: r);
+      canvas.drawArc(rect, -math.pi * 0.88, math.pi * 0.50, false, linePaint);
+    }
+    // Dot at the base of Wi-Fi waves
+    final dotPaint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(size.width * 0.46, size.height * 0.80 - 2), 2.5, dotPaint);
+
+    // 2. Magnifying glass lens
+    final lensCenter = Offset(size.width * 0.57, size.height * 0.38);
+    final lensRadius = size.width * 0.22;
+    canvas.drawCircle(lensCenter, lensRadius, linePaint);
+
+    // Magnifying glass handle extending down-right
+    final handleAngle = math.pi * 0.26;
+    final handleStart = Offset(
+      lensCenter.dx + math.cos(handleAngle) * (lensRadius - 1),
+      lensCenter.dy + math.sin(handleAngle) * (lensRadius - 1),
+    );
+    final handleEnd = Offset(
+      lensCenter.dx + math.cos(handleAngle) * (lensRadius + 24),
+      lensCenter.dy + math.sin(handleAngle) * (lensRadius + 24),
+    );
+    final handlePaint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(handleStart, handleEnd, handlePaint);
+
+    // 3. Scanning Eye inside the lens
+    final eyeWidth = lensRadius * 0.62;
+    final eyeHeight = lensRadius * 0.36;
+
+    final eyePath = Path();
+    eyePath.moveTo(lensCenter.dx - eyeWidth, lensCenter.dy);
+    eyePath.quadraticBezierTo(
+      lensCenter.dx,
+      lensCenter.dy - eyeHeight,
+      lensCenter.dx + eyeWidth,
+      lensCenter.dy,
+    );
+    eyePath.quadraticBezierTo(
+      lensCenter.dx,
+      lensCenter.dy + eyeHeight,
+      lensCenter.dx - eyeWidth,
+      lensCenter.dy,
+    );
+    canvas.drawPath(eyePath, bluePaint);
+
+    // Eye pupil
+    final pupilPaint = Paint()
+      ..color = techBlue
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(lensCenter, 3.2, pupilPaint);
+
+    // 4. Focus target brackets around the eye
+    final bOffset = lensRadius * 0.54;
+    const bLen = 6.0;
+    // Top-left bracket
+    canvas.drawPath(
+      Path()
+        ..moveTo(lensCenter.dx - bOffset, lensCenter.dy - bOffset + bLen)
+        ..lineTo(lensCenter.dx - bOffset, lensCenter.dy - bOffset)
+        ..lineTo(lensCenter.dx - bOffset + bLen, lensCenter.dy - bOffset),
+      bluePaint,
+    );
+    // Top-right bracket
+    canvas.drawPath(
+      Path()
+        ..moveTo(lensCenter.dx + bOffset - bLen, lensCenter.dy - bOffset)
+        ..lineTo(lensCenter.dx + bOffset, lensCenter.dy - bOffset)
+        ..lineTo(lensCenter.dx + bOffset, lensCenter.dy - bOffset + bLen),
+      bluePaint,
+    );
+    // Bottom-left bracket
+    canvas.drawPath(
+      Path()
+        ..moveTo(lensCenter.dx - bOffset, lensCenter.dy + bOffset - bLen)
+        ..lineTo(lensCenter.dx - bOffset, lensCenter.dy + bOffset)
+        ..lineTo(lensCenter.dx - bOffset + bLen, lensCenter.dy + bOffset),
+      bluePaint,
+    );
+    // Bottom-right bracket
+    canvas.drawPath(
+      Path()
+        ..moveTo(lensCenter.dx + bOffset - bLen, lensCenter.dy + bOffset)
+        ..lineTo(lensCenter.dx + bOffset, lensCenter.dy + bOffset)
+        ..lineTo(lensCenter.dx + bOffset, lensCenter.dy + bOffset - bLen),
+      bluePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DiscoverProtectPainter old) =>
+      old.strokeColor != strokeColor || old.isDark != isDark;
+}
+
 /// Step 1: Padlock outline with key insertion and emerald sparks.
 class _PrivacyLockIllustration extends StatelessWidget {
   const _PrivacyLockIllustration();
@@ -502,8 +696,8 @@ class _PrivacyLockPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final greenPaint = Paint()
-      ..color = const Color(0xFF10B981)
+    final blueAccent = Paint()
+      ..color = const Color(0xFF2563EB)
       ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -512,9 +706,9 @@ class _PrivacyLockPainter extends CustomPainter {
     final cy = size.height / 2;
 
     // 1. Telemetry sparks on upper-left
-    canvas.drawLine(Offset(cx - 36, cy - 32), Offset(cx - 48, cy - 32), greenPaint);
-    canvas.drawLine(Offset(cx - 32, cy - 42), Offset(cx - 42, cy - 54), greenPaint);
-    canvas.drawLine(Offset(cx - 24, cy - 48), Offset(cx - 24, cy - 60), greenPaint);
+    canvas.drawLine(Offset(cx - 36, cy - 32), Offset(cx - 48, cy - 32), blueAccent);
+    canvas.drawLine(Offset(cx - 32, cy - 42), Offset(cx - 42, cy - 54), blueAccent);
+    canvas.drawLine(Offset(cx - 24, cy - 48), Offset(cx - 24, cy - 60), blueAccent);
 
     // 2. Padlock Shackle (top rounded loop)
     final shackleRect = RRect.fromRectAndCorners(
@@ -531,9 +725,9 @@ class _PrivacyLockPainter extends CustomPainter {
     );
     canvas.drawRRect(bodyRect, strokePaint);
 
-    // 4. Emerald Keyhole
+    // 4. Cobalt Keyhole
     final keyholePaint = Paint()
-      ..color = const Color(0xFF10B981)
+      ..color = const Color(0xFF2563EB)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
@@ -598,8 +792,8 @@ class _LocationWifiPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final greenPaint = Paint()
-      ..color = const Color(0xFF10B981)
+    final blueAccent = Paint()
+      ..color = const Color(0xFF2563EB)
       ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -615,14 +809,14 @@ class _LocationWifiPainter extends CustomPainter {
       canvas.drawLine(
         Offset(cx, currentY),
         Offset(cx, math.min(currentY + dashHeight, size.height - 10)),
-        greenPaint,
+        blueAccent,
       );
       currentY += dashHeight + dashGap;
     }
 
     // 2. Left Pin (Home Wi-Fi)
     final leftCx = cx - 42;
-    _drawPinWithWifi(canvas, Offset(leftCx, 40), greenPaint, whitePaint);
+    _drawPinWithWifi(canvas, Offset(leftCx, 40), blueAccent, whitePaint);
 
     // House outline below left pin
     final housePath = Path()
@@ -644,7 +838,7 @@ class _LocationWifiPainter extends CustomPainter {
 
     // 3. Right Pin (Office Wi-Fi)
     final rightCx = cx + 42;
-    _drawPinWithWifi(canvas, Offset(rightCx, 40), greenPaint, whitePaint);
+    _drawPinWithWifi(canvas, Offset(rightCx, 40), blueAccent, whitePaint);
 
     // Office building outline below right pin
     final officePath = Path()
