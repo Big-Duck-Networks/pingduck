@@ -115,8 +115,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       end: Alignment.bottomCenter,
                       colors: [
                         PingDuckColors.isDark
-                            ? const Color(0xFF047857).withValues(alpha: 0.28)
-                            : const Color(0xFF6EE7B7).withValues(alpha: 0.50),
+                            ? const Color(0xFF1E3A8A).withValues(alpha: 0.40)
+                            : const Color(0xFF3B82F6).withValues(alpha: 0.30),
                         theme.scaffoldBackgroundColor.withValues(alpha: 0.0),
                       ],
                       stops: const [0.0, 1.0],
@@ -696,8 +696,8 @@ class _PrivacyLockPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final greenPaint = Paint()
-      ..color = const Color(0xFF10B981)
+    final blueAccent = Paint()
+      ..color = const Color(0xFF2563EB)
       ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -706,9 +706,9 @@ class _PrivacyLockPainter extends CustomPainter {
     final cy = size.height / 2;
 
     // 1. Telemetry sparks on upper-left
-    canvas.drawLine(Offset(cx - 36, cy - 32), Offset(cx - 48, cy - 32), greenPaint);
-    canvas.drawLine(Offset(cx - 32, cy - 42), Offset(cx - 42, cy - 54), greenPaint);
-    canvas.drawLine(Offset(cx - 24, cy - 48), Offset(cx - 24, cy - 60), greenPaint);
+    canvas.drawLine(Offset(cx - 36, cy - 32), Offset(cx - 48, cy - 32), blueAccent);
+    canvas.drawLine(Offset(cx - 32, cy - 42), Offset(cx - 42, cy - 54), blueAccent);
+    canvas.drawLine(Offset(cx - 24, cy - 48), Offset(cx - 24, cy - 60), blueAccent);
 
     // 2. Padlock Shackle (top rounded loop)
     final shackleRect = RRect.fromRectAndCorners(
@@ -725,9 +725,9 @@ class _PrivacyLockPainter extends CustomPainter {
     );
     canvas.drawRRect(bodyRect, strokePaint);
 
-    // 4. Emerald Keyhole
+    // 4. Cobalt Keyhole
     final keyholePaint = Paint()
-      ..color = const Color(0xFF10B981)
+      ..color = const Color(0xFF2563EB)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
@@ -792,8 +792,8 @@ class _LocationWifiPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final greenPaint = Paint()
-      ..color = const Color(0xFF10B981)
+    final blueAccent = Paint()
+      ..color = const Color(0xFF2563EB)
       ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -809,14 +809,14 @@ class _LocationWifiPainter extends CustomPainter {
       canvas.drawLine(
         Offset(cx, currentY),
         Offset(cx, math.min(currentY + dashHeight, size.height - 10)),
-        greenPaint,
+        blueAccent,
       );
       currentY += dashHeight + dashGap;
     }
 
     // 2. Left Pin (Home Wi-Fi)
     final leftCx = cx - 42;
-    _drawPinWithWifi(canvas, Offset(leftCx, 40), greenPaint, whitePaint);
+    _drawPinWithWifi(canvas, Offset(leftCx, 40), blueAccent, whitePaint);
 
     // House outline below left pin
     final housePath = Path()
@@ -838,7 +838,7 @@ class _LocationWifiPainter extends CustomPainter {
 
     // 3. Right Pin (Office Wi-Fi)
     final rightCx = cx + 42;
-    _drawPinWithWifi(canvas, Offset(rightCx, 40), greenPaint, whitePaint);
+    _drawPinWithWifi(canvas, Offset(rightCx, 40), blueAccent, whitePaint);
 
     // Office building outline below right pin
     final officePath = Path()
