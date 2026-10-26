@@ -219,6 +219,36 @@ void main() {
     expect(find.text('Model · set by you'), findsOneWidget);
   });
 
+  testWidgets('Node Inspect CONFIRM button confirms recognition, removes LIKELY, and saves label', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    addTearDown(tester.view.reset);
+    final pc = DiscoveredDevice(
+      ip: '10.42.0.100',
+      vendor: 'LCFC(Hefei) Electronics Technology co., ltd',
+      ttl: 128,
+      sources: const {DiscoverySource.icmp},
+      firstSeen: DateTime(2026, 10, 5),
+      lastSeen: DateTime(2026, 10, 5),
+    );
+    await tester.pumpWidget(await app(tester, onboarded: true, cached: [pc]));
+    await settleScan(tester);
+
+    await scrollTo(tester, find.text('10.42.0.100'));
+    await tester.tap(find.text('10.42.0.100').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('LIKELY'), findsWidgets);
+    expect(find.text('CONFIRM'), findsWidgets);
+
+    await tester.tap(find.text('CONFIRM').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('CONFIRM'), findsNothing);
+    expect(find.text('LIKELY'), findsNothing);
+    expect(find.text('SET BY YOU'), findsWidgets);
+  });
+
+
   testWidgets('the phone running the app is tagged THIS DEVICE', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     addTearDown(tester.view.reset);
