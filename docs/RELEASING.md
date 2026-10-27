@@ -46,7 +46,11 @@ Users on `:latest` only get released versions; `:edge` follows `main`.
 
 ### Windows (desktop app and agent service)
 
-Not on the release guard yet (CI/CD plan Phase 5). Today `windows-release.yml` builds `PingDuckSetup.exe` when you push a `desktop-vX.Y.Z` tag, and publishes it as a release asset. Running it by hand only produces the installer as an artifact. The installer isn't code-signed yet.
+1. Change `version:` in `pingduck_app/pubspec.yaml` (e.g. `1.0.0` to `1.0.1`; CI stamps the build number). Merge.
+2. Wait for `windows.yml` on `main` to build the installer artifact and ensure `agent.yml` and `app.yml` are green.
+3. Run **release windows** (Actions › release windows › Run workflow). It checks the release guard (tag `desktop-vX.Y.Z`, `windows.yml`, `agent.yml`, `app.yml`, `core.yml`, and database migrations), builds, signs with Azure Artifact Signing (when configured), tags `desktop-vX.Y.Z`, and creates the GitHub release with `PingDuckSetup.exe` attached.
+
+If Azure Artifact Signing secrets are configured, `PingDuck.exe`, `pingduck-agent.exe`, and `PingDuckSetup.exe` are digitally signed, avoiding Windows SmartScreen warnings. Otherwise, an unsigned release is produced.
 
 ## Rollback
 
@@ -73,7 +77,7 @@ Not on the release guard yet (CI/CD plan Phase 5). Today `windows-release.yml` b
 | Supabase | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF` on both the `database-check` (no reviewer, dry runs only) and `production-database` (your approval) environments | Set (2026-10-12) |
 | Migration history | `supabase migration repair` so production's history matches `supabase/migrations` | Done; Deploy database refuses to run if the first migration shows as pending |
 | GHCR package | GitHub org › Packages › `pingduck-agent` | Private until launch, then make it public |
-| Windows code signing | Azure Artifact Signing | Not started |
+| Windows code signing | Azure Artifact Signing (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_SIGNING_ACCOUNT_NAME`, `AZURE_CERTIFICATE_PROFILE_NAME`, `AZURE_SIGNING_ENDPOINT`) | Workflows wired; Azure account setup pending |
 
 ### Rotating a secret
 
