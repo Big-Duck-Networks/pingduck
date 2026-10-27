@@ -8,6 +8,7 @@ import '../../../core/widgets/pd_widgets.dart';
 import '../../agent/application/agent_status.dart';
 import '../../agent/presentation/agent_screen.dart';
 import '../../device_details/presentation/inspector_screen.dart';
+import '../../port_scanner/presentation/port_scanner_screen.dart';
 import '../../scanner/application/scan_controller.dart';
 
 /// The tools offered on the Tools tab.
@@ -16,6 +17,11 @@ enum Tool {
     'Node Inspect',
     Icons.memory_outlined,
     'Everything known about one device, live ping with jitter and loss, port scan, Wake-on-LAN, notes.',
+  ),
+  portScanner(
+    'Port Scanner',
+    Icons.radar_outlined,
+    'Probe TCP ports on any IP or domain to detect open services and security vulnerabilities.',
   ),
   agent(
     'Homelab Agent',
@@ -47,6 +53,7 @@ class ToolsScreen extends ConsumerWidget {
     ref.watch(appThemeModeProvider);
     return switch (ref.watch(activeToolProvider)) {
       Tool.nodeInspect => const NodeInspectTool(),
+      Tool.portScanner => const PortScannerTool(),
       Tool.agent => const AgentScreen(),
       null => const _ToolsHub(),
     };
@@ -73,6 +80,7 @@ class _ToolsHub extends ConsumerWidget {
             tool: tool,
             status: switch (tool) {
               Tool.nodeInspect => '${scan.devices.length} devices',
+              Tool.portScanner => 'ready',
               Tool.agent => paired == 0 ? 'not paired' : '$paired paired',
             },
             onTap: () => ref.read(activeToolProvider.notifier).open(tool),
