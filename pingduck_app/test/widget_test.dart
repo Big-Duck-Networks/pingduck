@@ -326,6 +326,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Tools'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Homelab Agent'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Homelab Agent'));
     await tester.pumpAndSettle();
     expect(find.text('No agent paired'), findsOneWidget);
