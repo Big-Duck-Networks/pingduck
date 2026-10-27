@@ -1,0 +1,154 @@
+name: windows
+
+# Builds the Windows desktop installer (PingDuckSetup.exe: desktop app + agent service).
+# - On push to main (when app/agent/core/installer paths change): builds an installer artifact.
+# - On workflow_dispatch: can build on demand, with optional signing.
+# - Reusable workflow (workflow_call) to produce a signed release build.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pingduck_app/**"
+      - "agent/**"
+      - "core/**"
+      - "packages/**"
+      - "installer/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: "Sign binaries and installer with Azure Artifact Signing"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version override (e.g. 1.0.0)"
+        type: string
+        required: false
+        default: ""
+      sign:
+        description: "Sign binaries and installer with Azure Artifact Signing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  installer:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
+      AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+      AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT || 'https://eus.codesigning.azure.net/' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.44.0
+          cache: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@d3a1f87b8d7899a805bf9652a9254308a5a40b9d # v4.3.1
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Version
+        id: version
+        shell: bash
+        working-directory: pingduck_app
+        run: |
+          args=(--git)
+          if [ -n "${{ inputs.version }}" ]; then
+            args+=(--version "${{ inputs.version }}")
+          fi
+          dart run tools/build_number_gen.dart "${args[@]}"
+          full=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d '\r')
+          echo "value=${full%%+*}" >> "$GITHUB_OUTPUT"
+          echo "build=${full#*+}" >> "$GITHUB_OUTPUT"
+
+      - name: Build agent
+        working-directory: agent
+        run: cargo build --release --locked -p pingduck-agent
+
+      - name: Build desktop app
+        working-directory: pingduck_app
+        run: |
+          flutter pub get
+          flutter build windows --release
+
+      - name: Azure login
+        if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
+        uses: azure/login@a65d910e8ad852c8061c6a574566ac474737110b # v2.2.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign desktop binaries
+        if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        with:
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\pingduck_app\build\windows\x64\runner\Release
+          files-folder-filter: exe,dll
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Sign agent binary
+        if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        with:
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\agent\target\release
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Compile installer
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" "/DAppBuild=${{ steps.version.outputs.build }}" installer\windows\pingduck.iss
+
+      - name: Sign installer
+        if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        with:
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\installer\windows\Output
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: PingDuckSetup-${{ steps.version.outputs.value }}+${{ steps.version.outputs.build }}
+          path: installer/windows/Output/PingDuckSetup.exe
+          retention-days: 7

@@ -1,0 +1,172 @@
+name: release windows
+
+# Releases PingDuck for Windows (desktop app + PingDuck Agent service):
+# 1. Release guard checks that main is green, the tag is new, and production DB has every migration.
+# 2. Builds the desktop app and agent service, signing them with Azure Artifact Signing if configured.
+# 3. Tags desktop-vX.Y.Z and publishes the GitHub release with PingDuckSetup.exe attached.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Release guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: database-check
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - id: version
+        run: |
+          version=$(grep -m1 '^version:' pingduck_app/pubspec.yaml | sed -E 's/^version: *([^+ ]+).*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - id: guard
+        uses: ./.github/actions/release-guard
+        with:
+          tag: desktop-v${{ steps.version.outputs.version }}
+          workflows: windows.yml,agent.yml,app.yml,core.yml
+          check-migrations: "true"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+  release:
+    name: Build & Release
+    needs: guard
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
+      AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+      AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT || 'https://eus.codesigning.azure.net/' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.44.0
+          cache: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@d3a1f87b8d7899a805bf9652a9254308a5a40b9d # v4.3.1
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Version
+        id: version
+        shell: bash
+        working-directory: pingduck_app
+        run: |
+          dart run tools/build_number_gen.dart --git --version "${{ needs.guard.outputs.version }}"
+          full=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d '\r')
+          echo "value=${full%%+*}" >> "$GITHUB_OUTPUT"
+          echo "build=${full#*+}" >> "$GITHUB_OUTPUT"
+
+      - name: Build agent
+        working-directory: agent
+        run: cargo build --release --locked -p pingduck-agent
+
+      - name: Build desktop app
+        working-directory: pingduck_app
+        run: |
+          flutter pub get
+          flutter build windows --release
+
+      - name: Azure login
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/login@a65d910e8ad852c8061c6a574566ac474737110b # v2.2.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign desktop binaries
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        with:
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\pingduck_app\build\windows\x64\runner\Release
+          files-folder-filter: exe,dll
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Sign agent binary
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        with:
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\agent\target\release
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Compile installer
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" "/DAppBuild=${{ steps.version.outputs.build }}" installer\windows\pingduck.iss
+
+      - name: Sign installer
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        with:
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\installer\windows\Output
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Tag and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+          SIGNED: ${{ env.AZURE_CLIENT_ID != '' }}
+        run: |
+          git tag "desktop-v$VERSION"
+          git push origin "desktop-v$VERSION"
+
+          if [ "$SIGNED" = "true" ]; then
+            notes="PingDuck for Windows: the desktop app and the PingDuck Agent service. Digitally signed with Azure Artifact Signing."
+          else
+            notes="PingDuck for Windows: the desktop app and the PingDuck Agent service. Unsigned build; Windows SmartScreen may ask you to confirm."
+          fi
+
+          gh release create "desktop-v$VERSION" installer/windows/Output/PingDuckSetup.exe \
+            --title "PingDuck for Windows $VERSION" \
+            --notes "$notes"
