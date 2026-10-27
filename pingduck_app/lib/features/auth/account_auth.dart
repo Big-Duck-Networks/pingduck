@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/supabase_config.dart';
-import 'session.dart';
 
 /// Email and password accounts. Creating one upgrades this install's
 /// anonymous user in place, so its id (and the scan count tied to it) carries
@@ -65,11 +64,27 @@ class SupabaseAccountAuth implements AccountAuth {
   }
 
   @override
-  Future<void> signIn(String email, String password) => _auth.signInWithPassword(email: email, password: password);
+  Future<void> signIn(String email, String password) async {
+    final wasAnonymous = _auth.currentUser?.isAnonymous == true;
+    if (wasAnonymous) {
+      try {
+        await Supabase.instance.client.rpc('delete_account');
+      } catch (_) {}
+    }
+    await _auth.signInWithPassword(email: email, password: password);
+  }
 
   @override
   Future<bool> startSignUp(String email, String password) async {
-    await signedInClient();
+    final session = _auth.currentSession;
+    if (session == null) {
+      final res = await _auth.signUp(
+        email: email,
+        password: password,
+        emailRedirectTo: confirmEmailRedirect,
+      );
+      return res.session == null;
+    }
     // An anonymous user can only set a password once it has a confirmed email.
     final user = (await _auth.updateUser(UserAttributes(email: email), emailRedirectTo: confirmEmailRedirect)).user;
     if (user?.email != email) return true;
@@ -79,6 +94,15 @@ class SupabaseAccountAuth implements AccountAuth {
 
   @override
   Future<bool> completeSignUp(String email, String password) async {
+    final session = _auth.currentSession;
+    if (session == null) {
+      try {
+        await _auth.signInWithPassword(email: email, password: password);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
     // The link confirms the address on the server; a refresh brings it here.
     final user = (await _auth.refreshSession()).user;
     if (user?.email != email) return false;

@@ -69,6 +69,7 @@ class Onboarded extends Notifier<bool> {
   Future<void> complete() async {
     state = true;
     await ref.read(localStoreProvider).setSetting('onboarded', '1');
+    ref.read(supabaseSyncProvider.notifier).start();
   }
 }
 
@@ -115,8 +116,10 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startBilling();
-    // Cloud sync never blocks launch; it starts after the first frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startSync());
+    // Cloud sync never blocks launch; it starts after the first frame for onboarded users.
+    if (ref.read(onboardedProvider)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startSync());
+    }
     ref.read(pushAlertsProvider).listen(() => ref.read(supabaseSyncProvider.notifier).refresh());
     // Returning users get a fresh scan on launch unless they turned it off in
     // Settings; the server limits how often Free ones run. New users start it
