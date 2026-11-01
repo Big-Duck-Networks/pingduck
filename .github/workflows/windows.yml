@@ -147,7 +147,7 @@ jobs:
           timestamp-digest: SHA256
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PingDuckSetup-${{ steps.version.outputs.value }}+${{ steps.version.outputs.build }}
           path: installer/windows/Output/PingDuckSetup.exe
