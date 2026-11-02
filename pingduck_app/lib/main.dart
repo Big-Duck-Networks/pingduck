@@ -16,6 +16,7 @@ import 'features/onboarding/onboarding_screen.dart';
 import 'features/scanner/application/scan_controller.dart';
 import 'features/settings/presentation/settings_screen.dart';
 import 'features/shell/app_shell.dart';
+import 'services/analytics.dart';
 import 'services/billing.dart';
 import 'services/local_storage.dart';
 import 'services/plan.dart';
@@ -105,6 +106,17 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
     });
   }
 
+  Future<void> _startAnalytics() async {
+    try {
+      final store = ref.read(localStoreProvider);
+      final enabled = await isCrashReportingEnabled(store);
+      if (!mounted) return;
+      await ref.read(analyticsProvider).configure(enabled: enabled);
+    } catch (e) {
+      debugPrint('analytics: $e');
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -115,6 +127,7 @@ class _PingDuckAppState extends ConsumerState<PingDuckApp> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startAnalytics();
     _startBilling();
     // Cloud sync never blocks launch; it starts after the first frame for onboarded users.
     if (ref.read(onboardedProvider)) {

@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import '../../core/theme/pingduck_colors.dart';
 import '../../core/theme/pingduck_theme.dart';
 import '../../core/widgets/pd_widgets.dart';
+import '../../services/analytics.dart';
 import 'account_auth.dart';
 
 enum _Step { signIn, signUp, confirm, forgot, reset }
@@ -158,7 +159,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     final resend = _step == _Step.confirm;
     await _run(() async {
       final needsLink = await _auth.startSignUp(_emailText, _password.text);
-      if (!needsLink) return _done('Account created. You’re signed in.');
+      if (!needsLink) {
+        unawaited(ref.read(analyticsProvider).capture('user signed up'));
+        return _done('Account created. You’re signed in.');
+      }
       _toast(resend ? 'Sent a new link to $_emailText' : 'Confirmation link sent to $_emailText');
       if (!resend) _go(_Step.confirm);
     });
@@ -170,13 +174,17 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with WidgetsBinding
     if (quiet) {
       _checking = true;
       try {
-        if (await _auth.completeSignUp(_emailText, _password.text)) _done('Email confirmed. You’re signed in.');
+        if (await _auth.completeSignUp(_emailText, _password.text)) {
+          unawaited(ref.read(analyticsProvider).capture('user signed up'));
+          _done('Email confirmed. You’re signed in.');
+        }
       } catch (_) {}
       _checking = false;
       return;
     }
     await _run(() async {
       if (await _auth.completeSignUp(_emailText, _password.text)) {
+        unawaited(ref.read(analyticsProvider).capture('user signed up'));
         _done('Email confirmed. You’re signed in.');
       } else {
         _toast('Not confirmed yet. Tap the link in the email we sent to $_emailText.');

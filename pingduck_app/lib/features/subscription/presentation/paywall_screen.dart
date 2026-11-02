@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/widgets/pd_widgets.dart';
+import '../../../services/analytics.dart';
 import '../../../services/billing.dart';
 import '../../../services/external_links.dart';
 import '../../../services/plan.dart';
@@ -91,6 +94,12 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   /// After a purchase, while the webhook writes the entitlement.
   bool _confirming = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(ref.read(analyticsProvider).capture('paywall viewed'));
+  }
 
   Future<List<PlanOffer>> _load() async {
     final offers = await ref.read(billingProvider).offers();

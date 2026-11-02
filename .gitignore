@@ -18,3 +18,8 @@ Thumbs.db
 
 # Windows installer output (installer/windows/pingduck.iss)
 installer/windows/Output/
+
+# Environment files
+.env
+.env.*
+!.env.example
