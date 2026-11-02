@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ffi/scanner_bridge.dart';
 import '../../../core/network/network_context.dart';
+import '../../../services/analytics.dart';
 import '../../../services/local_storage.dart';
 import '../../../services/scan_quota.dart';
 import '../../auth/session.dart';
@@ -227,6 +228,8 @@ class ScanController extends Notifier<ScanState> {
       // Unicast discovery still works without it.
     }
 
+    final analytics = ref.read(analyticsProvider);
+    unawaited(analytics.capture('scan started', {'automatic': automatic}));
     final sampled = <String>{};
     try {
       final run = _bridge.scan(cidr: lan.cidr, timeout: timeout);
@@ -243,6 +246,11 @@ class ScanController extends Notifier<ScanState> {
         lastScanAt: now,
       );
       await _persist(networkId, now, lan.ssid);
+      unawaited(analytics.capture('scan finished', {
+        'automatic': automatic,
+        'cancelled': summary.cancelled,
+        'device_count': summary.deviceCount,
+      }));
     } on ScanFailure catch (f) {
       if (!ref.mounted) return;
       state = state.copyWith(phase: ScanPhase.failed, failure: f, finishedAt: DateTime.now());

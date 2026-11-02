@@ -11,6 +11,7 @@ import 'package:pingduck_app/features/agent/domain/agent_unit.dart';
 import 'package:pingduck_app/features/auth/account_auth.dart';
 import 'package:pingduck_app/features/scanner/domain/discovered_device.dart';
 import 'package:pingduck_app/features/scanner/domain/remote_device.dart';
+import 'package:pingduck_app/services/analytics.dart';
 import 'package:pingduck_app/services/billing.dart';
 import 'package:pingduck_app/services/local_storage.dart';
 import 'package:pingduck_app/services/plan.dart';
@@ -440,4 +441,38 @@ class FakeBilling implements Billing {
 
   @override
   Future<SubscriptionDetails?> details() async => subscription;
+}
+
+class FakeAnalytics implements Analytics {
+  bool? configuredEnabled;
+  bool enabled = true;
+  final events = <Map<String, Object?>>[];
+  final exceptions = <Object>[];
+
+  @override
+  Future<void> configure({required bool enabled}) async {
+    configuredEnabled = enabled;
+    this.enabled = enabled;
+  }
+
+  @override
+  Future<void> setEnabled(bool enabled) async {
+    this.enabled = enabled;
+  }
+
+  @override
+  Future<void> capture(String event, [Map<String, Object>? properties]) async {
+    if (!enabled) return;
+    final cleaned = sanitizeAnalyticsProperties(properties);
+    events.add({
+      'event': event,
+      if (cleaned != null) 'properties': cleaned,
+    });
+  }
+
+  @override
+  Future<void> captureException(Object error, {StackTrace? stackTrace}) async {
+    if (!enabled) return;
+    exceptions.add(error);
+  }
 }

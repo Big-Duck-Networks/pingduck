@@ -20,6 +20,7 @@ import '../../scanner/application/scan_controller.dart';
 import '../../shell/app_shell.dart';
 import '../../subscription/presentation/paywall_screen.dart';
 import '../../tools/presentation/tools_screen.dart';
+import 'privacy_settings_screen.dart';
 
 export '../../../services/scan_quota.dart'
     show autoScanOnLaunchKey, defaultAutoScanOnLaunch, isAutoScanOnLaunchEnabled, setAutoScanOnLaunch;
@@ -94,6 +95,7 @@ class _AppSettingsTab extends ConsumerWidget {
                 ? 'Android only for now'
                 : null;
     final themeMode = ref.watch(appThemeModeProvider);
+    final crashReporting = ref.watch(crashReportingProvider).value ?? true;
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -220,6 +222,19 @@ class _AppSettingsTab extends ConsumerWidget {
             ),
           ),
         ],
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+
+        // PRIVACY Section
+        const _SectionHeader('PRIVACY'),
+        _SettingRow(
+          title: 'Privacy settings',
+          subtitle: crashReporting ? 'Crash reporting on · Privacy policy & terms' : 'Crash reporting off · Privacy policy & terms',
+          trailing: Icon(Icons.chevron_right, size: 22, color: PingDuckColors.inkMuted),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const PrivacySettingsScreen()),
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
         const SizedBox(height: 32),
       ],
     );

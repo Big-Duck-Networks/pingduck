@@ -3,16 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import '../../../services/analytics.dart';
 import '../../../services/external_links.dart';
 import '../../scanner/application/scan_controller.dart';
 
-const crashReportingKey = 'crashReporting';
+export '../../../services/analytics.dart'
+    show crashReportingKey, isCrashReportingEnabled, setCrashReportingEnabled;
 
 /// Whether crash reporting is enabled (defaults to true / '1').
 final crashReportingProvider = FutureProvider<bool>((ref) async {
-  final store = ref.read(localStoreProvider);
-  final val = await store.setting(crashReportingKey);
-  return val != '0';
+  return isCrashReportingEnabled(ref.read(localStoreProvider));
 });
 
 /// Screen displaying Analytics Settings (Crash reporting toggle) and
@@ -99,10 +99,11 @@ class PrivacySettingsScreen extends ConsumerWidget {
                   value: crashReporting,
                   activeTrackColor: PingDuckColors.route,
                   onChanged: (enabled) async {
-                    await ref.read(localStoreProvider).setSetting(
-                          crashReportingKey,
-                          enabled ? '1' : '0',
-                        );
+                    await setCrashReportingEnabled(
+                      ref.read(localStoreProvider),
+                      ref.read(analyticsProvider),
+                      enabled,
+                    );
                     ref.invalidate(crashReportingProvider);
                   },
                 ),
