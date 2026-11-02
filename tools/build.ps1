@@ -35,10 +35,11 @@ try {
   $version, $build = $full -split '\+'
   Write-Output "Building $Target $version ($build) [flavor: $Flavor]"
 
+  $defineArgs = if (Test-Path '.env') { @('--dart-define-from-file=.env') } else { @() }
   switch ($Target) {
-    'apk' { Invoke-Checked 'flutter build apk' { flutter build apk --release --flavor $Flavor } }
-    'appbundle' { Invoke-Checked 'flutter build appbundle' { flutter build appbundle --release --flavor prod } }
-    { $_ -in 'windows', 'installer' } { Invoke-Checked 'flutter build windows' { flutter build windows --release } }
+    'apk' { Invoke-Checked 'flutter build apk' { flutter build apk --release --flavor $Flavor @defineArgs } }
+    'appbundle' { Invoke-Checked 'flutter build appbundle' { flutter build appbundle --release --flavor prod @defineArgs } }
+    { $_ -in 'windows', 'installer' } { Invoke-Checked 'flutter build windows' { flutter build windows --release @defineArgs } }
   }
 
   if ($Target -eq 'installer') {
