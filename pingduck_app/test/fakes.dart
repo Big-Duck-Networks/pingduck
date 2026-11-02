@@ -464,10 +464,9 @@ class FakeAnalytics implements Analytics {
   Future<void> capture(String event, [Map<String, Object>? properties]) async {
     if (!enabled) return;
     final cleaned = sanitizeAnalyticsProperties(properties);
-    events.add({
-      'event': event,
-      if (cleaned != null) 'properties': cleaned,
-    });
+    final map = <String, Object?>{'event': event};
+    if (cleaned != null) map['properties'] = cleaned;
+    events.add(map);
   }
 
   @override

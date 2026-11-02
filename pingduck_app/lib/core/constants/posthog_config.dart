@@ -6,7 +6,7 @@
 /// analytics and crash reporting stay off.
 const posthogProjectToken = String.fromEnvironment(
   'POSTHOG_PROJECT_TOKEN',
-  defaultValue: 'phc_REPLACE_ME',
+  defaultValue: 'phc_tuYVFXrmRmPPJUciDe41N7ygqpB5mSBUCsWlgod4rLrd',
 );
 
 const posthogHost = String.fromEnvironment(
