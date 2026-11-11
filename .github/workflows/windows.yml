@@ -66,7 +66,7 @@ jobs:
           cache: true
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@d3a1f87b8d7899a805bf9652a9254308a5a40b9d # v4.3.1
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '8.0.x'
 
@@ -96,7 +96,7 @@ jobs:
 
       - name: Azure login
         if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
-        uses: azure/login@a65d910e8ad852c8061c6a574566ac474737110b # v2.2.0
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -104,7 +104,7 @@ jobs:
 
       - name: Sign desktop binaries
         if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
-        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
           signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
@@ -117,7 +117,7 @@ jobs:
 
       - name: Sign agent binary
         if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
-        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
           signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
@@ -135,7 +135,7 @@ jobs:
 
       - name: Sign installer
         if: (inputs.sign || github.event.inputs.sign == 'true') && env.AZURE_CLIENT_ID != ''
-        uses: azure/artifact-signing-action@d44696c21e64627d3511eb9e2b17f9361aa55e3c # v2.0.1
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
           signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}

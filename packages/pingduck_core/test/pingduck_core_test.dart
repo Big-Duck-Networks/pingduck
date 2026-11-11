@@ -79,11 +79,13 @@ void main() {
   }, skip: skip);
 
   test('diagnostics: ping, ports, reverse lookup', () async {
-    final gw = core!.defaultInterface()!.gateway!;
-    expect(await core.ping(gw), isNotNull);
-    expect(await core.ping('192.0.2.1', timeout: const Duration(milliseconds: 300)), isNull);
-    expect(await core.openPorts(gw, [80, 443, 1]), isA<Set<int>>());
-    await core.reverseLookup(gw);  // may legitimately be null
-    expect(() => core!.ping('bogus'), throwsA(isA<PingDuckException>()));
+    // Captured nullable vars lose promotion across awaits; bind a local.
+    final c = core!;
+    final gw = c.defaultInterface()!.gateway!;
+    expect(await c.ping(gw), isNotNull);
+    expect(await c.ping('192.0.2.1', timeout: const Duration(milliseconds: 300)), isNull);
+    expect(await c.openPorts(gw, [80, 443, 1]), isA<Set<int>>());
+    await c.reverseLookup(gw);  // may legitimately be null
+    expect(() => c.ping('bogus'), throwsA(isA<PingDuckException>()));
   }, skip: skip, timeout: const Timeout(Duration(seconds: 30)));
 }
