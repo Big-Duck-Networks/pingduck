@@ -7,12 +7,6 @@ name: agent
 # release-agent.yml, which re-tags one of these images.
 
 on:
-  push:
-    branches: [main]
-    paths: ["agent/**", "core/**", ".dockerignore", ".github/workflows/agent.yml"]
-  # Every PR, so "agent ci" always reports; the changes job skips the
-  # real work when none of the paths above changed.
-  pull_request:
   workflow_dispatch:
 
 permissions:

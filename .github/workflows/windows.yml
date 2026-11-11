@@ -1,20 +1,10 @@
 name: windows
 
 # Builds the Windows desktop installer (PingDuckSetup.exe: desktop app + agent service).
-# - On push to main (when app/agent/core/installer paths change): builds an installer artifact.
 # - On workflow_dispatch: can build on demand, with optional signing.
 # - Reusable workflow (workflow_call) to produce a signed release build.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "pingduck_app/**"
-      - "agent/**"
-      - "core/**"
-      - "packages/**"
-      - "installer/**"
-      - ".github/workflows/windows.yml"
   workflow_dispatch:
     inputs:
       sign:

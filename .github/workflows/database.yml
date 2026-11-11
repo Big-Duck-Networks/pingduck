@@ -6,12 +6,6 @@ name: database
 # them is the "Deploy database" workflow's job (Phase 4 of the plan).
 
 on:
-  push:
-    branches: [main]
-    paths: ["supabase/**", ".github/workflows/database.yml"]
-  # Every PR, so "database ci" always reports; the changes job skips the
-  # real work when none of the paths above changed.
-  pull_request:
   workflow_dispatch:
 
 permissions:

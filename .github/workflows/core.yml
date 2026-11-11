@@ -5,15 +5,6 @@ name: core
 # comment names the release, and Dependabot keeps both current.
 
 on:
-  push:
-    branches: [main]
-    paths: ["core/**", "packages/pingduck_core/**", ".github/workflows/core.yml"]
-  # Every PR, so "core ci" always reports; the changes job skips the
-  # real work when none of the paths above changed.
-  pull_request:
-  # Weekly, so fuzzing and the Apple builds still run while core is quiet.
-  schedule:
-    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 permissions:
