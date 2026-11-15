@@ -92,7 +92,7 @@ runs:
     - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
       if: inputs.check-migrations == 'true'
       with:
-        version: latest
+        version: 3.1.0
 
     - name: Production has every migration
       if: inputs.check-migrations == 'true'
@@ -103,7 +103,7 @@ runs:
           exit 1
         fi
         supabase link --project-ref "$SUPABASE_PROJECT_REF"
-        supabase db push --dry-run 2>&1 | tee pending.txt
+        supabase db push --remote --dry-run 2>&1 | tee pending.txt
         if ! grep -q "up to date" pending.txt; then
           echo "::error::Production lacks migrations. Run Deploy database first."
           exit 1
