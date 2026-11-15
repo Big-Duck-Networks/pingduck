@@ -6,6 +6,7 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../features/scanner/application/scan_controller.dart';
+import 'updates.dart';
 
 /// PingDuck for Windows, like Fing Desktop: a normal window that closes to
 /// the tray and can start with Windows (minimized). Elsewhere every call
@@ -41,6 +42,12 @@ Future<void> initDesktop(List<String> args) async {
   await windowManager.setPreventClose(true);
 }
 
+/// Quit for real (the tray's Quit, or before an update installs).
+Future<void> quitDesktopApp() async {
+  await trayManager.destroy();
+  await windowManager.destroy();
+}
+
 /// Registers the tray icon and the close-to-tray behaviour around the app.
 class DesktopShell extends ConsumerStatefulWidget {
   const DesktopShell({super.key, required this.child});
@@ -51,7 +58,7 @@ class DesktopShell extends ConsumerStatefulWidget {
 }
 
 class _DesktopShellState extends ConsumerState<DesktopShell> with WindowListener, TrayListener {
-  static const _open = 'open', _scan = 'scan', _quit = 'quit';
+  static const _open = 'open', _scan = 'scan', _update = 'update', _quit = 'quit';
 
   @override
   void initState() {
@@ -60,16 +67,26 @@ class _DesktopShellState extends ConsumerState<DesktopShell> with WindowListener
     windowManager.addListener(this);
     trayManager.addListener(this);
     _setUpTray();
+    ref.read(desktopUpdaterProvider.notifier).start();
   }
 
   Future<void> _setUpTray() async {
     await trayManager.setIcon('assets/branding/tray.ico');
-    await trayManager.setToolTip('PingDuck');
+    await _setTrayMenu(null);
+  }
+
+  /// The menu gains "Install update" while a newer release is waiting.
+  Future<void> _setTrayMenu(UpdateManifest? update) async {
+    await trayManager.setToolTip(update == null ? 'PingDuck' : 'PingDuck · Update available');
     await trayManager.setContextMenu(
       Menu(
         items: [
           MenuItem(key: _open, label: 'Open PingDuck'),
           MenuItem(key: _scan, label: 'Scan now'),
+          if (update != null) ...[
+            MenuItem.separator(),
+            MenuItem(key: _update, label: 'Install update (v${update.version})'),
+          ],
           MenuItem.separator(),
           MenuItem(key: _quit, label: 'Quit PingDuck'),
         ],
@@ -107,14 +124,20 @@ class _DesktopShellState extends ConsumerState<DesktopShell> with WindowListener
         _show();
       case _scan:
         ref.read(scanControllerProvider.notifier).scan();
+      case _update:
+        ref.read(desktopUpdaterProvider.notifier).install();
       case _quit:
-        trayManager.destroy();
-        windowManager.destroy();
+        quitDesktopApp();
     }
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    if (isDesktop) {
+      ref.listen(desktopUpdaterProvider.select((s) => s.manifest), (_, update) => _setTrayMenu(update));
+    }
+    return widget.child;
+  }
 }
 
 /// "Start PingDuck with Windows": a value under the user's Run key (no admin).

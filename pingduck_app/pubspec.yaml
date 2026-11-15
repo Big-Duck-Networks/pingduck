@@ -53,6 +53,7 @@ dependencies:
   url_launcher: ^6.3.3
   flutter_svg: ^2.3.0
   posthog_flutter: ^5.58.0
+  crypto: ^3.0.7  # SHA-256 of Windows updates (lib/core/desktop/updates.dart)
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -3,10 +3,28 @@ name: release windows
 # Releases PingDuck for Windows (desktop app + PingDuck Agent service):
 # 1. Release guard checks that main is green, the tag is new, and production DB has every migration.
 # 2. Builds the desktop app and agent service, signing them with Azure Artifact Signing if configured.
-# 3. Tags desktop-vX.Y.Z and publishes the GitHub release with PingDuckSetup.exe attached.
+# 3. Tags desktop-vX.Y.Z and publishes the GitHub release with PingDuckSetup.exe and
+#    latest.json attached, marked as the repo's latest release.
+#
+# releases/latest belongs to Windows: agent and Android releases pass --latest=false. Two
+# things read it:
+# - pingduck.app/download/windows (the /agent button) redirects to
+#   releases/latest/download/PingDuckSetup.exe;
+# - the app's updater (pingduck_app/lib/core/desktop/updates.dart) reads
+#   releases/latest/download/latest.json and compares its build with its own.
 
 on:
   workflow_dispatch:
+    inputs:
+      notes:
+        description: "What's new (shown in the app's update prompt and on the release)"
+        type: string
+        required: false
+        default: ""
+      required:
+        description: "Required update: older builds install it without waiting for the user"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -63,7 +81,23 @@ jobs:
       AZURE_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
       AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
       AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT || 'https://eus.codesigning.azure.net/' }}
+      # Production Supabase, for recording the release (public values, the
+      # same ones pingduck.app ships).
+      SUPABASE_URL: https://rumwtzzyrhzudguolasq.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_eWbf9jGpxBWQ6t7Vtz8r5A_mWfdmVrK
     steps:
+      # Before anything is built or tagged: a release the website can't learn
+      # about would leave pingduck.app offering the previous build.
+      - name: Check release token
+        shell: bash
+        env:
+          RELEASE_RECORD_TOKEN: ${{ secrets.RELEASE_RECORD_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_RECORD_TOKEN" ]; then
+            echo "::error::Repo secret RELEASE_RECORD_TOKEN is missing (see supabase/migrations/20261114130000_app_releases.sql)."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -151,12 +185,47 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      - name: Update manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+          BUILD: ${{ steps.version.outputs.build }}
+          SIGNED: ${{ env.AZURE_CLIENT_ID != '' }}
+          NOTES: ${{ inputs.notes }}
+          REQUIRED: ${{ inputs.required }}
+        run: |
+          setup=installer/windows/Output/PingDuckSetup.exe
+          # A required release raises the floor to itself; otherwise keep the
+          # last release's floor, so a skipped required update stays required.
+          if [ "$REQUIRED" = "true" ]; then
+            min="$BUILD"
+          else
+            min=$(gh release download -p latest.json -O - 2>/dev/null | jq -r '.minimumBuild // 0' || echo 0)
+            min=${min:-0}
+          fi
+          jq -n \
+            --arg version "$VERSION" \
+            --argjson build "$BUILD" \
+            --arg url "https://github.com/${{ github.repository }}/releases/download/desktop-v$VERSION/PingDuckSetup.exe" \
+            --arg sha256 "$(sha256sum "$setup" | cut -d' ' -f1)" \
+            --argjson size "$(stat -c %s "$setup")" \
+            --arg notes "$NOTES" \
+            --argjson minimumBuild "$min" \
+            --argjson signed "$SIGNED" \
+            --arg published "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{version: $version, build: $build, url: $url, sha256: $sha256, size: $size,
+              notes: $notes, minimumBuild: $minimumBuild, signed: $signed, published: $published}' \
+            > installer/windows/Output/latest.json
+          cat installer/windows/Output/latest.json
+
       - name: Tag and release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.value }}
           SIGNED: ${{ env.AZURE_CLIENT_ID != '' }}
+          NOTES: ${{ inputs.notes }}
         run: |
           git tag "desktop-v$VERSION"
           git push origin "desktop-v$VERSION"
@@ -166,7 +235,39 @@ jobs:
           else
             notes="PingDuck for Windows: the desktop app and the PingDuck Agent service. Unsigned build; Windows SmartScreen may ask you to confirm."
           fi
+          if [ -n "$NOTES" ]; then
+            notes="$NOTES"$'\n\n'"$notes"
+          fi
 
-          gh release create "desktop-v$VERSION" installer/windows/Output/PingDuckSetup.exe \
+          gh release create "desktop-v$VERSION" \
+            installer/windows/Output/PingDuckSetup.exe \
+            installer/windows/Output/latest.json \
+            --latest \
             --title "PingDuck for Windows $VERSION" \
             --notes "$notes"
+
+      # pingduck.app reads the download link from here (current_app_release).
+      # The token goes over stdin, never on a command line.
+      - name: Record release in Supabase
+        shell: bash
+        env:
+          RELEASE_RECORD_TOKEN: ${{ secrets.RELEASE_RECORD_TOKEN }}
+        run: |
+          body() {
+            jq --arg token "$RELEASE_RECORD_TOKEN" --arg commit "$GITHUB_SHA" '{
+              p_token: $token, p_platform: "windows", p_version: .version, p_build: .build,
+              p_tag: ("desktop-v" + .version), p_url: .url, p_sha256: .sha256, p_size: .size,
+              p_notes: .notes, p_minimum_build: .minimumBuild, p_signed: .signed, p_commit_sha: $commit
+            }' installer/windows/Output/latest.json
+          }
+          for attempt in 1 2 3; do
+            if body | curl -sS --fail-with-body -X POST "$SUPABASE_URL/rest/v1/rpc/record_app_release" \
+                -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -H "Content-Type: application/json" --data @-; then
+              echo
+              echo "Recorded. pingduck.app/download/windows now serves this build."
+              exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          echo "::error::The GitHub release exists, but recording it in Supabase failed, so pingduck.app still offers the previous build. Fix the cause, then run this step's request by hand (docs/RELEASING.md, Windows)."
+          exit 1

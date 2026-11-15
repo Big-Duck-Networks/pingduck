@@ -89,7 +89,8 @@ jobs:
         run: |
           git tag "app-v$VERSION" "$BUILT"
           git push origin "app-v$VERSION"
-          gh release create "app-v$VERSION" "$AAB" --generate-notes --title "PingDuck $VERSION (Android)"
+          # --latest=false: releases/latest is the Windows download (see release-windows.yml).
+          gh release create "app-v$VERSION" "$AAB" --generate-notes --latest=false --title "PingDuck $VERSION (Android)"
           {
             echo "### Released \`app-v$VERSION\`"
             echo "Upload \`$AAB\` from the release to Play by hand: internal testing first, then closed testing or production."

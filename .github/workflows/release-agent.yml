@@ -88,4 +88,5 @@ jobs:
         run: |
           git tag "agent-v$VERSION" "$BUILT"
           git push origin "agent-v$VERSION"
-          gh release create "agent-v$VERSION" --generate-notes --title "PingDuck Agent $VERSION"
+          # --latest=false: releases/latest is the Windows download (see release-windows.yml).
+          gh release create "agent-v$VERSION" --generate-notes --latest=false --title "PingDuck Agent $VERSION"

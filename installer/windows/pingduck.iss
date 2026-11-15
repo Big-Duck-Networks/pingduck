@@ -8,6 +8,12 @@
 ; ("version: 1.0.0+14"); /DAppVersion= or /DAppBuild= override them.
 ; Output: installer\windows\Output\PingDuckSetup.exe
 ;
+; In-app updates (pingduck_app/lib/core/desktop/updates.dart) run this with
+;   /SILENT /SUPPRESSMSGBOXES /NORESTART /UPDATE=1
+; which keeps the previous tasks (shortcut, start with Windows) and reopens
+; the app when done. A plain silent install (/SILENT without /UPDATE=1, e.g.
+; an IT deployment) doesn't open it.
+;
 ; The installer registers the PingDuckAgent service and opens the Windows
 ; Firewall for the phone (TCP 44480, UDP 1900, private networks), both via
 ; `pingduck-agent.exe install`.
@@ -111,6 +117,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 [Run]
 Filename: "{app}\pingduck-agent.exe"; Parameters: "install"; StatusMsg: "Starting the PingDuck Agent service..."; Flags: runhidden waituntilterminated
 Filename: "{app}\PingDuck.exe"; Description: "Open PingDuck"; Flags: postinstall nowait skipifsilent
+; After an in-app update: reopen the app as the signed-in user, not as admin.
+Filename: "{app}\PingDuck.exe"; Flags: nowait runasoriginaluser skipifnotsilent; Check: IsInAppUpdate
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM PingDuck.exe /F"; Flags: runhidden; RunOnceId: "KillApp"
@@ -118,6 +126,12 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/IM PingDuck.exe /F"; Flags: runhid
 [Code]
 var
   PurgeData: Boolean;
+
+// Set by the app's updater (/UPDATE=1).
+function IsInAppUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATE|0}') = '1';
+end;
 
 function RunHidden(const Exe, Params: String): Integer;
 var
