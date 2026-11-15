@@ -48,7 +48,37 @@ Users on `:latest` only get released versions; `:edge` follows `main`.
 
 1. Change `version:` in `pingduck_app/pubspec.yaml` (e.g. `1.0.0` to `1.0.1`; CI stamps the build number). Merge.
 2. Wait for `windows.yml` on `main` to build the installer artifact and ensure `agent.yml` and `app.yml` are green.
-3. Run **release windows** (Actions › release windows › Run workflow). It checks the release guard (tag `desktop-vX.Y.Z`, `windows.yml`, `agent.yml`, `app.yml`, `core.yml`, and database migrations), builds, signs with Azure Artifact Signing (when configured), tags `desktop-vX.Y.Z`, and creates the GitHub release with `PingDuckSetup.exe` attached.
+3. Run **release windows** (Actions › release windows › Run workflow). Two optional inputs:
+   - **notes**: what's new. The app shows it in its update prompt, and it heads the release notes.
+   - **required**: tick it for a fix older builds must not stay without (a security fix, or a server change they can't handle). Older builds then install it on their next daily check without waiting for a click, though Windows still asks for permission. It stays required for every later release, until a newer release is marked required.
+
+   It checks the release guard (tag `desktop-vX.Y.Z`, `windows.yml`, `agent.yml`, `app.yml`, `core.yml`, and database migrations), builds, signs with Azure Artifact Signing (when configured), tags `desktop-vX.Y.Z`, and creates the GitHub release with `PingDuckSetup.exe` and `latest.json` attached, marked as the repo's **latest** release. Last, it records the release in Supabase (`public.app_releases`: version, build, tag, the direct GitHub link, SHA-256, size, notes, minimum build, signed, commit). It refuses to start without the `RELEASE_RECORD_TOKEN` secret.
+
+That release is the whole delivery. Nothing else needs changing:
+
+- **Downloads.** pingduck.app reads the current release from Supabase (`current_app_release('windows')`, cached for about a minute). The `/agent` button links straight to its GitHub download and shows its version and size, and `pingduck.app/download/windows` redirects there. With no release in Supabase (or Supabase unreachable) the button is disabled ("coming soon" before the first release) and `pingduck.app/download/windows` redirects to `/agent`.
+- **If recording fails**, the release step fails after the GitHub release exists, and the site keeps offering the previous build. Fix the cause, then record it from the SQL editor: `insert into public.app_releases (platform, version, build, tag, url, sha256, size_bytes, notes, minimum_build, signed) values ('windows', …)`, with the values from the release's `latest.json`.
+- **Updates.** The app reads `releases/latest/download/latest.json` about 20 seconds after launch and then daily, and compares its `build` with its own build number. A newer build shows **Update** under App settings › Updates and **Install update** in the tray menu. Installing downloads the installer, checks its size and SHA-256 against `latest.json` (and, once builds are signed, that it's signed by Big Duck Networks), runs it silently through Windows' admin prompt, and the installer reopens the app. Code: `pingduck_app/lib/core/desktop/updates.dart`. The agent service is in the same installer, so it updates with the app.
+
+**Releases/latest belongs to Windows.** `release agent` and `release android` pass `--latest=false`. Never mark another release as latest by hand: the download link and every installed app's update check would go to it and fail.
+
+`latest.json`:
+
+```json
+{
+  "version": "1.0.1",
+  "build": 412,
+  "url": "https://github.com/Big-Duck-Networks/pingduck/releases/download/desktop-v1.0.1/PingDuckSetup.exe",
+  "sha256": "…",
+  "size": 14262784,
+  "notes": "Faster scans on large networks.",
+  "minimumBuild": 0,
+  "signed": true,
+  "published": "2026-11-20T15:04:05Z"
+}
+```
+
+`build` is CI's build number (the commit count on `main`), shown in the app as `v1.0.1 (412)`. `minimumBuild` is the required floor.
 
 If Azure Artifact Signing secrets are configured, `PingDuck.exe`, `pingduck-agent.exe`, and `PingDuckSetup.exe` are digitally signed, avoiding Windows SmartScreen warnings. Otherwise, an unsigned release is produced.
 
@@ -58,7 +88,7 @@ If Azure Artifact Signing secrets are configured, `PingDuck.exe`, `pingduck-agen
 | --- | --- |
 | Android | Play has no real rollback. Halt the staged rollout in Play Console, then release a fix with a higher version. |
 | Agent | Point `:latest` back: `docker buildx imagetools create -t ghcr.io/big-duck-networks/pingduck-agent:latest ghcr.io/big-duck-networks/pingduck-agent:<previous version>` |
-| Windows | Delete the bad GitHub release, so `releases/latest` falls back to the one before. |
+| Windows | Withdraw it in Supabase (`update public.app_releases set withdrawn_at = now() where tag = 'desktop-v<bad>'`), so the website offers the previous build within a minute or two. Mark the previous release as latest (`gh release edit desktop-v<previous> --latest`) so installed apps stop being offered the bad build, then delete the bad release. Apps that already installed it don't go back, because they only take a higher build: release a fix with a new version instead. |
 | Database | Fix forward with a new migration. Each migration runs in its own transaction, so a failed `db push` leaves the earlier ones applied. |
 
 ## Rules
@@ -77,6 +107,7 @@ If Azure Artifact Signing secrets are configured, `PingDuck.exe`, `pingduck-agen
 | Supabase | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF` on both the `database-check` (no reviewer, dry runs only) and `production-database` (your approval) environments | Set (2026-10-12) |
 | Migration history | `supabase migration repair` so production's history matches `supabase/migrations` | Done; Deploy database refuses to run if the first migration shows as pending |
 | GHCR package | GitHub org › Packages › `pingduck-agent` | Private until launch, then make it public |
+| Windows release token | Repo secret `RELEASE_RECORD_TOKEN`, and its SHA-256 in `private.release_keys` (see `supabase/migrations/20261114130000_app_releases.sql`). It can only record releases. | Pending |
 | Windows code signing | Azure Artifact Signing (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_SIGNING_ACCOUNT_NAME`, `AZURE_CERTIFICATE_PROFILE_NAME`, `AZURE_SIGNING_ENDPOINT`) | Workflows wired; Azure account setup pending |
 
 ### Rotating a secret

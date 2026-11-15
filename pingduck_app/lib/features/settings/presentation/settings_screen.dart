@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_version.dart';
 import '../../../core/constants/revenuecat_config.dart';
+import '../../../core/desktop/desktop.dart';
+import '../../../core/desktop/updates.dart';
 import '../../../core/theme/pingduck_colors.dart';
 import '../../../core/theme/pingduck_theme.dart';
 import '../../../core/theme/theme_mode_provider.dart';
@@ -235,6 +238,12 @@ class _AppSettingsTab extends ConsumerWidget {
           ),
         ),
         Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+
+        if (isDesktop) ...[
+          const _SectionHeader('UPDATES'),
+          const _WindowsUpdateRow(),
+          Divider(height: 1, thickness: 1, color: PingDuckColors.hairline),
+        ],
         const SizedBox(height: 32),
       ],
     );
@@ -427,6 +436,62 @@ class _AppSettingsTab extends ConsumerWidget {
 }
 
 
+
+/// PingDuck for Windows: this version, and a newer release when there is one.
+class _WindowsUpdateRow extends ConsumerWidget {
+  const _WindowsUpdateRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final u = ref.watch(desktopUpdaterProvider);
+    final updater = ref.read(desktopUpdaterProvider.notifier);
+    final current = 'v${AppVersion.versionName} (${AppVersion.buildNumber})';
+    final next = u.manifest == null ? '' : 'v${u.manifest!.version}';
+    final subtitle = switch (u.phase) {
+      UpdatePhase.checking => 'Checking for updates…',
+      UpdatePhase.upToDate => '$current · Up to date',
+      UpdatePhase.available => '$next is ready · You have $current${u.error == null ? '' : ' · ${u.error}'}',
+      UpdatePhase.downloading => 'Downloading $next · ${((u.progress ?? 0) * 100).round()}%',
+      UpdatePhase.installing => 'Waiting for Windows to allow the update…',
+      UpdatePhase.failed => u.error ?? 'Couldn’t update.',
+      UpdatePhase.idle => '$current · Checks for updates daily',
+    };
+    void onTap() => u.hasUpdate ? _confirm(context, updater, u.manifest!) : updater.check(userAsked: true);
+    return _SettingRow(
+      title: 'PingDuck for Windows',
+      subtitle: subtitle,
+      trailing: u.isBusy
+          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+          : _PillBadge(label: u.hasUpdate ? 'Update' : 'Check', onTap: onTap),
+      onTap: u.isBusy ? null : onTap,
+    );
+  }
+
+  static Future<void> _confirm(BuildContext context, DesktopUpdater updater, UpdateManifest m) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Update to PingDuck ${m.version}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (m.notes.isNotEmpty) ...[Text(m.notes), const SizedBox(height: 12)],
+            const Text(
+              'Windows asks for permission, PingDuck closes, and it reopens when the update is done. '
+              'Monitoring pauses for about a minute.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Later')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Update')),
+        ],
+      ),
+    );
+    if (go == true) await updater.install();
+  }
+}
 
 /// Category section header.
 class _SectionHeader extends StatelessWidget {

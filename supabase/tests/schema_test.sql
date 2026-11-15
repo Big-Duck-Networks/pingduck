@@ -359,6 +359,35 @@ set role anon;
 select pg_temp.expect_error($$select join_waitlist('late@example.com')$$, 'busy');
 reset role;
 
+-- ---- App releases: CI records with a release token, the website reads --------
+insert into private.release_keys (sha256, label)
+values (encode(sha256(convert_to('test-release-token', 'UTF8')), 'hex'), 'test');
+create function pg_temp.record(p_token text, p_version text, p_build int, p_url text default null) returns jsonb
+language sql as $$
+    select record_app_release(p_token, 'windows', p_version, p_build, 'desktop-v' || p_version,
+        coalesce(p_url, 'https://github.com/Big-Duck-Networks/pingduck/releases/download/desktop-v' || p_version || '/PingDuckSetup.exe'),
+        repeat('ab', 32), 14000000, 'Notes for ' || p_version, 0, false, null)
+$$;
+grant execute on function pg_temp.record(text, text, int, text) to anon, authenticated;
+
+set role anon;
+select pg_temp.check(current_app_release('windows') is null, 'no release yet reads as null');
+select pg_temp.expect_error($$select pg_temp.record('wrong-token', '1.0.1', 20)$$, 'invalid release token');
+select pg_temp.expect_error($$select pg_temp.record(null, '1.0.1', 20)$$, 'invalid release token');
+select pg_temp.expect_error($$select pg_temp.record('test-release-token', '1.0.1', 20, 'https://evil.example/PingDuckSetup.exe')$$, 'app_releases_url_check');
+select pg_temp.check(pg_temp.record('test-release-token', '1.0.1', 20) ->> 'version' = '1.0.1', 'CI records a release');
+select pg_temp.record('test-release-token', '1.0.2', 25);
+select pg_temp.check((current_app_release('windows') ->> 'build')::int = 25, 'the newest build is current');
+select pg_temp.check(current_app_release('windows') ->> 'url' like '%/desktop-v1.0.2/PingDuckSetup.exe', 'current release carries the direct GitHub link');
+select pg_temp.check((pg_temp.record('test-release-token', '1.0.2', 25) ->> 'build')::int = 25, 'a retried release updates its row');
+select pg_temp.expect_error($$select count(*) from app_releases$$, 'permission denied');
+select pg_temp.expect_error($$select count(*) from private.release_keys$$, 'permission denied');
+reset role;
+update app_releases set withdrawn_at = now() where tag = 'desktop-v1.0.2';
+set role anon;
+select pg_temp.check(current_app_release('windows') ->> 'version' = '1.0.1', 'withdrawing a release falls back to the one before');
+reset role;
+
 reset role;
 rollback;
 select 'ALL SCHEMA TESTS PASSED' as result;
