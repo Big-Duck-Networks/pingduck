@@ -78,12 +78,13 @@ jobs:
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         if: env.SUPABASE_ACCESS_TOKEN != ''
         with:
-          version: latest
+          version: 3.1.0
       - name: List migrations production lacks
         if: env.SUPABASE_ACCESS_TOKEN != ''
         run: |
+          set -o pipefail
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          supabase db push --dry-run 2>&1 | tee pending.txt
+          supabase db push --remote --dry-run 2>&1 | tee pending.txt
           {
             echo '### Production database'
             echo '```'

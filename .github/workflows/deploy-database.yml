@@ -37,11 +37,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
-          version: latest
+          version: 3.1.0
       - name: Dry run
         run: |
+          set -o pipefail
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          supabase db push --dry-run 2>&1 | tee pending.txt
+          supabase db push --remote --dry-run 2>&1 | tee pending.txt
           {
             echo '### Pending migrations'
             echo '```'
@@ -55,13 +56,13 @@ jobs:
             exit 1
           fi
       - name: Push
-        run: supabase db push
+        run: supabase db push --remote --yes
       - name: Migration history
         if: always()
         run: |
           {
             echo '### Migration history after the run'
             echo '```'
-            supabase migration list 2>&1
+            supabase migration list --remote 2>&1
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
